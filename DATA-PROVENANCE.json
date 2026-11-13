@@ -1,0 +1,26 @@
+{
+  "schema": "haic-public-projection-provenance/1",
+  "verification_scope": "publication_normalized_facts",
+  "source_catalog": "runtime-packet/SOURCE-CATALOG.json",
+  "projection_inputs": "docs/PROJECTION-INPUTS.json",
+  "source_terms": "DATA-NOTICES.md",
+  "historical_r2_inputs": "docs/R2-INPUTS.json",
+  "original_capture_hashes_are_historical": true,
+  "omitted_origin_bytes_verified": false,
+  "statistics": {
+    "observations": 1560,
+    "metrics": 20,
+    "geographies": 78,
+    "districts": 76,
+    "unchanged_normalized_statistics_from_r2": true
+  },
+  "participation": {
+    "rows": 24,
+    "unchanged_from_r2": true
+  },
+  "geometry": {
+    "captures": 4,
+    "unchanged_origin_bytes": true
+  },
+  "program_evidence": "Project-authored references replace copied passages. Original locators are historical references, not verified excerpts."
+}

@@ -1,0 +1,15 @@
+*
+!requirements.txt
+!Dockerfile
+!public_app.py
+!wsgi.py
+!gunicorn.conf.py
+!districtbrief/
+!districtbrief/*.py
+!static/
+!static/*
+!runtime-packet/
+!runtime-packet/**
+!candidate-metadata/
+!candidate-metadata/**
+!RELEASE-MANIFEST.json

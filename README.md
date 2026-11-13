@@ -1,1 +1,62 @@
-# Millrace-AI
+# Millrace AI · District Brief Builder
+
+District Brief Builder is a deterministic evidence workbench for Hawaiʻi legislative staff.
+
+Choose a House or Senate district, inspect aggregate measures, compare compatible estimates, and prepare an agency verification brief. The aging-at-home recipe connects published need indicators with dated program references. Agencies determine eligibility and current availability.
+
+This prototype serves 51 House districts, 25 Senate districts, 20 measures, State and Maui County comparators, and complete district boundaries. It makes no application model calls. The public checkout includes the factual snapshot needed to run locally without credentials or a private archive.
+
+## Run the bundled snapshot
+
+Use Python 3.11 or later. Run these commands from the repository root:
+
+```sh
+python3.11 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements.txt
+HAIC_STATE_DIR="$HOME/.local/state/millrace-ai" HAIC_LOCAL_HTTP=1 PORT=8080 .venv/bin/gunicorn --config gunicorn.conf.py --bind 127.0.0.1:8080 wsgi:application
+```
+
+Open [the local app](http://127.0.0.1:8080). Choose a district and run the visible plan. The server writes bounded operational metrics to `HAIC_STATE_DIR`. Keep that directory outside this repository. `HAIC_LOCAL_HTTP=1` permits a development cookie over local HTTP. For an HTTPS deployment, omit that setting. The supplied Gunicorn configuration uses one worker because pending requests and sessions live in process memory.
+
+The Dockerfile packages the same bundled snapshot. Mount a private writable directory at `/var/lib/haic`. The container uses a nonroot user. Configure HTTPS at your hosting boundary.
+
+## Facts, references and verification
+
+The default `public` input profile includes 1,560 statistical observations, 24 administrative observations, five program records, four original geometry captures, and authored recipe metadata. Values, margins, periods, units, annotations, universes and statistical locators retain their R2 analytical meaning. Geometry provides district boundaries and cross-session compatibility. It does not establish program jurisdiction or access.
+
+This is a smaller factual projection of the historical R2 archive. Its data and metadata have new identities. Source inspection verifies the bundled projection and displays historical origin hashes and locators. It does not claim to reread omitted workbooks or pages. Program evidence uses authored references instead of copied passages. The four included geometry captures still receive original-byte verification.
+
+`runtime-packet/PACKET-MANIFEST.json` identifies the bundled facts. `candidate-metadata/MANIFEST.json` identifies the authored metadata. Their combination identifies analytical evidence. `RELEASE-MANIFEST.json` separately identifies the current source build and lists every publication member. See [data provenance](DATA-PROVENANCE.json), the [included-input inventory](docs/PROJECTION-INPUTS.json), and [source notices](DATA-NOTICES.md).
+
+This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
+
+## Saved cases and historical R2 replay
+
+Cases bind to an evidence snapshot and semantic claim references. The default public profile refuses historical R2 cases before analytical dispatch. It preserves the saved file and current browser case. It does not relabel historical sources or attach old finding notes to new claims.
+
+Use the matching live R2 application or the explicit local `r2` profile to reopen those cases. The local profile requires your complete retained historical inputs. The [R2 replay guide](docs/R2-REPLAY.md) gives the exact inventory, installer and verification commands. Current source refresh cannot reconstruct that historical archive. The source build ID can change while the imported branch retains its historical release provenance.
+
+Case state stays in browser memory until you download a file. Default downloads exclude staff work. Including staff text requires an explicit preview. Imported staff work needs contextual review before a brief. JSON downloads are unencrypted. Read [privacy and security behavior](PRIVACY.md) before entering information.
+
+## Controlled source refresh
+
+The app never follows user-provided source URLs or fetches live evidence during a query. [The separate source tools](tools/sources/README.md) can create an unreviewed statistical and geometry candidate. State workbooks require operator-supplied files. Only the fixed Census endpoints can be fetched automatically. The tools validate source identity, file hashes, table labels, geography, annotations and geometry structure. They refuse incomplete or malformed captures and never install outputs automatically.
+
+Refreshing statistics and geometry leaves program and administrative dates unchanged. Those records need separate review. Review source changes, terms and analytical compatibility before creating a new admitted snapshot. Existing cases keep their original identities.
+
+## Check the checkout
+
+```sh
+.venv/bin/python tools/build_release_manifest.py --check
+.venv/bin/python tools/build_candidate_metadata.py --check
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+node --test tests/test_case_state.cjs
+```
+
+Python checks exercise all 76 districts, source inspection, claim bindings, case replay, HTTP sessions, and packet tamper rejection. Node checks exercise case state and staff-context protections. Case fixtures in `tests/fixtures/` are synthetic test material. They are separate from the runtime facts.
+
+## Scope and reuse
+
+The workbench supports published aggregate evidence and bounded point differences for compatible measures. It does not estimate eligible-but-unenrolled residents, test statistical significance, rank districts, measure causal impact, or establish current service capacity. State and Maui County are the available comparators. Maps display boundaries only.
+
+Project-authored code is [MIT licensed](LICENSE). Outside source material has separate terms described in [license scope](LICENSE-SCOPE.md) and [data notices](DATA-NOTICES.md). State portal terms create an unresolved commercial-use limitation for State-derived information. This informational projection does not assert unrestricted commercial rights. Obtain applicable permission or independently replace affected sources before a covered commercial use.

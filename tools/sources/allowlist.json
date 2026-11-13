@@ -1,0 +1,103 @@
+{
+  "schema": "ia1-acquisition-allowlist/1",
+  "max_bytes": 10000000,
+  "timeout_seconds": 45,
+  "sources": [
+    {
+      "source_id": "dbedt_2024_house",
+      "url": "https://files.hawaii.gov/dbedt/census/acs/acs2024/5yr/acs2024_5yr_house_hi.xlsx",
+      "retrieved_at_utc": "2026-10-30T16:01:54.921391+00:00",
+      "sha256": "2e090640d69e4418fd95690f2fb870be311cc82381642d302c55505772115c4e",
+      "bytes": 689157,
+      "retained_path": "runtime-packet/data/statistics/raw/house.xlsx"
+    },
+    {
+      "source_id": "dbedt_2024_senate",
+      "url": "https://files.hawaii.gov/dbedt/census/acs/acs2024/5yr/acs2024_5yr_senate_hi.xlsx",
+      "retrieved_at_utc": "2026-10-30T16:01:55.036857+00:00",
+      "sha256": "84b7ee598ac2dd722f035ab82258167002189008300a86d1750538ae00c5552b",
+      "bytes": 364162,
+      "retained_path": "runtime-packet/data/statistics/raw/senate.xlsx"
+    },
+    {
+      "source_id": "dbedt_2024_state",
+      "url": "https://files.hawaii.gov/dbedt/census/acs/acs2024/5yr/acs2024_5yr_state_hi.xlsx",
+      "retrieved_at_utc": "2026-10-30T16:01:55.300232+00:00",
+      "sha256": "2b055f3fa12889757981ce7db8ba07e22587133291c1e12a2f2f0a9437a3bcd6",
+      "bytes": 48082,
+      "retained_path": "runtime-packet/data/statistics/raw/state.xlsx"
+    },
+    {
+      "source_id": "dbedt_2024_counties",
+      "url": "https://files.hawaii.gov/dbedt/census/acs/acs2024/5yr/acs2024_5yr_counties_hi.xlsx",
+      "retrieved_at_utc": "2026-10-30T16:01:55.507992+00:00",
+      "sha256": "e5b79d85f963789eec543d498b73105a68db930040dcac6e5b3fef9c99f5b0f7",
+      "bytes": 100165,
+      "retained_path": "runtime-packet/data/statistics/raw/counties.xlsx"
+    },
+    {
+      "source_id": "acs_2024_DP02_metadata",
+      "url": "https://api.census.gov/data/2024/acs/acs5/profile/groups/DP02.json",
+      "retrieved_at_utc": "2026-10-30T16:01:58.675467+00:00",
+      "sha256": "cde25ee5bfa6c4cc29ae40b9dcc28b6aac689201104f5c4484765af83140d67e",
+      "bytes": 395500,
+      "retained_path": "runtime-packet/data/statistics/raw/DP02_metadata.json"
+    },
+    {
+      "source_id": "acs_2024_DP03_metadata",
+      "url": "https://api.census.gov/data/2024/acs/acs5/profile/groups/DP03.json",
+      "retrieved_at_utc": "2026-10-30T16:02:01.261375+00:00",
+      "sha256": "350eb72402657d1a340848231f881e3cdc8d2831f1c6e8034c3f81607359fb79",
+      "bytes": 365094,
+      "retained_path": "runtime-packet/data/statistics/raw/DP03_metadata.json"
+    },
+    {
+      "source_id": "acs_2024_DP04_metadata",
+      "url": "https://api.census.gov/data/2024/acs/acs5/profile/groups/DP04.json",
+      "retrieved_at_utc": "2026-10-30T16:02:03.257650+00:00",
+      "sha256": "0e306930c40e4faa425efc36473223d0b8d79b72b1edf4258a4ab3236afeb891",
+      "bytes": 343590,
+      "retained_path": "runtime-packet/data/statistics/raw/DP04_metadata.json"
+    },
+    {
+      "source_id": "acs_2024_DP05_metadata",
+      "url": "https://api.census.gov/data/2024/acs/acs5/profile/groups/DP05.json",
+      "retrieved_at_utc": "2026-10-30T16:02:04.825630+00:00",
+      "sha256": "275b73d372650caa9c9b10a69944acd5822dd93905a7728f8ff83180510c9796",
+      "bytes": 255700,
+      "retained_path": "runtime-packet/data/statistics/raw/DP05_metadata.json"
+    },
+    {
+      "source_id": "tigerweb_2024_senate_geometry",
+      "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/56/query?where=STATE%3D%2715%27&outFields=%2A&returnGeometry=true&outSR=4326&f=geojson",
+      "retrieved_at_utc": "2026-10-30T16:02:29.324358+00:00",
+      "sha256": "93cc3eb1e6c457feef5369a0788b210337235f6bfbf8b2f212c1729c06d204b2",
+      "bytes": 1319869,
+      "retained_path": "runtime-packet/data/geography/raw/2024_senate.geojson"
+    },
+    {
+      "source_id": "tigerweb_2024_house_geometry",
+      "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/58/query?where=STATE%3D%2715%27&outFields=%2A&returnGeometry=true&outSR=4326&f=geojson",
+      "retrieved_at_utc": "2026-10-30T16:02:43.303513+00:00",
+      "sha256": "703c631b459b6701701674594d48095bc62155339acdd5efb5f7b347036615f4",
+      "bytes": 2730023,
+      "retained_path": "runtime-packet/data/geography/raw/2024_house.geojson"
+    },
+    {
+      "source_id": "tigerweb_2026_senate_geometry",
+      "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Legislative/MapServer/1/query?where=STATE%3D%2715%27&outFields=%2A&returnGeometry=true&outSR=4326&f=geojson",
+      "retrieved_at_utc": "2026-10-30T16:02:48.883947+00:00",
+      "sha256": "7f2acc3468abf068de48cb92e5f4bb8596a4ac538ac941dec5a5c53f262a5423",
+      "bytes": 1318649,
+      "retained_path": "runtime-packet/data/geography/raw/2026_senate.geojson"
+    },
+    {
+      "source_id": "tigerweb_2026_house_geometry",
+      "url": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Legislative/MapServer/2/query?where=STATE%3D%2715%27&outFields=%2A&returnGeometry=true&outSR=4326&f=geojson",
+      "retrieved_at_utc": "2026-10-30T16:02:58.117757+00:00",
+      "sha256": "e2e8509e2a5a5368ecba741f08db9f300febc416bf339cfdc095996068159514",
+      "bytes": 2727530,
+      "retained_path": "runtime-packet/data/geography/raw/2026_house.geojson"
+    }
+  ]
+}

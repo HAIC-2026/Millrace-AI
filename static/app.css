@@ -1,0 +1,2018 @@
+/* ==========================================================================
+   District Brief Builder - app.css
+   Plain government-tool styling: system fonts, high contrast, no images,
+   no web fonts, no external resources. This file is the only stylesheet.
+
+   Sections: page size and tokens, base, focus, skip link and header, tabs,
+   workflow layout, forms, buttons, results (resolution, notices, tables,
+   cards, evidence), tray, catalog and sources, source dialog, brief screen
+   layout, brief paper (screen), print (one letter page).
+   ========================================================================== */
+
+@page {
+  size: letter;
+  margin: 0.45in;
+}
+
+/* ---------------------------------------------------------------- tokens */
+
+:root {
+  color-scheme: light;
+
+  --ink: #161616;          /* body text, about 18:1 on white */
+  --ink-2: #3a3a3a;        /* secondary text, about 11:1 on white */
+  --muted: #4a4a4a;        /* muted text, about 8:1 on white and zebra rows */
+  --page: #eceff3;
+  --panel: #f5f6f8;
+  --rule: #c5cbd4;         /* decorative rules only */
+  --line: #5c6370;         /* control and box borders, above 3:1 */
+  --navy: #1f2d3d;
+  --blue: #1d4f8c;         /* primary fill; white text about 8:1 */
+  --blue-ink: #0d4a9e;     /* link text on white, about 8:1 */
+  --blue-deep: #0b2a5b;
+  --amber-line: #8a5a00;
+  --amber-bg: #fff4d6;
+  --amber-ink: #3d2800;
+  --red-line: #9b1c1c;
+  --red-bg: #fcf0f0;
+  --green-line: #1e6b34;
+  --green-bg: #e7f4eb;
+  --focus: #111111;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Liberation Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ------------------------------------------------------------------ base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* The print copy of the brief lives in #print-root; it only shows when printing. */
+#print-root {
+  display: none;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--page);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
+h2 { font-size: 1.2rem; margin: 0 0 0.6rem; }
+h3 { font-size: 1.05rem; margin: 1rem 0 0.4rem; }
+h4 { font-size: 0.95rem; margin: 0.9rem 0 0.3rem; }
+
+p {
+  margin: 0.4rem 0;
+}
+
+ul,
+ol {
+  margin: 0.4rem 0;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--mono);
+}
+
+code {
+  font-size: 0.9em;
+  padding: 0 0.2em;
+  background: #e9edf2;
+  border-radius: 3px;
+  overflow-wrap: anywhere;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.fine {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+p.fine {
+  margin: 0.4rem 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.loading {
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+.url {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+code.hash {
+  word-break: break-all;
+}
+
+/* ------------------------------------------------------ focus and skip link */
+
+/* Strong, always-visible keyboard focus. The white halo keeps the black ring
+   visible on dark buttons and on coloured backgrounds. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #ffffff;
+}
+
+.skip-link {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  padding: 0.5rem 0.9rem;
+  background: #ffffff;
+  color: var(--blue-deep);
+  font-weight: 700;
+  text-decoration: underline;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------- app header */
+
+.app-header {
+  padding: 0.85rem 1.1rem;
+  color: #ffffff;
+  background: var(--navy);
+}
+
+.app-header h1 {
+  color: #ffffff;
+}
+
+.app-header .variant {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #d3dce6;
+}
+
+.app-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: #e6ebf1;
+}
+
+.app-meta code {
+  color: #ffffff;
+  background: #34495f;
+}
+
+.app-meta strong {
+  color: #ffffff;
+}
+
+@media (min-width: 760px) {
+  .app-header .variant {
+    display: inline;
+    margin-left: 0.4rem;
+  }
+}
+
+/* ------------------------------------------------------------------ tabs */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.2rem;
+  padding: 0 0.6rem;
+  background: #dfe4ea;
+  border-bottom: 1px solid #7f8792;
+}
+
+.tabs [role="tab"] {
+  position: relative;
+  margin: 0 0 -1px;
+  padding: 0.65rem 0.85rem 0.55rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  font-weight: 400;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.tabs [role="tab"]:hover {
+  background: #cfd7e1;
+}
+
+.tabs [role="tab"][aria-selected="true"] {
+  color: var(--blue-deep);
+  font-weight: 700;
+  background: #ffffff;
+  border-bottom-color: var(--blue);
+}
+
+.panel {
+  margin: 1rem;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+@media (min-width: 760px) {
+  .panel {
+    padding: 1.2rem 1.4rem;
+  }
+}
+
+/* -------------------------------------------------- workflow layout */
+
+/* Under 1100px: one column (controls, then results, then tray).
+   From 1100px: controls | results | tray. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+  padding: 0.75rem;
+}
+
+.controls,
+.tray {
+  min-width: 0;
+  padding: 0.9rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.tray {
+  background: var(--panel);
+}
+
+.controls h2,
+.tray h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+main#main {
+  min-width: 0;
+  padding: 0.75rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: 300px minmax(0, 1fr) 260px;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+  }
+
+  .controls,
+  .tray {
+    position: sticky;
+    top: 0.6rem;
+    max-height: calc(100vh - 1.2rem);
+    overflow-y: auto;
+  }
+
+  main#main {
+    padding: 1rem 1.1rem 1.3rem;
+  }
+}
+
+/* ------------------------------------------------------------------ forms */
+
+fieldset {
+  min-width: 0;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.8rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+legend {
+  padding: 0 0.35rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+/* Set by app.js when the chosen task does not use this group. Dashed border
+   and muted text show it; the controls stay enabled so nothing is hidden. */
+fieldset.dim {
+  border-style: dashed;
+}
+
+fieldset.dim > legend,
+fieldset.dim .field > label {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.55rem 0;
+}
+
+.field > label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.req {
+  font-size: 0.85em;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+select,
+input[type="text"],
+input[type="search"],
+textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.6rem;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+textarea {
+  min-height: 3.4rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+#ctl-utterance {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0.3rem 0 0.4rem;
+}
+
+.radio-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+  cursor: pointer;
+}
+
+/* Task options: vertical list of radio labels. */
+#task-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+#task-options label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#task-options label:hover {
+  background: #f0f3f7;
+}
+
+#task-options input[type="radio"] {
+  margin-top: 0.2rem;
+}
+
+#task-options label:has(input:checked) {
+  font-weight: 700;
+  color: var(--blue-deep);
+  background: #e6effa;
+  border-color: var(--blue);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn,
+.btn-link,
+.choice-btn {
+  position: relative;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+  background: #ffffff;
+  border: 2px solid var(--navy);
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.btn:hover {
+  background: #e6ebf2;
+}
+
+.btn:active {
+  background: #d5dde8;
+}
+
+.btn-primary {
+  color: #ffffff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.btn-primary:hover {
+  color: #ffffff;
+  background: #163e70;
+  border-color: #163e70;
+}
+
+.btn-primary:active {
+  background: #10305a;
+}
+
+.btn-run {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 0.6rem;
+  font-size: 1.05rem;
+}
+
+.btn:disabled,
+.choice-btn:disabled {
+  color: #4a4a4a;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: inherit;
+  text-align: left;
+  color: var(--blue-ink);
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link:hover {
+  color: var(--blue-deep);
+  text-decoration-thickness: 2px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+ul.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+ul.choices > li {
+  margin: 0;
+}
+
+.choice-btn {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--blue-deep);
+  background: #ffffff;
+  border: 2px solid var(--blue);
+  border-radius: 999px;
+}
+
+.choice-btn:hover {
+  background: #e4eefb;
+}
+
+/* ------------------------------------------------------- results: headers */
+
+/* Result regions scroll sideways on their own, so wide tables never push
+   the page wider than the viewport. The padding keeps focus rings inside. */
+#res-header,
+#result,
+#catalog-body,
+#sources-body,
+#commands-body,
+#source-body {
+  max-width: 100%;
+  padding: 6px;
+  overflow-x: auto;
+}
+
+#result {
+  container: result / inline-size;
+}
+
+.resolution {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--line);
+  border-radius: 4px;
+}
+
+/* Status is also in the text. The left-border style differs per status so
+   it does not rely on colour alone. */
+.resolution.status-resolved {
+  border-left-color: var(--blue);
+}
+
+.resolution.status-ok {
+  border-left-color: var(--green-line);
+}
+
+.resolution.status-clarification {
+  border-left-color: var(--blue);
+  border-left-style: dashed;
+}
+
+.resolution.status-unsupported {
+  border-left-color: var(--amber-line);
+  border-left-style: double;
+  border-left-width: 8px;
+}
+
+.resolution.status-error {
+  border-left-color: var(--red-line);
+  border-left-width: 10px;
+  background: var(--red-bg);
+}
+
+.res-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0;
+}
+
+.res-grid > div {
+  min-width: 0;
+}
+
+.res-grid dt,
+.kv dt {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.res-grid dd,
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.res-grid dd {
+  font-weight: 600;
+}
+
+.res-state {
+  font-weight: 700;
+}
+
+.res-args,
+.res-defaults {
+  margin: 0.5rem 0 0;
+  font-size: 0.95rem;
+}
+
+.res-ids {
+  margin: 0.5rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------- notices */
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--blue);
+  border-radius: 4px;
+}
+
+.notice > h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.notice ul {
+  padding-left: 1.25rem;
+}
+
+.notice-clarify {
+  background: #eef4fc;
+  border-left-style: dashed;
+}
+
+.notice-unsupported {
+  background: #fbf6ea;
+  border-left-color: var(--amber-line);
+  border-left-style: double;
+  border-left-width: 8px;
+}
+
+.notice-error {
+  background: var(--red-bg);
+  border-left-color: var(--red-line);
+  border-left-width: 10px;
+}
+
+/* Caution callout: jurisdiction, closed waitlist, staleness, unavailable file. */
+.alert {
+  margin: 0.6rem 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  color: var(--amber-ink);
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-line);
+  border-left: 6px double var(--amber-line);
+  border-radius: 3px;
+}
+
+.limitations {
+  margin: 1.2rem 0 0;
+  padding: 0.8rem 1rem;
+  font-size: 0.92rem;
+  color: var(--ink-2);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.limitations > h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.limitations ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.next-actions {
+  margin: 1rem 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+}
+
+.next-actions > h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+}
+
+.coverage {
+  margin: 0.4rem 0 0.8rem;
+  font-size: 0.95rem;
+}
+
+/* ------------------------------------------------- identity and key-values */
+
+.identity {
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.identity > h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem 1.2rem;
+  margin: 0 0 0.4rem;
+}
+
+.kv > div {
+  min-width: 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #e0e4ea;
+}
+
+@media (min-width: 760px) {
+  .kv {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* -------------------------------------------------------------- tables */
+
+.data-table {
+  width: 100%;
+  min-width: 30rem;
+  margin: 0.5rem 0 1rem;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  background: #ffffff;
+}
+
+.data-table caption {
+  caption-side: top;
+  padding: 0.4rem 0;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
+  color: var(--ink);
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+
+.data-table thead th {
+  vertical-align: bottom;
+  font-weight: 700;
+  background: #e4e8ee;
+  border-bottom: 2px solid var(--navy);
+}
+
+.data-table tbody th[scope="row"] {
+  font-weight: 600;
+  text-align: left;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: #f6f7f9;
+}
+
+.data-table.compact {
+  font-size: 0.85rem;
+}
+
+.data-table.compact th,
+.data-table.compact td {
+  padding: 0.3rem 0.4rem;
+}
+
+.num {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unavailable estimate: literal text plus a dashed outline, not colour alone. */
+.num.missing {
+  font-style: italic;
+  color: var(--ink-2);
+  outline: 1px dashed #4a4a4a;
+  outline-offset: -3px;
+}
+
+.moe {
+  font-size: 0.85em;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.universe {
+  font-size: 0.9em;
+}
+
+.actions {
+  min-width: 8.5rem;
+  white-space: normal;
+}
+
+.actions .btn-link {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.select-finding {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.select-finding input {
+  margin-top: 0.15rem;
+}
+
+.metric-label {
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------- badges */
+
+.badge {
+  display: inline-block;
+  margin: 0 0.25rem 0.2rem 0;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: normal;
+  vertical-align: middle;
+  color: var(--ink);
+  background: #eef1f5;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.badge-note {
+  background: #ffffff;
+  border-style: dotted;
+  border-width: 1.5px;
+  color: var(--ink-2);
+}
+
+.badge-info {
+  color: var(--blue-deep);
+  background: #e4eefb;
+  border-color: var(--blue);
+}
+
+/* Outreach hypothesis label: amber fill, heavy dashed border, capitals. */
+.badge-warn {
+  color: #1a1a1a;
+  background: #ffd34d;
+  border: 2px dashed #5c3d00;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Program status badges. The text carries the meaning; colour is a bonus. */
+.badge.status-reference_checked {
+  color: #0f3d1e;
+  background: var(--green-bg);
+  border-color: var(--green-line);
+}
+
+.badge.status-waiting_list_closed_at_check {
+  color: #5c0f0f;
+  background: var(--red-bg);
+  border: 2px solid var(--red-line);
+}
+
+.badge.status-reference_checked_with_staleness_caveat {
+  color: var(--amber-ink);
+  background: var(--amber-bg);
+  border: 2px solid var(--amber-line);
+}
+
+/* ------------------------------------------------------- cards */
+
+.card {
+  position: relative;
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.card > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.card h3 {
+  flex: 1 1 100%;
+  margin: 0 0 0.2rem;
+  font-size: 1.12rem;
+}
+
+.card h4 {
+  margin: 0.9rem 0 0.25rem;
+  padding-bottom: 0.15rem;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.card > footer {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+}
+
+.card.program {
+  border-left: 6px solid var(--blue);
+}
+
+/* Hypothesis: dashed amber frame and tinted background, plus the badge. */
+.card.hypothesis {
+  background: #fffaf0;
+  border: 2px dashed var(--amber-line);
+}
+
+ul.related,
+ul.unknowns {
+  margin: 0.3rem 0 0.4rem;
+  padding-left: 1.25rem;
+}
+
+ul.related > li,
+ul.unknowns > li {
+  margin: 0.15rem 0;
+}
+
+ul.evidence {
+  margin: 0.3rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+ul.evidence > li {
+  margin: 0 0 0.45rem;
+  padding: 0.4rem 0.6rem;
+  background: #fbfbfc;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+ul.evidence summary {
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+ul.evidence summary .fine {
+  font-weight: 400;
+}
+
+ul.evidence details > .btn-link {
+  margin-top: 0.3rem;
+}
+
+pre {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+pre.support {
+  max-height: 16em;
+  margin: 0.4rem 0;
+  padding: 0.5rem 0.6rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  background: #f3f5f8;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------- tray */
+
+#tray-count {
+  margin: 0.2rem 0 0.5rem;
+}
+
+.tray-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+#tray-list {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+#tray-list li {
+  display: block;
+  padding: 0.45rem 0;
+  font-size: 0.92rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+#tray-list li code {
+  display: block;
+  margin: 0.15rem 0 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+#tray-list li br {
+  display: none;
+}
+
+#tray-list li button {
+  display: inline-block;
+  min-height: 2.2rem;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1.5px solid var(--navy);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#tray-list li button:hover {
+  background: #e6ebf2;
+}
+
+.tray .btn-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.tray .btn-row .btn {
+  width: 100%;
+}
+
+/* ------------------------------------------------- catalog and sources */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.6rem 0 0.8rem;
+}
+
+.filters label {
+  font-weight: 600;
+}
+
+.filters select,
+.filters input {
+  flex: 1 1 11rem;
+  width: auto;
+  max-width: 100%;
+}
+
+/* ------------------------------------------------------- source dialog */
+
+dialog#source-dialog {
+  width: min(900px, calc(100vw - 2rem));
+  max-width: 900px;
+  max-height: 85vh;
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  color: var(--ink);
+  background: #ffffff;
+  border: 2px solid var(--navy);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+dialog#source-dialog::backdrop {
+  background: rgba(22, 30, 40, 0.6);
+}
+
+.dialog-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: #e4e8ee;
+  border-bottom: 2px solid var(--navy);
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+#source-body {
+  padding: 0.9rem 1.1rem 1.2rem;
+}
+
+#source-body > h3:first-child {
+  margin-top: 0;
+}
+
+/* ------------------------------------------------- brief screen layout */
+
+.brief-layout {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Side by side only when the results column is wide enough for a paper page. */
+@container result (min-width: 860px) {
+  .brief-layout {
+    grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  }
+}
+
+.brief-editor {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.brief-editor > h3 {
+  margin-top: 0;
+}
+
+.brief-editor .btn-row {
+  margin-top: 0.6rem;
+}
+
+.brief-preview {
+  min-width: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  background: #d6dbe2;
+  border-radius: 4px;
+}
+
+.brief-preview > h3.screen-only {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------- brief paper (screen) */
+
+/* Sizes are in points so the screen preview matches the printed page. */
+.brief-doc {
+  position: relative;
+  width: 100%;
+  max-width: 8.5in;
+  margin: 0 auto;
+  padding: 0.6in 0.65in 0.55in;
+  overflow-wrap: break-word;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #7d848e;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: var(--sans);
+  font-size: 8.75pt;
+  line-height: 1.22;
+}
+
+.brief-doc a {
+  color: #000000;
+  text-decoration: none;
+}
+
+.brief-doc p {
+  margin: 0 0 2pt;
+}
+
+.brief-doc h2 {
+  margin: 0 0 2pt;
+  font-size: 13pt;
+  line-height: 1.15;
+  font-weight: 700;
+  color: #000000;
+}
+
+.brief-doc h3 {
+  margin: 6pt 0 2pt;
+  padding-bottom: 1pt;
+  font-size: 8pt;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #000000;
+  border-bottom: 0.75pt solid #000000;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.brief-doc section {
+  margin: 0 0 3pt;
+}
+
+.brief-head {
+  margin: 0 0 4pt;
+  padding-bottom: 3pt;
+  border-bottom: 1.5pt solid #000000;
+}
+
+.brief-meta {
+  margin: 0;
+  font-size: 7.5pt;
+  color: #222222;
+}
+
+.brief-doc .brief-findings {
+  margin: 0;
+  padding-left: 13pt;
+}
+
+.brief-doc li.brief-finding {
+  margin: 0 0 3pt;
+  padding-left: 1pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  orphans: 2;
+  widows: 2;
+}
+
+.brief-doc .kind {
+  font-size: 6.8pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.brief-doc a.cite {
+  font-size: 7.5pt;
+  font-weight: 700;
+  color: #000000;
+  text-decoration: none;
+}
+
+/* Finding ID: visible for traceability but tiny. */
+.brief-doc .fid {
+  margin-left: 3pt;
+  font-family: var(--mono);
+  font-size: 6pt;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: #333333;
+}
+
+/* Staff edits: dashed left rule, italic, and a small-caps label. The label
+   and the dashed rule still show in black-and-white print. */
+.brief-doc .staff-edit {
+  display: block;
+  margin: 2pt 0 1pt;
+  padding: 1pt 4pt;
+  font-style: italic;
+  color: #000000;
+  background: #f3f3f3;
+  border-left: 1.5pt dashed #000000;
+}
+
+.brief-doc section.staff-edit {
+  margin: 4pt 0 3pt;
+  padding: 1pt 4pt;
+}
+
+.brief-doc section.staff-edit h3 {
+  margin: 0 0 1pt;
+  border-bottom: 0;
+  font-style: normal;
+}
+
+.brief-doc .staff-label {
+  font-style: normal;
+  font-weight: 700;
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+
+.brief-doc ul.brief-limits {
+  margin: 0;
+  padding-left: 10pt;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  column-count: 2;
+  column-gap: 14pt;
+}
+
+.brief-doc ul.brief-limits > li {
+  margin: 0 0 1.5pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.brief-doc ol.brief-cites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 7pt;
+  line-height: 1.2;
+  column-count: 2;
+  column-gap: 14pt;
+}
+
+.brief-doc ol.brief-cites > li {
+  margin: 0 0 2pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.brief-doc .brief-cites .srcid {
+  font-family: var(--mono);
+  font-size: 6.5pt;
+}
+
+.brief-doc .brief-cites .url {
+  display: inline;
+  font-size: 6.2pt;
+}
+
+.brief-foot {
+  margin-top: 5pt;
+  padding-top: 2pt;
+  font-size: 7pt;
+  color: #000000;
+  border-top: 0.75pt solid #000000;
+}
+
+@media screen and (max-width: 600px) {
+  .brief-preview {
+    padding: 0.5rem;
+  }
+
+  .brief-doc {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .brief-doc ul.brief-limits,
+  .brief-doc ol.brief-cites {
+    column-count: 1;
+  }
+}
+
+/* ------------------------------------------------ investigation (IA-1) */
+
+/* One staff workspace. Narrow: context, plan, map, evidence and responses, brief tray.
+   From 760px: plan beside results. From 1200px: plan | results | brief tray. */
+.ia {
+  padding: 0.75rem;
+  /* Hashes, URLs and identifiers wrap instead of widening the page. */
+  overflow-wrap: anywhere;
+}
+
+.ia-context-fields > .field,
+.ia-inline > .field,
+.ia-case-actions > * {
+  min-width: 0;
+}
+
+.ia-claim-head .badge + .badge {
+  margin-left: 0;
+}
+
+.ia-context {
+  margin: 0 0 0.9rem;
+  padding: 0.75rem 0.9rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-top: 4px solid var(--navy);
+  border-radius: 4px;
+}
+
+.ia-context-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.2rem 0.8rem;
+}
+
+.ia-context-fields .field {
+  margin: 0 0 0.4rem;
+}
+
+.ia-context-summary {
+  margin: 0.3rem 0 0.2rem;
+  font-size: 0.95rem;
+}
+
+.ia-context-summary .badge {
+  margin-left: 0.4rem;
+}
+
+.ia-statusline {
+  min-height: 1.5rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.ia-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.ia-plan,
+.ia-main {
+  min-width: 0;
+  padding: 0.9rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.ia-main > section {
+  margin: 0 0 1.2rem;
+}
+
+.ia-main > section > h2,
+.ia-plan > h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.ia h5 {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.ia-interpretation {
+  margin: 0.5rem 0 0.9rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--panel);
+  border-left: 4px solid var(--line);
+}
+
+.ia-interpretation h4 {
+  margin: 0 0 0.3rem;
+}
+
+.ia-utterance {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.ia-utterance mark {
+  padding: 0 0.15em;
+  color: var(--ink);
+  background: var(--amber-bg);
+  border-bottom: 2px solid var(--amber-line);
+}
+
+.ia-fields,
+.ia-choices,
+.ia-steps,
+.ia-claims,
+.ia-selected,
+.ia-branches,
+.ia-parked,
+.ia-checklist {
+  margin: 0.3rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ia-choices > li {
+  margin: 0 0 0.4rem;
+}
+
+.ia-step,
+.ia-claim,
+.ia-selected > li,
+.ia-check-item,
+.ia-parked > li,
+.ia-branches > li {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.ia-step-head,
+.ia-claim-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+}
+
+.ia-step-id {
+  min-width: 1.9rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--blue-deep);
+}
+
+.ia-step-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.7rem;
+  margin-left: auto;
+}
+
+.ia-step-tools .btn-link,
+.ia-tray .btn-link {
+  min-height: 1.75rem;
+}
+
+/* In the brief tray the finding reads as body text with its controls on their own line. */
+.ia-selected .tray-label {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 400;
+}
+
+.ia-selected .ia-step-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.25rem 0 0;
+}
+
+.ia-step-scope,
+.ia-claim-text {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+
+.ia-step-scope {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.ia details > summary {
+  padding: 0.15rem 0;
+  font-size: 0.9rem;
+  color: var(--blue-ink);
+  cursor: pointer;
+}
+
+.ia select[multiple] {
+  width: 100%;
+}
+
+.ia-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin: 0.4rem 0 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+}
+
+.ia-add .field {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+
+.ia-check {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.ia-check input {
+  flex: none;
+  margin-top: 0.2rem;
+}
+
+.ia-step-result {
+  margin: 0 0 0.9rem;
+}
+
+.ia-step-result > h4 {
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Selection is shown by a heavier left rule and a text label, not by colour alone. */
+.ia-claim.is-selected,
+.ia-response.is-selected,
+.ia-branches > li.is-selected {
+  border-left: 6px solid var(--blue);
+  background: #f3f7fc;
+}
+
+.ia-claim .kv {
+  font-size: 0.9rem;
+}
+
+.ia-map {
+  min-height: 4rem;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.ia-map h3 {
+  margin-top: 0;
+}
+
+.ia-map svg {
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+}
+
+.ia-template {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+}
+
+.ia-inline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0 0.6rem;
+}
+
+/* The brief tray scrolls with the page; the guided view's sticky tray rule does not apply here. */
+.ia-tray {
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+
+.ia-tray h3 {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 1rem;
+}
+
+.ia-tray input[type="text"],
+.ia-tray input[type="date"],
+.ia-tray input[type="number"],
+.ia-tray textarea,
+.ia-case input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.45rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.ia-review {
+  margin: 0.8rem 0 0;
+}
+
+.ia-review:not(:empty) {
+  padding: 0.6rem 0.7rem;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-line);
+  border-left-width: 6px;
+  border-radius: 4px;
+  color: var(--amber-ink);
+}
+
+.ia-review h3 {
+  margin-top: 0;
+}
+
+.ia-brief,
+.ia-case {
+  margin: 0.9rem 0 0;
+}
+
+.ia-brief .brief-preview {
+  margin-top: 0.7rem;
+}
+
+.ia-brief .brief-preview:empty {
+  display: none;
+}
+
+/* A brief that no longer matches the selections or staff text is marked, never silently reused. */
+.ia-brief .brief-preview.is-stale {
+  outline: 3px dashed var(--amber-line);
+  outline-offset: -3px;
+}
+
+.ia-brief .brief-preview.is-stale::before {
+  content: "Out of date: create the brief again before printing.";
+  display: block;
+  margin: 0 0 0.5rem;
+  padding: 0.3rem 0.5rem;
+  font-weight: 700;
+  color: var(--amber-ink);
+  background: var(--amber-bg);
+}
+
+.ia-case-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 0.6rem 1.5rem;
+  margin: 0.6rem 0;
+}
+
+.ia-staff-preview {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+.ia .notice[tabindex="-1"]:focus,
+.ia-interpretation:focus,
+.ia-brief:focus,
+.ia-claim:focus,
+.ia-main:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (min-width: 760px) {
+  .ia {
+    padding: 1rem 1.2rem;
+  }
+
+  .ia-grid {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .ia-tray {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1200px) {
+  .ia-grid {
+    grid-template-columns: 320px minmax(0, 1fr) 340px;
+  }
+
+  .ia-tray {
+    grid-column: auto;
+  }
+}
+
+/* -------------------------------------------------------------- print */
+
+@media print {
+  html,
+  body {
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  /* Only the brief copy in #print-root is printed. */
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .screen-only {
+    display: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  #print-root .brief-doc {
+    width: auto;
+    max-width: none;
+    min-height: 0;
+    aspect-ratio: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: #ffffff;
+    color: #000000;
+    font-size: 8.75pt;
+    line-height: 1.22;
+  }
+
+  #print-root .brief-doc a,
+  #print-root .brief-doc a:visited {
+    color: #000000;
+    text-decoration: none;
+  }
+
+  /* Links print as plain text: no URL expansion after the link text. */
+  #print-root .brief-doc a::after,
+  #print-root .brief-doc a::before {
+    content: none !important;
+  }
+
+  #print-root .brief-doc .staff-edit {
+    background: none;
+  }
+
+  #print-root .brief-doc .brief-limits,
+  #print-root .brief-doc .brief-cites {
+    column-count: 2;
+  }
+
+  #print-root .brief-doc li,
+  #print-root .brief-doc .brief-finding {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Tighter one-page fit (checked by tools/print_fit_check.py). */
+  #print-root .brief-doc {
+    font-size: 8pt;
+    line-height: 1.17;
+  }
+
+  #print-root .brief-doc h2 {
+    font-size: 11pt;
+    margin: 0 0 1pt;
+  }
+
+  #print-root .brief-doc h3 {
+    font-size: 7.5pt;
+    margin: 4pt 0 1.5pt;
+  }
+
+  #print-root .brief-doc .brief-meta,
+  #print-root .brief-doc .brief-foot {
+    font-size: 6.5pt;
+    margin: 0;
+  }
+
+  #print-root .brief-doc .brief-findings {
+    margin: 0;
+    padding-left: 1.3em;
+  }
+
+  #print-root .brief-doc .brief-finding {
+    margin: 0 0 2pt;
+  }
+
+  #print-root .brief-doc .brief-finding .staff-edit {
+    margin: 1pt 0 0;
+    padding: 0 0 0 4pt;
+    font-size: 7.2pt;
+  }
+
+  #print-root .brief-doc section.staff-edit {
+    margin: 2pt 0;
+    padding: 0 0 0 5pt;
+    font-size: 7.5pt;
+  }
+
+  #print-root .brief-doc section.staff-edit p {
+    margin: 0;
+  }
+
+  #print-root .brief-doc .brief-limits,
+  #print-root .brief-doc .brief-cites {
+    font-size: 6.5pt;
+    line-height: 1.12;
+    margin: 0;
+    padding-left: 1.1em;
+    column-gap: 10pt;
+  }
+
+  #print-root .brief-doc .brief-limits {
+    padding-left: 1.5em;
+  }
+
+  #print-root .brief-doc .brief-cites {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  #print-root .brief-doc .fid {
+    font-size: 5.5pt;
+  }
+}
+
+/* Long unbroken staff text or URLs wrap inside the page instead of overflowing (screen and print). */
+.brief-doc,
+.brief-doc .staff-edit,
+.brief-doc h2 {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}

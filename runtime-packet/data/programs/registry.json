@@ -1,0 +1,386 @@
+[
+  {
+    "program_id": "snap_hi",
+    "name": "Supplemental Nutrition Assistance Program (SNAP)",
+    "agency": "Hawaii DHS, Benefit, Employment & Support Services Division",
+    "jurisdiction": "Hawaii statewide",
+    "official_url": "https://humanservices.hawaii.gov/bessd/snap/",
+    "checked_at": "2026-10-30T16:02:47.771992+00:00",
+    "effective_period": {
+      "from": "2026-10-01",
+      "to": null,
+      "scope": "Published income standards; page also describes BBCE change effective 2025-02-01."
+    },
+    "status": "reference_checked",
+    "criteria_summary": "Food assistance for qualifying households. Household circumstances, income category and deductions matter. Page distinguishes BBCE, categorical eligibility and elderly/disabled rules; agency intake worker determines the category.",
+    "missing_facts": [
+      "SNAP household composition and size",
+      "Countable gross/net income and allowable deductions",
+      "BBCE/categorical status and any disqualification",
+      "Elderly/disability status",
+      "Citizenship or eligible immigration status",
+      "Applicable work requirements/exemptions",
+      "Required verification"
+    ],
+    "referral": {
+      "url": "https://pais.dhs.hawaii.gov/PAIS/#!/",
+      "agency_phone": "1-855-643-1643",
+      "next_step": "Contact BESSD or use official application; intake interview and verification determine eligibility."
+    },
+    "source_ids": [
+      "hi_snap_rules"
+    ],
+    "evidence": [
+      {
+        "source_id": "hi_snap_rules",
+        "locator": {
+          "text_path": "extracted/hi_snap_rules.txt",
+          "line_start": 61,
+          "line_end": 65
+        },
+        "claim": "Agency and public assistance information line",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_snap_rules",
+        "locator": {
+          "text_path": "extracted/hi_snap_rules.txt",
+          "line_start": 78,
+          "line_end": 101
+        },
+        "claim": "Program eligibility and application process",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_snap_rules",
+        "locator": {
+          "text_path": "extracted/hi_snap_rules.txt",
+          "line_start": 106,
+          "line_end": 169
+        },
+        "claim": "Reference-only income standards, effective dates and other eligibility criteria",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      }
+    ],
+    "scope": "Informational program relevance only; the administering agency determines individual eligibility.",
+    "review_notes": []
+  },
+  {
+    "program_id": "medquest_hi",
+    "name": "Med-QUEST / QUEST Integration (Medicaid)",
+    "agency": "Hawaii DHS Med-QUEST Division",
+    "jurisdiction": "Hawaii statewide",
+    "official_url": "https://medquest.hawaii.gov/en/members-applicants/get-started",
+    "checked_at": "2026-10-30T16:02:47.895877+00:00",
+    "effective_period": {
+      "from": "2026-01-13",
+      "to": null,
+      "scope": "2026 MAGI and MAGI-excepted income standards chart; not all Medicaid policies."
+    },
+    "status": "reference_checked",
+    "criteria_summary": "Health coverage for Hawaii residents who qualify for Medicaid. Different coverage groups use MAGI or MAGI-excepted standards; age 65 or disability does not by itself establish eligibility. Current official standards chart includes separate income and asset treatment.",
+    "missing_facts": [
+      "Household and tax-filing relationships",
+      "Applicable Medicaid coverage group",
+      "Countable income under correct methodology",
+      "Age, pregnancy, blindness/disability or Medicare status where relevant",
+      "Assets where MAGI-excepted rules require them",
+      "Residency and citizenship/immigration documentation",
+      "Current coverage and other agency verification"
+    ],
+    "referral": {
+      "url": "https://medical.mybenefits.hawaii.gov/",
+      "agency_phone": "1-800-316-8005",
+      "tty": "1-855-889-4325 or 711",
+      "next_step": "Apply through Med-QUEST or call the agency; supply verification requested."
+    },
+    "source_ids": [
+      "hi_medquest_start",
+      "hi_medquest_apply",
+      "hi_medquest_rules",
+      "hi_medquest_chart"
+    ],
+    "evidence": [
+      {
+        "source_id": "hi_medquest_start",
+        "locator": {
+          "text_path": "extracted/hi_medquest_start.txt",
+          "line_start": 181,
+          "line_end": 190
+        },
+        "claim": "Coverage purpose and family facts needed",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_medquest_apply",
+        "locator": {
+          "text_path": "extracted/hi_medquest_apply.txt",
+          "line_start": 181,
+          "line_end": 196
+        },
+        "claim": "Official application routes and agency customer service",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_medquest_rules",
+        "locator": {
+          "text_path": "extracted/hi_medquest_rules.txt",
+          "line_start": 181,
+          "line_end": 188
+        },
+        "claim": "Current standards effective date",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_medquest_chart",
+        "locator": {
+          "path": "raw/hi_medquest_chart.pdf",
+          "pages": [
+            1,
+            2
+          ],
+          "section": "2026 MAGI INCOME STANDARDS / 2026 MAGI-EXCEPTED INCOME STANDARDS"
+        },
+        "claim": "Different coverage groups, income methodologies and asset rules; effective 01/13/2026",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      }
+    ],
+    "scope": "Informational program relevance only; the administering agency determines individual eligibility.",
+    "review_notes": [
+      "Raw hi_medquest_chart.pdf pp.1–2 saved; MAGI and MAGI-excepted groups must not share one poverty threshold. Numeric thresholds deliberately not implemented as an eligibility engine."
+    ]
+  },
+  {
+    "program_id": "hcv_honolulu",
+    "name": "Housing Choice Voucher (Section 8) — City and County of Honolulu",
+    "agency": "City and County of Honolulu Department of Community Services",
+    "jurisdiction": "Oahu agency jurisdiction; portability rules apply",
+    "official_url": "https://www.honolulu.gov/dcs/dcs-cad-section-8-housing-choice-voucher/",
+    "checked_at": "2026-10-30T16:03:55.136695+00:00",
+    "effective_period": {
+      "from": null,
+      "to": null,
+      "scope": "Page labels income limits 2026; closed waitlist status checked at retrieval, no claimed permanent closure."
+    },
+    "status": "waiting_list_closed_at_check",
+    "criteria_summary": "Rental assistance subject to current income limits, HUD family definition, documentation of citizenship/eligible immigration status and program screening. Household eligibility and an open application window are separate questions. Agency page reports its waiting list closed.",
+    "missing_facts": [
+      "Family and household composition",
+      "All countable income and assets",
+      "Citizenship/eligible immigration status",
+      "Required Social Security documentation",
+      "Program/background screening",
+      "Waiting-list status and preferences",
+      "Unit inspection and tenancy requirements after voucher issuance"
+    ],
+    "referral": {
+      "url": "https://www.honolulu.gov/dcs/dcs-cad-section-8-housing-choice-voucher/",
+      "agency_phone": "808-768-7077",
+      "next_step": "Check agency announcements and ask about current housing options; do not promise an application is open or a voucher is available."
+    },
+    "source_ids": [
+      "honolulu_hcv_rules"
+    ],
+    "evidence": [
+      {
+        "source_id": "honolulu_hcv_rules",
+        "locator": {
+          "text_path": "extracted/honolulu_hcv_rules.txt",
+          "line_start": 22,
+          "line_end": 29
+        },
+        "claim": "Waitlist context and support phone",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "honolulu_hcv_rules",
+        "locator": {
+          "text_path": "extracted/honolulu_hcv_rules.txt",
+          "line_start": 35,
+          "line_end": 61
+        },
+        "claim": "2026 income-limit label and application information",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "honolulu_hcv_rules",
+        "locator": {
+          "text_path": "extracted/honolulu_hcv_rules.txt",
+          "line_start": 63,
+          "line_end": 98
+        },
+        "claim": "Closed waitlist and eligibility requirements",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "honolulu_hcv_rules",
+        "locator": {
+          "text_path": "extracted/honolulu_hcv_rules.txt",
+          "line_start": 120,
+          "line_end": 150
+        },
+        "claim": "Agency jurisdiction, unit inspection and portability",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      }
+    ],
+    "scope": "Informational program relevance only; the administering agency determines individual eligibility.",
+    "review_notes": [
+      "This is Honolulu DCS HCV, not HPHA HCV. HPHA how-to-apply snapshot also saved and separately says its Oahu HCV list is closed; never combine agency waitlists."
+    ]
+  },
+  {
+    "program_id": "kupuna_care_hi",
+    "name": "Kūpuna Care",
+    "agency": "Hawaii DOH Executive Office on Aging; implemented through county area agencies on aging",
+    "jurisdiction": "Hawaii statewide through county aging offices",
+    "official_url": "https://health.hawaii.gov/eoa/",
+    "checked_at": "2026-10-30T16:02:50.100256+00:00",
+    "effective_period": {
+      "from": null,
+      "to": null,
+      "scope": "Current HRS §§349-16 and 349-17 and DOH referral page checked; consolidated law is not a new 2026 effective date."
+    },
+    "status": "reference_checked",
+    "criteria_summary": "Long-term services and supports to help older adults age at home and support caregivers. Care-recipient definition includes age 60+, citizenship/qualified-alien criteria, no comparable services, residence outside long-term-care facility, and functional/cognitive impairment criteria. Area agency assessment and support plan determine eligibility; funding availability applies.",
+    "missing_facts": [
+      "Care-recipient versus caregiver/employed-caregiver role",
+      "Age and citizenship/qualified-alien status",
+      "Functional/cognitive impairment assessment",
+      "Comparable services and facility residence",
+      "In-home assessment and individualized support plan",
+      "Available funding and service authorization"
+    ],
+    "referral": {
+      "url": "https://health.hawaii.gov/eoa/",
+      "county_agency_phones": {
+        "Honolulu": "808-768-7700",
+        "Hawaii": "808-961-8626",
+        "Maui/Molokai/Lanai": "808-270-7774",
+        "Kauai": "808-241-4470"
+      },
+      "next_step": "Contact the county office on aging for assessment and available services."
+    },
+    "source_ids": [
+      "hi_eoa_referral",
+      "hi_kupuna_definition",
+      "hi_kupuna_law"
+    ],
+    "evidence": [
+      {
+        "source_id": "hi_kupuna_definition",
+        "locator": {
+          "text_path": "extracted/hi_kupuna_definition.txt",
+          "line_start": 38,
+          "line_end": 69
+        },
+        "claim": "Caregiver and care-recipient definitions, including age and impairment criteria",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_kupuna_law",
+        "locator": {
+          "text_path": "extracted/hi_kupuna_law.txt",
+          "line_start": 1,
+          "line_end": 37
+        },
+        "claim": "Administration, assessment and agency authorization",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_kupuna_law",
+        "locator": {
+          "text_path": "extracted/hi_kupuna_law.txt",
+          "line_start": 112,
+          "line_end": 116
+        },
+        "claim": "Funding availability",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_eoa_referral",
+        "locator": {
+          "text_path": "extracted/hi_eoa_referral.txt",
+          "line_start": 128,
+          "line_end": 138
+        },
+        "claim": "In-home/community services and county referral numbers",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      }
+    ],
+    "scope": "Informational program relevance only; the administering agency determines individual eligibility.",
+    "review_notes": []
+  },
+  {
+    "program_id": "wic_hi",
+    "name": "Women, Infants and Children (WIC)",
+    "agency": "Hawaii DOH WIC Services Branch",
+    "jurisdiction": "Hawaii statewide through WIC clinics",
+    "official_url": "https://health.hawaii.gov/wic/program_details/",
+    "checked_at": "2026-10-30T16:02:49.926385+00:00",
+    "effective_period": {
+      "from": null,
+      "to": null,
+      "scope": "No current income-table effective date established by this page."
+    },
+    "status": "reference_checked_with_staleness_caveat",
+    "criteria_summary": "Supplemental nutrition, education and referrals for pregnant, breastfeeding or postpartum participants, infants and children under five with income and medical/nutritional risk requirements. Hawaii residence and clinic assessment apply; income-only relevance is insufficient.",
+    "missing_facts": [
+      "Pregnancy/postpartum/breastfeeding or child age",
+      "Household income and household size or documented adjunctive income eligibility",
+      "Hawaii residence",
+      "Medical/nutritional risk assessed by WIC",
+      "Identity and agency-required verification"
+    ],
+    "referral": {
+      "url": "https://health.hawaii.gov/wic/clinic-locations/",
+      "agency_phone": "808-586-4400",
+      "next_step": "Contact an official WIC clinic for appointment and current income guidelines; local WIC staff determine eligibility."
+    },
+    "source_ids": [
+      "hi_wic_rules"
+    ],
+    "evidence": [
+      {
+        "source_id": "hi_wic_rules",
+        "locator": {
+          "text_path": "extracted/hi_wic_rules.txt",
+          "line_start": 112,
+          "line_end": 136
+        },
+        "claim": "Preassessment limitation, application documents and core criteria",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      },
+      {
+        "source_id": "hi_wic_rules",
+        "locator": {
+          "text_path": "extracted/hi_wic_rules.txt",
+          "line_start": 137,
+          "line_end": 139
+        },
+        "claim": "Agency information line",
+        "support_text": "See the cited official source for this reference; original captured passage is not included.",
+        "verification_kind": "authored_reference"
+      }
+    ],
+    "scope": "Informational program relevance only; the administering agency determines individual eligibility.",
+    "review_notes": [
+      "Page contains historical 1999 participation prose; no historical count used as current participation. Current income thresholds must be reviewed with clinic/current guideline before an eligibility calculation."
+    ]
+  }
+]

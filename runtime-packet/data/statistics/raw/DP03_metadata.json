@@ -1,0 +1,12 @@
+{
+  "variables": {
+    "DP03_0074E": {
+      "label": "Estimate!!INCOME AND BENEFITS (IN 2024 INFLATION-ADJUSTED DOLLARS)!!Total households!!With Food Stamp/SNAP benefits in the past 12 months",
+      "concept": "Selected Economic Characteristics",
+      "predicateType": "int",
+      "group": "DP03",
+      "limit": 0,
+      "predicateOnly": true
+    }
+  }
+}

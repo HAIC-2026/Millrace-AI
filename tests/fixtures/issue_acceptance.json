@@ -1,0 +1,140 @@
+{
+  "fixture_schema": "ia-acceptance/1",
+  "candidate_version": "IA-1",
+  "status_at_issue": "pending_four_member_ratification",
+  "evidence_status": "requirements_only_not_executed",
+  "adoption_record": "../../research/reviews/issue-action-council-2026-11-12/consensus.json",
+  "baseline": {
+    "source_manifest_sha256": "63ba0f9b402c17719a1d4497ece802fa4d68a717fef10015ca5fa3ca60ffeb94",
+    "image": "sha256:2cbeaf1e876ced6929a5d0eb8cb968fd577fb72d4c5a2285606f02d4d6dc764e",
+    "data_snapshot_id": "sha256:22642501f4c8829262c5724d3a09ce1f60ed0a0c06792f4e6c0c9b829c8f3a15",
+    "runtime_manifest_sha256": "889098b40aee4f2ff3ecb814fcaf76bb55b35c770ee3955359953152ce3a609f",
+    "frozen_training_packet_files": 130,
+    "frozen_original_app_files": 208,
+    "selected_release_files": 116
+  },
+  "contract": {
+    "schema_version": "haic-investigation/1",
+    "operation_version": "ia-core/1",
+    "recipe_version": "aging_at_home/1",
+    "max_steps": 8,
+    "max_brief_findings": 8,
+    "api_body_bytes": 65536,
+    "local_case_bytes": 262144,
+    "max_local_branches": 4,
+    "comparison_sentence": "No statistical difference test was performed."
+  },
+  "reviewed_basis": {
+    "kupuna_care_hi": ["population_65_plus", "male_householder_65_plus_living_alone", "female_householder_65_plus_living_alone", "poverty_rate_65_plus"],
+    "snap_hi": ["poverty_rate_all_people", "median_household_income", "unemployment_rate", "rent_35_plus_percent_income", "rent_burden_denominator"],
+    "medquest_hi": ["poverty_rate_all_people", "poverty_rate_65_plus", "median_household_income", "population_65_plus"],
+    "hcv_honolulu": ["renter_occupied_units", "median_gross_rent", "rent_35_plus_percent_income", "rent_burden_denominator"],
+    "wic_hi": []
+  },
+  "scenarios": [
+    {
+      "id": "house028_primary",
+      "role": "primary",
+      "district": {"state_fips": "15", "chamber": "house", "code": "028", "boundary_session": 2024},
+      "map_session": 2026,
+      "recipe": "aging_at_home/1",
+      "source_id": "dbedt_2024_house",
+      "statistics": [
+        {"metric_id": "population_65_plus", "estimate": "6463", "moe": "542", "sheet": "DP05", "estimate_cell": "DF27", "moe_cell": "DG27"},
+        {"metric_id": "male_householder_65_plus_living_alone", "estimate": "697", "moe": "220", "sheet": "DP02", "estimate_cell": "DF12", "moe_cell": "DG12"},
+        {"metric_id": "female_householder_65_plus_living_alone", "estimate": "1305", "moe": "219", "sheet": "DP02", "estimate_cell": "DF16", "moe_cell": "DG16"},
+        {"metric_id": "poverty_rate_65_plus", "estimate": "29.0", "moe": "4.3", "sheet": "DP03", "estimate_cell": "DH145", "moe_cell": "DI145"},
+        {"metric_id": "poverty_rate_all_people", "estimate": "23.4", "moe": "3.1", "sheet": "DP03", "estimate_cell": "DH138", "moe_cell": "DI138"},
+        {"metric_id": "median_household_income", "estimate": "57784", "moe": "5211", "sheet": "DP03", "estimate_cell": "DF70", "moe_cell": "DG70"}
+      ],
+      "state_poverty_point_difference": "+19.8",
+      "geometry": {"components": 1, "rings": 1, "vertices": 401, "compact_feature_bytes": 16628},
+      "action_question": "Verify the aging assessment/referral route; after an explicit SNAP question, decide whether to pursue an agency-reviewed combined information session.",
+      "native_edited_print_required": true
+    },
+    {
+      "id": "house013_primary",
+      "role": "primary",
+      "district": {"state_fips": "15", "chamber": "house", "code": "013", "boundary_session": 2024},
+      "map_session": 2026,
+      "recipe": "aging_at_home/1",
+      "source_id": "dbedt_2024_house",
+      "statistics": [
+        {"metric_id": "population_65_plus", "estimate": "5488", "moe": "511", "sheet": "DP05", "estimate_cell": "AX27", "moe_cell": "AY27"},
+        {"metric_id": "male_householder_65_plus_living_alone", "estimate": "524", "moe": "166", "sheet": "DP02", "estimate_cell": "AX12", "moe_cell": "AY12"},
+        {"metric_id": "female_householder_65_plus_living_alone", "estimate": "527", "moe": "150", "sheet": "DP02", "estimate_cell": "AX16", "moe_cell": "AY16"},
+        {"metric_id": "poverty_rate_65_plus", "estimate": "10.2", "moe": "3.3", "sheet": "DP03", "estimate_cell": "AZ145", "moe_cell": "BA145"}
+      ],
+      "state_poverty_point_difference": "+1.0",
+      "geometry": {"components": 3, "rings": 3, "vertices": 2872, "compact_feature_bytes": 116225},
+      "action_question": "Verify the service route and provider reach for the selected area, including Kalawao, then assessment access, wait, capacity, funding and cost.",
+      "source_admission_fallback": "Unadmitted plan facts do not appear as verified runtime claims; use the retained statewide EOA route with explicit Kalawao-routing verification.",
+      "native_edited_print_required": true
+    },
+    {
+      "id": "senate025_full_acceptance",
+      "role": "mandatory_full_journey",
+      "district": {"state_fips": "15", "chamber": "senate", "code": "025", "boundary_session": 2024},
+      "map_session": 2026,
+      "recipe": "aging_at_home/1",
+      "source_id": "dbedt_2024_senate",
+      "statistics": [
+        {"metric_id": "population_65_plus", "estimate": "12919", "moe": "679", "sheet": "DP05", "estimate_cell": "CT27", "moe_cell": "CU27"},
+        {"metric_id": "male_householder_65_plus_living_alone", "estimate": "396", "moe": "104", "sheet": "DP02", "estimate_cell": "CT12", "moe_cell": "CU12"},
+        {"metric_id": "female_householder_65_plus_living_alone", "estimate": "1139", "moe": "190", "sheet": "DP02", "estimate_cell": "CT16", "moe_cell": "CU16"},
+        {"metric_id": "poverty_rate_65_plus", "estimate": "5.3", "moe": "1.5", "sheet": "DP03", "estimate_cell": "CV145", "moe_cell": "CW145"}
+      ],
+      "state_poverty_point_difference": "-3.9",
+      "geometry": {"components": 10, "rings": 10, "vertices": 1808, "compact_feature_bytes": 73349},
+      "action_question": "Verify Honolulu aging assessment, present wait/capacity and cost; add Med-QUEST only as a separate requested coverage-information question.",
+      "native_edited_print_required": true
+    },
+    {
+      "id": "house009_smoke",
+      "role": "compact_geometry_smoke",
+      "district": {"state_fips": "15", "chamber": "house", "code": "009", "boundary_session": 2024},
+      "map_session": 2026,
+      "geometry": {"components": 1, "rings": 1, "vertices": 676, "compact_feature_bytes": 27700},
+      "native_edited_print_required": false
+    }
+  ],
+  "state_poverty_operand": {
+    "geography_id": "HI-STATE-2024", "metric_id": "poverty_rate_65_plus", "variable_id": "DP03_0135PE", "moe_variable_id": "DP03_0135PM",
+    "estimate": "9.2", "moe": "0.5", "sheet": "DP03", "estimate_cell": "D145", "moe_cell": "E145",
+    "universe": "People age 65 years and over for whom poverty status is determined",
+    "unit": "percent", "period": {"start_year": 2020, "end_year": 2024, "product": "2024 ACS 5-year estimates", "dollar_year": null},
+    "moe_confidence": "0.90"
+  },
+  "cases": [
+    {"id": "A01", "kind": "fresh_journeys", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Start fresh without an account", "Correct an interpreted field", "Add and remove a supported step", "Inspect a source", "Select evidence and an action or none", "Edit checklist/brief", "Download and replay"], "expect": {"completed": true, "no_unrequested_program": true, "canonical_identity_visible": true, "staff_text_labeled": true, "no_outbound_action": true}},
+    {"id": "A02", "kind": "point_comparison", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Compare poverty_rate_65_plus with HI-STATE-2024"], "expect": {"difference_values": ["+19.8", "+1.0", "-3.9"], "difference_unit": "percentage points", "published_moes_on_operands_only": true, "sentence": "No statistical difference test was performed.", "detection_interval_overlap_rank_or_causal_classifier": false}},
+    {"id": "A03", "kind": "conditional_program", "scope": ["house028_primary"], "actions": ["Run default recipe", "Add SNAP reference", "Explicitly add its reviewed outreach question"], "expect": {"default_programs": ["kupuna_care_hi"], "snap_basis_exact": "reviewed_basis.snap_hi", "full_basis_visible": true, "all_person_economic_context_labeled": true, "food_insecurity_eligibility_gap_claim": false, "programs_ranked_as_substitutes": false}},
+    {"id": "A04", "kind": "conditional_coverage", "scope": ["senate025_full_acceptance"], "actions": ["Add Med-QUEST reference and reviewed coverage question"], "expect": {"basis_exact": "reviewed_basis.medquest_hi", "coverage_status_unknown": true, "age_alone_eligibility": false, "measured_coverage_gap": false}},
+    {"id": "A05", "kind": "fixed_hypothesis_basis", "scope": ["house013_primary"], "actions": ["Filter separate profile to population_65_plus", "Keep Kūpuna Care hypothesis", "Attempt to remove one required hypothesis input"], "expect": {"profile_filter_does_not_change_hypothesis": true, "basis_exact": "reviewed_basis.kupuna_care_hi", "required_input_removal_code": "reviewed_basis_required", "options": ["restore_full_basis", "remove_hypothesis", "retain_reference"], "arbitrary_subset_hypothesis": false}},
+    {"id": "A06", "kind": "independent_comparator", "scope": ["house013_primary"], "actions": ["Select state comparison and a state-referenced Kūpuna Care hypothesis", "Change separate comparison to Maui County", "Request a county-based hypothesis"], "expect": {"old_comparison_retired": true, "new_comparison_explicit": "HI-COUNTY-009-2024", "hypothesis_state_reference_retained_and_named": true, "hypothesis_relabelled_maui": false, "county_hypothesis_request_unsupported": true, "partial_geographic_reference_caveat": true}},
+    {"id": "A07", "kind": "district_transition", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Select statistic/comparison/action and write canary notes/checklist progress", "Change House028 to House013 then Senate025"], "expect": {"new_primary_selections": 0, "new_action_selected": false, "old_text_and_progress_in_original_branch": true, "all_text_review_required_before_copy": true, "old_map_under_new_heading": false}},
+    {"id": "A08", "kind": "issue_transition", "scope": ["house013_primary"], "actions": ["Write staff text and select a response", "Change issue to Custom housing investigation"], "expect": {"selections_and_response_cleared": true, "old_branch_restorable": true, "identical_fact_requires_reselection": true, "new_deep_recipe_invented": false}},
+    {"id": "A09", "kind": "program_transition", "scope": ["house028_primary"], "actions": ["Complete a Kūpuna Care agency-call checklist item and write a note on an unchanged statistic", "Choose SNAP response"], "expect": {"new_program_scope_status_and_dependencies_recomputed": true, "old_call_completion_not_transferred": true, "unchanged_claim_note_parked": true, "new_response_requires_selection": true}},
+    {"id": "A10", "kind": "step_transition", "scope": ["house013_primary"], "actions": ["Remove a selected comparison step", "Re-scope another supported step", "Reorder without changing arguments"], "expect": {"removed_claim_and_orphan_note_excluded": true, "changed_dependencies_retired": true, "unrelated_exact_claims_retained": true, "reorder_alone_preserves_semantics_and_staff_state": true}},
+    {"id": "A11", "kind": "branch_restore", "scope": ["house028_primary", "house013_primary"], "actions": ["Restore previous exact branch after preview"], "expect": {"trusted_replay_required": true, "original_selections_notes_and_progress_restored_to_original_context": true, "notes_marked_verified": false, "operational_status_becomes_current": false}},
+    {"id": "A12", "kind": "late_reply", "scope": ["house028_primary", "senate025_full_acceptance"], "actions": ["Delay plan/geometry responses for old revision", "Commit a newer district revision", "Deliver delayed responses"], "expect": {"old_response_discarded": true, "current_map_findings_selection_draft_unchanged": true}},
+    {"id": "A13", "kind": "mixed_district", "scope": ["house013_primary", "senate025_full_acceptance"], "actions": ["Inject a House013 primary claim into a Senate025 brief", "Separately compare Senate025 with House013 explicitly"], "expect": {"injected_brief_code": "foreign_context", "no_mixed_brief": true, "conflicting_reference_identified": true, "explicit_right_operand_allowed": true, "both_branches_preserved": true}},
+    {"id": "A14", "kind": "semantic_substitution", "scope": ["all76"], "actions": ["Use equal-valued fixtures with substituted metric, Census variable, universe, geography/chamber/session, period, source hash/snapshot, annotation and ordered operands"], "expect": {"all_substitutions_rejected_or_canonically_regenerated": true, "numeric_match_accepted_as_evidence": false, "ordered_operand_reversal_changes_hash": true}},
+    {"id": "A15", "kind": "stale_snapshot_or_version", "scope": ["house013_primary"], "actions": ["Import an unsupported snapshot with an unchanged finding ID/value", "Import unsupported operation or recipe version"], "expect": {"replay_stops_before_dispatch": true, "verified_print_blocked_for_import": true, "original_file_and_current_case_preserved": true, "silent_current_data_rebind": false}},
+    {"id": "A16", "kind": "exact_replay", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Export default case", "Reopen in matching reviewed release", "Replay typed plan and selections"], "expect": {"canonical_claim_hashes_identical": true, "canonical_facts_identical": true, "notes_absent_by_default": true, "saved_html_trusted": false}},
+    {"id": "A17", "kind": "local_import_bounds", "scope": ["all"], "actions": ["Import malformed JSON, unknown fields, depth17, size262145, five branches, nine steps and script-like staff text"], "expect": {"out_of_bounds_rejected": true, "current_case_preserved": true, "permitted_staff_text_escaped_after_preview": true, "custom_browser_json_parser_required": false}},
+    {"id": "A18", "kind": "privacy_canaries", "scope": ["house028_primary"], "actions": ["Place distinct harmless canaries in raw prompt/title/note/finding note/custom checklist/owner/date/tracking fields", "Default export", "Opt-in export", "Render reviewed brief", "Inspect URL/history/app/proxy logs/published package"], "expect": {"default_export_excludes_all_staff_origin_fields": true, "opt_in_preview_and_plain_text_warning": true, "no_case_in_url_or_fragment": true, "no_canaries_in_logs_or_publication": true, "active_brief_post_transmission_disclosed": true}},
+    {"id": "A19", "kind": "api_validation", "scope": ["all"], "actions": ["POST duplicate keys, nonfinite JSON, invalid UTF8, unknown fields, booleans as integers and 65537-byte body", "Attempt cross-origin and cross-session request reuse"], "expect": {"no_dispatch_on_contract_error": true, "oversize_http": 413, "origin_session_protections_preserved": true, "body_limit_increased": false}},
+    {"id": "A20", "kind": "scope_audit", "scope": ["house013_primary", "all76"], "actions": ["Exercise old guided and new investigation program, referral, admin and outreach paths with unknown/multiple scope", "Alter only approximate internal-point county"], "expect": {"decision_unchanged_by_point": true, "hcv_unknown_not_proven_out": true, "admin_rows_not_allocated_or_automatically_matched": true, "statistical_county_service_area_and_staff_choice_distinct": true}},
+    {"id": "A21", "kind": "program_source_fallback", "scope": ["house013_primary", "senate025_full_acceptance"], "actions": ["Fail origin capture with403", "Reach source timebox", "Run using baseline admitted sources"], "expect": {"no_false_new_checked_date_or_origin_hash": true, "kalawao_route_unresolved_in_product_if_unadmitted": true, "specific_statewide_eoa_verification_action": true, "cost_capacity_wait_unverified": true, "indefinite_retry": false}},
+    {"id": "A22", "kind": "closed_zero_reference", "scope": ["house028_primary", "house013_primary"], "actions": ["Add Honolulu DCS HCV", "Add WIC", "Remove all response selections"], "expect": {"hcv_closed_at_oct30_check_not_open_or_permanent": true, "hcv_scope_evidence_required": true, "wic_reference_only_no_hypothesis": true, "zero_selected_response_valid": true, "no_manufactured_alternative": true}},
+    {"id": "A23", "kind": "unsupported_and_clarification", "scope": ["all"], "actions": ["Ask district13 without chamber", "Use ambiguous this/poverty", "Ask eligible unenrolled count, unsupported intersection, significant difference, causal impact, current data, or ignored negation"], "expect": {"specific_choices_or_refusal": true, "zero_analytical_dispatch_until_resolved": true, "old_case_and_entered_draft_preserved": true, "unsupported_qualifiers_silently_dropped": false}},
+    {"id": "A24", "kind": "geometry", "scope": ["house009_smoke", "house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Fetch exact allowlisted feature by GET", "Inspect overview and every component at360px/laptop", "Use keyboard selector", "Change district", "Fail geometry request"], "expect": {"component_counts": [1, 1, 3, 10], "all_components_reachable": true, "geometry_in_post": false, "named_habitation_from_point_or_area": false, "new_context_on_failure_has_unavailable_map_not_old_map": true, "wrapper_bytes_and_render_timing_recorded": true}},
+    {"id": "A25", "kind": "print", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Edit brief and checklist with Hawaiian text", "Open actual Chrome print preview", "Cancel", "Save as PDF", "Try over-budget content"], "expect": {"three_new_readable_one_page_pdfs": true, "sources_dates_geography_universe_moe_and_five_limitations_visible": true, "cancel_preserves_case": true, "overflow_code": "brief_overflow", "no_crop_silent_truncation_or_illegible_shrink": true}},
+    {"id": "A26", "kind": "accessibility", "scope": ["house028_primary", "house013_primary", "senate025_full_acceptance"], "actions": ["Complete supported journey keyboard-only", "Check focus and source-dialog return", "Run VoiceOver journey", "Check200percent zoom and360px width"], "expect": {"guided_completion_without_map_or_language_input": true, "errors_context_and_review_announced": true, "component_text_equivalent_available": true, "full_wcag_or_other_browser_claim": false}},
+    {"id": "A27", "kind": "all76_footprint", "scope": ["all76"], "actions": ["Run default plan for51House+25Senate three times", "Run worst allowed eight-step plan", "Check source/session/ring/finite-coordinate linkage for all features"], "expect": {"default_plans_supported": 76, "profile_metrics_per_district": 20, "default_p95_seconds_max": 2, "default_max_seconds": 5, "worst_plan_seconds_max": 10, "worker_peak_gib_max": 1.25, "plan_response_bytes_max": 524288, "geometry_response_bytes_max": 1048576, "model_calls": 0, "all76_visual_usability_claim": false}},
+    {"id": "A28", "kind": "controlled_unavailable", "scope": ["all76"], "actions": ["Inspect State and Senate008 total-population controlled MOEs", "Request unnormalized county", "Inspect count comparison and unknown office baseline"], "expect": {"controlled_marker_not_zero_moe": true, "unavailable_not_zero": true, "count_values_side_by_side_not_differenced": true, "office_baseline_not_supplied_until_staff_entry": true}},
+    {"id": "A29", "kind": "failure_restart", "scope": ["house013_primary"], "actions": ["Trigger unsupported step and bounded unexpected failure", "Expire/restart server session", "Retry exact saved case", "Reload without saving"], "expect": {"independent_successes_visible": true, "no_substitution": true, "browser_edits_preserved_before_reload": true, "saved_case_replays_after_fresh_validation": true, "unsaved_reload_loss_disclosed": true}},
+    {"id": "A30", "kind": "release_handoff", "scope": ["candidate"], "actions": ["Verify frozen pins", "Rehearse discovered rollback", "Test anonymous judge access and clean public setup", "Verify video/privacy limits and submission receipt"], "expect": {"all_baselines_unchanged": true, "new_source_image_data_metadata_ids_recorded": true, "working_custom_source_public_not_readme_only": true, "private_data_or_unreviewed_raw_publication": false, "actual_rollback_commands_and_evidence": true, "video_minutes_max": 10, "privacy_words_max": 300, "later_work_order_required": true}}
+  ]
+}

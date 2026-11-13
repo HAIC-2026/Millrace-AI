@@ -1,0 +1,114 @@
+{
+ "case_schema": "haic-case/1",
+ "case_id": "c7366ede-4337-4a67-92cc-4e6b8d868491",
+ "active_branch_id": "b4c99c55-4d35-4900-ae92-99365eebc6dc",
+ "next_revision": 2,
+ "staff_work_included": true,
+ "branches": [
+  {
+   "branch_id": "b4c99c55-4d35-4900-ae92-99365eebc6dc",
+   "release_id": "sha256:63ba0f9b402c17719a1d4497ece802fa4d68a717fef10015ca5fa3ca60ffeb94",
+   "snapshot_id": "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3",
+   "operation_version": "ia-core/1",
+   "recipe_version": "aging_at_home/1",
+   "plan": {
+    "district": {
+     "state_fips": "15",
+     "chamber": "house",
+     "code": "028",
+     "boundary_session": 2024
+    },
+    "map_session": 2026,
+    "issue_id": "aging_at_home",
+    "service_area_id": null,
+    "steps": [
+     {
+      "step_id": "s1",
+      "operation": "profile",
+      "args": {
+       "metric_ids": [
+        "population_65_plus",
+        "male_householder_65_plus_living_alone",
+        "female_householder_65_plus_living_alone",
+        "poverty_rate_65_plus"
+       ]
+      }
+     },
+     {
+      "step_id": "s2",
+      "operation": "compare",
+      "args": {
+       "metric_ids": [
+        "poverty_rate_65_plus"
+       ],
+       "comparison_geography": "HI-STATE-2024"
+      }
+     },
+     {
+      "step_id": "s3",
+      "operation": "program_evidence",
+      "args": {
+       "program_ids": [
+        "kupuna_care_hi"
+       ]
+      }
+     },
+     {
+      "step_id": "s4",
+      "operation": "outreach_lead",
+      "args": {
+       "program_id": "kupuna_care_hi"
+      }
+     }
+    ]
+   },
+   "selected_claim_refs": [
+    {
+     "snapshot_id": "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3",
+     "finding_id": "stat:HI-HOUSE-028-2024:male_householder_65_plus_living_alone",
+     "semantic_hash": "sha256:3008258942afa4287682ef434bb6fe3bcef6637b6294e4a487bab7c1c9ca6658"
+    },
+    {
+     "snapshot_id": "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3",
+     "finding_id": "stat:HI-HOUSE-028-2024:female_householder_65_plus_living_alone",
+     "semantic_hash": "sha256:91916131c71240a7023b8e80200eaafbee2e00574bef45beb0fca3297e18eb2b"
+    },
+    {
+     "snapshot_id": "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3",
+     "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:poverty_rate_65_plus",
+     "semantic_hash": "sha256:260b64f7b15b9814e141319fffe7f89424beed35715e6168b1cd4348f0bbdaf9"
+    }
+   ],
+   "selected_action_ref": {
+    "action_id": "kupuna_verify/1",
+    "semantic_hash": "sha256:cba39d2c0dcaf8224613478f6ccad1c8bf52d56d858d3a0a866de8ad0e4079ed"
+   },
+   "staff_edits": {
+    "title": "Kūpuna Care route check — House 028",
+    "note": "Office asked for the assessment route before any outreach session is planned.",
+    "finding_notes": {
+     "sha256:3008258942afa4287682ef434bb6fe3bcef6637b6294e4a487bab7c1c9ca6658": "Raised at the October talk story."
+    }
+   },
+   "checklist_edits": [
+    {
+     "item_id": "agency_route",
+     "owner_role": "Office manager",
+     "due_date": "2026-11-20",
+     "completed": true
+    },
+    {
+     "item_id": "custom1",
+     "text": "Ask which office handles assessment intake"
+    }
+   ],
+   "tracking": {
+    "label": "Agency/partner referral sessions arranged",
+    "baseline": null,
+    "as_of": null
+   },
+   "review_state": "clean",
+   "last_ready_revision": 1
+  }
+ ]
+}

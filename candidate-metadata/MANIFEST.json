@@ -1,0 +1,20 @@
+{
+  "metadata_snapshot_id": "sha256:a952597c83398c4f30c20919a42c8f18cc74b331e8e85a94e73229714e39d367",
+  "files": [
+    {
+      "path": "geography/relations.v1.json",
+      "bytes": 377,
+      "sha256": "9264fbafe83f5166eaa9a57c17609e83235cf681ab3e74d9a14abcf7f72b82fc"
+    },
+    {
+      "path": "recipes/aging_at_home.v1.json",
+      "bytes": 1227,
+      "sha256": "f090b4dfacb9da101b5293639e454a3c4e6d533d505e1b8643548fea4cae9e63"
+    },
+    {
+      "path": "responses/verification.v1.json",
+      "bytes": 653,
+      "sha256": "9bbc98d5a9cf6c11f2f31d508f5ab9c66993338e683280cfcf1296f55e9482ed"
+    }
+  ]
+}

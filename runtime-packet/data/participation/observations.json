@@ -1,0 +1,610 @@
+[
+  {
+    "observation_id": "hi_snap_sfy2027_001",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-07",
+    "unit": "persons",
+    "value": 158135,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "JUL",
+      "cell": "H12",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF PERSONS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_002",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-07",
+    "unit": "households",
+    "value": 78231,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "JUL",
+      "cell": "H23",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF HOUSEHOLDS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_003",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-08",
+    "unit": "persons",
+    "value": 158350,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "AUG",
+      "cell": "H12",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF PERSONS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_004",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-08",
+    "unit": "households",
+    "value": 78143,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "AUG",
+      "cell": "H23",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF HOUSEHOLDS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_005",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-09",
+    "unit": "persons",
+    "value": 157065,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "SEP",
+      "cell": "H12",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF PERSONS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_006",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-09",
+    "unit": "households",
+    "value": 77580,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "SEP",
+      "cell": "H23",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF HOUSEHOLDS"
+    },
+    "coverage": "All SNAP categories, statewide monthly administrative caseload. Not eligible-population denominator.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_snap_sfy2027_007",
+    "source_id": "hi_snap_sfy2027",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-10",
+    "unit": "persons",
+    "value": null,
+    "suppression": "not applicable: unpublished, not source small-cell suppression",
+    "status": "unpublished",
+    "locator": {
+      "sheet": "OCT",
+      "cell": "H12",
+      "supporting_cells": "B5:G10 blank; B12:H12 cached 0",
+      "row_label": "STATE",
+      "column_label": "TOTAL",
+      "section": "NUMBER OF PERSONS"
+    },
+    "coverage": "Month preallocated in workbook but category inputs not populated.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false,
+    "raw_value": 0,
+    "missing_reason": "unpublished_month_formula_placeholder"
+  },
+  {
+    "observation_id": "dbedt_county_h_008",
+    "source_id": "dbedt_county_h",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2024 (year label; fiscal/calendar basis not specified in H-6)",
+    "unit": "persons (average monthly)",
+    "value": 162733,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "H-6",
+      "cell": "B24",
+      "row_label": "2024",
+      "column_label": "State",
+      "table": "H-6",
+      "source_note_cells": "A46:A47"
+    },
+    "coverage": "Average monthly individuals served by Food Stamp Program; DBEDT republishes DHS reports and records. Period basis unresolved; do not align to a specific ACS year without clarification.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "dbedt_county_h_009",
+    "source_id": "dbedt_county_h",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "county",
+      "name": "Honolulu County",
+      "geoid": "15003"
+    },
+    "period": "2024 (year label; fiscal/calendar basis not specified in H-6)",
+    "unit": "persons (average monthly)",
+    "value": 95057,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "H-6",
+      "cell": "C24",
+      "row_label": "2024",
+      "column_label": "Honolulu",
+      "table": "H-6",
+      "source_note_cells": "A46:A47"
+    },
+    "coverage": "Average monthly individuals served by Food Stamp Program; DBEDT republishes DHS reports and records. Period basis unresolved; do not align to a specific ACS year without clarification.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "dbedt_county_h_010",
+    "source_id": "dbedt_county_h",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "county",
+      "name": "Hawaii County",
+      "geoid": "15001"
+    },
+    "period": "2024 (year label; fiscal/calendar basis not specified in H-6)",
+    "unit": "persons (average monthly)",
+    "value": 41048,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "H-6",
+      "cell": "D24",
+      "row_label": "2024",
+      "column_label": "Hawaii",
+      "table": "H-6",
+      "source_note_cells": "A46:A47"
+    },
+    "coverage": "Average monthly individuals served by Food Stamp Program; DBEDT republishes DHS reports and records. Period basis unresolved; do not align to a specific ACS year without clarification.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "dbedt_county_h_011",
+    "source_id": "dbedt_county_h",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "county",
+      "name": "Kauai County",
+      "geoid": "15007"
+    },
+    "period": "2024 (year label; fiscal/calendar basis not specified in H-6)",
+    "unit": "persons (average monthly)",
+    "value": 8369,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "H-6",
+      "cell": "E24",
+      "row_label": "2024",
+      "column_label": "Kauai",
+      "table": "H-6",
+      "source_note_cells": "A46:A47"
+    },
+    "coverage": "Average monthly individuals served by Food Stamp Program; DBEDT republishes DHS reports and records. Period basis unresolved; do not align to a specific ACS year without clarification.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "dbedt_county_h_012",
+    "source_id": "dbedt_county_h",
+    "program_id": "snap_hi",
+    "geography": {
+      "type": "county",
+      "name": "Maui County",
+      "geoid": "15009"
+    },
+    "period": "2024 (year label; fiscal/calendar basis not specified in H-6)",
+    "unit": "persons (average monthly)",
+    "value": 18259,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "sheet": "H-6",
+      "cell": "F24",
+      "row_label": "2024",
+      "column_label": "Maui",
+      "table": "H-6",
+      "source_note_cells": "A46:A47"
+    },
+    "coverage": "Average monthly individuals served by Food Stamp Program; DBEDT republishes DHS reports and records. Period basis unresolved; do not align to a specific ACS year without clarification.",
+    "revision_status": "No final/provisional/revision label supplied for selected cell; pinned snapshot only",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_013",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-01",
+    "unit": "persons",
+    "value": 406226,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID MANAGED CARE TOTAL",
+      "column_label": "Jan-26",
+      "methodology_page": 2
+    },
+    "coverage": "Beneficiaries with paid managed-care capitation for at least part of month; primary program assigned.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_014",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-02",
+    "unit": "persons",
+    "value": 404140,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID MANAGED CARE TOTAL",
+      "column_label": "Feb-26",
+      "methodology_page": 2
+    },
+    "coverage": "Beneficiaries with paid managed-care capitation for at least part of month; primary program assigned.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_015",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-03",
+    "unit": "persons",
+    "value": 402575,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID MANAGED CARE TOTAL",
+      "column_label": "Mar-26",
+      "methodology_page": 2
+    },
+    "coverage": "Beneficiaries with paid managed-care capitation for at least part of month; primary program assigned.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_016",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-01",
+    "unit": "persons",
+    "value": 9153,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID ONLY TOTAL",
+      "column_label": "Jan-26",
+      "methodology_page": 2
+    },
+    "coverage": "Fee for Service plus Medicare Savings Only; excludes contemporaneous managed-care participants for Medicare Savings category.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_017",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-02",
+    "unit": "persons",
+    "value": 9180,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID ONLY TOTAL",
+      "column_label": "Feb-26",
+      "methodology_page": 2
+    },
+    "coverage": "Fee for Service plus Medicare Savings Only; excludes contemporaneous managed-care participants for Medicare Savings category.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_018",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-03",
+    "unit": "persons",
+    "value": 9446,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "MEDICAID ONLY TOTAL",
+      "column_label": "Mar-26",
+      "methodology_page": 2
+    },
+    "coverage": "Fee for Service plus Medicare Savings Only; excludes contemporaneous managed-care participants for Medicare Savings category.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_019",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-01",
+    "unit": "persons",
+    "value": 415379,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "TOTAL ENROLLMENT*",
+      "column_label": "Jan-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed care plus Medicaid Only; includes Medicare Savings Only; not interchangeable with managed-care island/age breakdown.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_020",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-02",
+    "unit": "persons",
+    "value": 413320,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "TOTAL ENROLLMENT*",
+      "column_label": "Feb-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed care plus Medicaid Only; includes Medicare Savings Only; not interchangeable with managed-care island/age breakdown.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_021",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "state",
+      "name": "Hawaii",
+      "geoid": "15"
+    },
+    "period": "2026-03",
+    "unit": "persons",
+    "value": 412021,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "table": "Hawaii Medicaid Enrollment Report (2026)",
+      "row_label": "TOTAL ENROLLMENT*",
+      "column_label": "Mar-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed care plus Medicaid Only; includes Medicare Savings Only; not interchangeable with managed-care island/age breakdown.",
+    "revision_status": "Report date 2026-06-05; enrollment can fluctuate up to six months due to retroactive adjustments; accurate as of report date.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_022",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "island",
+      "name": "Oahu",
+      "geoid": null
+    },
+    "period": "2026-01",
+    "unit": "persons",
+    "value": 246141,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "section": "Managed Care By Island",
+      "row_label": "Oahu",
+      "column_label": "Jan-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed-care paid-capitation beneficiaries only; excludes Medicaid Only and cannot be labeled all Medicaid enrollment.",
+    "revision_status": "Report date 2026-06-05; retroactive adjustments up to six months.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_023",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "island",
+      "name": "Oahu",
+      "geoid": null
+    },
+    "period": "2026-02",
+    "unit": "persons",
+    "value": 244941,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "section": "Managed Care By Island",
+      "row_label": "Oahu",
+      "column_label": "Feb-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed-care paid-capitation beneficiaries only; excludes Medicaid Only and cannot be labeled all Medicaid enrollment.",
+    "revision_status": "Report date 2026-06-05; retroactive adjustments up to six months.",
+    "district_gap_usable": false
+  },
+  {
+    "observation_id": "hi_mqd_enrollment_2026_024",
+    "source_id": "hi_mqd_enrollment_2026",
+    "program_id": "medquest_hi",
+    "geography": {
+      "type": "island",
+      "name": "Oahu",
+      "geoid": null
+    },
+    "period": "2026-03",
+    "unit": "persons",
+    "value": 243917,
+    "suppression": "none indicated for selected published cell",
+    "status": "observed",
+    "locator": {
+      "page": 1,
+      "section": "Managed Care By Island",
+      "row_label": "Oahu",
+      "column_label": "Mar-26",
+      "methodology_page": 2
+    },
+    "coverage": "Managed-care paid-capitation beneficiaries only; excludes Medicaid Only and cannot be labeled all Medicaid enrollment.",
+    "revision_status": "Report date 2026-06-05; retroactive adjustments up to six months.",
+    "district_gap_usable": false
+  }
+]

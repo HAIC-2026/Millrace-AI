@@ -1,0 +1,19 @@
+{
+  "version": "verification/1",
+  "actions": {
+    "kupuna_care_hi": "kupuna_verify/1",
+    "snap_hi": "snap_verify/1",
+    "medquest_hi": "medquest_verify/1",
+    "hcv_honolulu": "hcv_verify/1"
+  },
+  "checklist": [
+    "Verify responsible service route and current assessment and access conditions.",
+    "Agree on agency-reviewed material and partner arrangements.",
+    "Record the chosen next check and staff role."
+  ],
+  "limitations": [
+    "Age 65+ is not the full age-60+ program population.",
+    "Living alone is not functional impairment.",
+    "Comparable services, assessment, eligibility, funding, capacity and cost are unknown."
+  ]
+}

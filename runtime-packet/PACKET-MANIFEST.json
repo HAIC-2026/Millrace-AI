@@ -1,0 +1,59 @@
+{
+  "schema": "haic-public-facts-projection/1",
+  "snapshot_id": "sha256:2cae9d036ae1a1b2932a9e95e11fc3087b7232204f264913e16eef68013888ed",
+  "verification_scope": "publication_normalized_facts",
+  "files": [
+    {
+      "path": "SOURCE-CATALOG.json",
+      "bytes": 41333,
+      "sha256": "fa69d802a5e5116b1161ad01fd4204ff8d0c154379a7530e9832bcb15d7251f3"
+    },
+    {
+      "path": "data/geography/manifest.json",
+      "bytes": 2479,
+      "sha256": "b98dc281b11a4c2eb7c5e6eda3d9ddea4e3e4fc2fdb71715b6a7b95781aa0b72"
+    },
+    {
+      "path": "data/geography/raw/2024_house.geojson",
+      "bytes": 2730023,
+      "sha256": "703c631b459b6701701674594d48095bc62155339acdd5efb5f7b347036615f4"
+    },
+    {
+      "path": "data/geography/raw/2024_senate.geojson",
+      "bytes": 1319869,
+      "sha256": "93cc3eb1e6c457feef5369a0788b210337235f6bfbf8b2f212c1729c06d204b2"
+    },
+    {
+      "path": "data/geography/raw/2026_house.geojson",
+      "bytes": 2727530,
+      "sha256": "e2e8509e2a5a5368ecba741f08db9f300febc416bf339cfdc095996068159514"
+    },
+    {
+      "path": "data/geography/raw/2026_senate.geojson",
+      "bytes": 1318649,
+      "sha256": "7f2acc3468abf068de48cb92e5f4bb8596a4ac538ac941dec5a5c53f262a5423"
+    },
+    {
+      "path": "data/participation/observations.json",
+      "bytes": 21355,
+      "sha256": "632e6d569b29bb5831af9072c9ef490910364eef1edb2f3cfef0bcc164bb619f"
+    },
+    {
+      "path": "data/programs/registry.json",
+      "bytes": 17046,
+      "sha256": "48b691bcf5dad373df77152541188818db20347f92b4df4ed43e0e65b119dee3"
+    },
+    {
+      "path": "data/statistics/observations.json",
+      "bytes": 2688908,
+      "sha256": "45e38e4e5c8e11a487174e660e40a059206e68ae76ee5670e0f81dd363def23d"
+    },
+    {
+      "path": "data/statistics/raw/DP03_metadata.json",
+      "bytes": 360,
+      "sha256": "46582a98068a8b0d33217acb0c4a4f8d3fffb6baf58d1902c3e99a7b2d567163"
+    }
+  ],
+  "historical_r2_data_snapshot_id": "sha256:22642501f4c8829262c5724d3a09ce1f60ed0a0c06792f4e6c0c9b829c8f3a15",
+  "note": "Verifies only bundled files. Historical source hashes identify original captures and do not verify omitted raw bytes."
+}

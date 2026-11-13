@@ -1,0 +1,412 @@
+{
+  "schema": "haic-ia1-release-manifest/1",
+  "operation_version": "ia-core/1",
+  "model_calls": 0,
+  "source_identity": "sha256:89da4c0ee5bb2942e43539f81e2ab4b425f86bbddaaca04bed0243c75d73d937",
+  "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
+  "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
+  "input_profile": "public",
+  "lineage": {
+    "selected_baseline_manifest_sha256": "686b23b6b7623d77f084ed4518e6d5adec620fbe713e17ee220caa63bce2e46d",
+    "data_snapshot_id": "sha256:2cae9d036ae1a1b2932a9e95e11fc3087b7232204f264913e16eef68013888ed",
+    "metadata_snapshot_id": "sha256:a952597c83398c4f30c20919a42c8f18cc74b331e8e85a94e73229714e39d367",
+    "combined_evidence_snapshot_id": "sha256:33af0580ddd697fbe16dedf1b335303cfc9a4e958df5c684f1eade8365dd6aa3"
+  },
+  "files": [
+    {
+      "path": ".dockerignore",
+      "bytes": 232,
+      "sha256": "146f3c1b5f92441fed2f8a00dd4aae726fa61f284e202d8c23537a16504e25a2"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 89,
+      "sha256": "16287c3e7129f5d4f9626ce1a66041e2e4e68ff89695b27e22aa7434b1ee34a7"
+    },
+    {
+      "path": "DATA-NOTICES.md",
+      "bytes": 6203,
+      "sha256": "bedf957bc5bfa002befbba71cc99708b3055d78a2d09c79686d2aa25362a9206"
+    },
+    {
+      "path": "DATA-PROVENANCE.json",
+      "bytes": 857,
+      "sha256": "b8097e9f0917663859ff55fa995dd49fc7266495b496b90386c28b70d4b7a726"
+    },
+    {
+      "path": "Dockerfile",
+      "bytes": 1078,
+      "sha256": "177e18708b8b5fed1c65c60f3edd6379133e947829a15739627f4b939fe8a6d4"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1066,
+      "sha256": "4988fbbec554a174515f2e63a35991a1e81977ccab194f615a724e101d6ff8ed"
+    },
+    {
+      "path": "LICENSE-SCOPE.md",
+      "bytes": 704,
+      "sha256": "a46603fbdcbaf24aae35194aef7aede0be3346f2bc0272d6596ffc2544b09411"
+    },
+    {
+      "path": "PRIVACY.md",
+      "bytes": 1837,
+      "sha256": "c6190937bce94285cbc684d113be529a0ca3c61163388737bae25207e0d81860"
+    },
+    {
+      "path": "README.md",
+      "bytes": 6406,
+      "sha256": "13a31ed08af63a216f6646b354538c8510610917ad7459cbb018ab64aa273d7b"
+    },
+    {
+      "path": "candidate-metadata/MANIFEST.json",
+      "bytes": 610,
+      "sha256": "4baacc1cb58657f4ba31e7993dfcb16efa60708b3a89b16b5a02183f42bba5c1"
+    },
+    {
+      "path": "candidate-metadata/geography/relations.v1.json",
+      "bytes": 377,
+      "sha256": "9264fbafe83f5166eaa9a57c17609e83235cf681ab3e74d9a14abcf7f72b82fc"
+    },
+    {
+      "path": "candidate-metadata/recipes/aging_at_home.v1.json",
+      "bytes": 1227,
+      "sha256": "f090b4dfacb9da101b5293639e454a3c4e6d533d505e1b8643548fea4cae9e63"
+    },
+    {
+      "path": "candidate-metadata/responses/verification.v1.json",
+      "bytes": 653,
+      "sha256": "9bbc98d5a9cf6c11f2f31d508f5ab9c66993338e683280cfcf1296f55e9482ed"
+    },
+    {
+      "path": "districtbrief/__init__.py",
+      "bytes": 95,
+      "sha256": "618fe1057d8d37c918158431f47b8ff099c9b5f9ee83fd0b0fe1cf797663b6fe"
+    },
+    {
+      "path": "districtbrief/admin_labels.py",
+      "bytes": 2135,
+      "sha256": "8e416c12b4caf0da3fdfaf430d72cd2e6f75dc624543d45722d005104933d2d5"
+    },
+    {
+      "path": "districtbrief/candidate_metadata.py",
+      "bytes": 2234,
+      "sha256": "17ab04bba749a93074d404a49f2fbaf5ca2a2b2b9b046f2fba6a630c687febc6"
+    },
+    {
+      "path": "districtbrief/case_contract.py",
+      "bytes": 12341,
+      "sha256": "59d31133e065a02308ea6e698ecc179ba19d7886b85d55ee3813df3c07bbd90b"
+    },
+    {
+      "path": "districtbrief/claim_binding.py",
+      "bytes": 7441,
+      "sha256": "679b1138d3b551e00dd859f52b259d5d7041a20108a07f0cc6cfb6c98b87e079"
+    },
+    {
+      "path": "districtbrief/contract.py",
+      "bytes": 17292,
+      "sha256": "1d3b4d9f27d94f04eb906bb036f0a2046ce81e884700060147f96c66071dd9a7"
+    },
+    {
+      "path": "districtbrief/core.py",
+      "bytes": 63934,
+      "sha256": "bd5f6f7ee81107c4903822a1f9813e12c1d2158744a5c13ceff8a8c0f0a4e069"
+    },
+    {
+      "path": "districtbrief/geography.py",
+      "bytes": 17798,
+      "sha256": "b3d65106331beddf442ab524c96fa79164b592d0b224b3850e16db3564f11a76"
+    },
+    {
+      "path": "districtbrief/interpret.py",
+      "bytes": 8207,
+      "sha256": "476dc6c590a21e7f20cb99c8804df96b35437600269ee224c58c0dbad76c3601"
+    },
+    {
+      "path": "districtbrief/investigation.py",
+      "bytes": 19289,
+      "sha256": "d2ef734d61ad104d0319b1bcfcf2b52a301e4fdd7e633f5eed17b0a2f23517d9"
+    },
+    {
+      "path": "districtbrief/packet.py",
+      "bytes": 6034,
+      "sha256": "6a270b5f421720abd0c2287cdd73e198e8cf6f7ee8232adc11c18dfa63b7a613"
+    },
+    {
+      "path": "districtbrief/public_packet.py",
+      "bytes": 4183,
+      "sha256": "d1979b7f07c6bbf85e304bb488d10f66a9ced9761e745a414a6b621e2e619a3c"
+    },
+    {
+      "path": "districtbrief/rationale.py",
+      "bytes": 3645,
+      "sha256": "e5d79d78f6ae03e9de13de755ec7906723cca6933ab133b4801755dbbf33c1a8"
+    },
+    {
+      "path": "districtbrief/render.py",
+      "bytes": 38847,
+      "sha256": "24d3c1c21f79e5f17bf858b51d217c3cb7214f0bf4d11035c0b606f2d2cbc3e8"
+    },
+    {
+      "path": "districtbrief/resolve.py",
+      "bytes": 22841,
+      "sha256": "852d06197d758997e9f1564ef350e74c09f37e22750d785aca376b080c121be0"
+    },
+    {
+      "path": "districtbrief/route_a.py",
+      "bytes": 33862,
+      "sha256": "570d0cf9e5fd5e769456e3490dce9549ec3f113dcf2068d101d727260e45fc42"
+    },
+    {
+      "path": "districtbrief/router_contract.py",
+      "bytes": 41609,
+      "sha256": "31b4728d7d16217dac5eea3d21757574510e740a603458df0dff6bcb95daba3e"
+    },
+    {
+      "path": "districtbrief/service.py",
+      "bytes": 39639,
+      "sha256": "cea1f3a17e644dc46ba1b21bafa7c087f6197e9a96d665dec1b11ae6a2e19493"
+    },
+    {
+      "path": "districtbrief/service_scope.py",
+      "bytes": 2244,
+      "sha256": "480a027a2d805a15520a0771674eff0b1b5ed4c8233b9795cf656b21d0f77317"
+    },
+    {
+      "path": "districtbrief/xlsx.py",
+      "bytes": 10059,
+      "sha256": "65f5f44f42d371bbdfbc662ebdd644c1edd10f677116fefd54fdb3ab09c94cc7"
+    },
+    {
+      "path": "docs/PROJECTION-INPUTS.json",
+      "bytes": 2593,
+      "sha256": "82731e04769ac7a84eda4b28c99e6978ce27a53780446c0b96c061a8fb84a6d4"
+    },
+    {
+      "path": "docs/R2-INPUTS.json",
+      "bytes": 18166,
+      "sha256": "7188842de058fe08839cf916416f12ec9c3543d976580dad5a3cc4ab0dd30e0b"
+    },
+    {
+      "path": "docs/R2-REPLAY.md",
+      "bytes": 2926,
+      "sha256": "9141650e7de5ebabe59adf952486b4d10e586d8c6d09adb5d33a50c523f4fea1"
+    },
+    {
+      "path": "gunicorn.conf.py",
+      "bytes": 561,
+      "sha256": "06322097cc8fe12bd56300006f0880c2581188aaaaeabb650c26943bcc5511ee"
+    },
+    {
+      "path": "public_app.py",
+      "bytes": 19732,
+      "sha256": "a00d5a82abb287bbbae36ad12bcc8f336cf4e23732ef0ae84046531240a70063"
+    },
+    {
+      "path": "requirements.txt",
+      "bytes": 191,
+      "sha256": "e13122b14043200c6cd67b5f24e591c895df2887e8b78d71a4c21d4b96ac364e"
+    },
+    {
+      "path": "runtime-packet/PACKET-MANIFEST.json",
+      "bytes": 2154,
+      "sha256": "55e98d57896b8cc5642e8dc33f465b37a144726ffc001587393e3ef535a04b61"
+    },
+    {
+      "path": "runtime-packet/SOURCE-CATALOG.json",
+      "bytes": 41333,
+      "sha256": "fa69d802a5e5116b1161ad01fd4204ff8d0c154379a7530e9832bcb15d7251f3"
+    },
+    {
+      "path": "runtime-packet/data/geography/manifest.json",
+      "bytes": 2479,
+      "sha256": "b98dc281b11a4c2eb7c5e6eda3d9ddea4e3e4fc2fdb71715b6a7b95781aa0b72"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2024_house.geojson",
+      "bytes": 2730023,
+      "sha256": "703c631b459b6701701674594d48095bc62155339acdd5efb5f7b347036615f4"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2024_senate.geojson",
+      "bytes": 1319869,
+      "sha256": "93cc3eb1e6c457feef5369a0788b210337235f6bfbf8b2f212c1729c06d204b2"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2026_house.geojson",
+      "bytes": 2727530,
+      "sha256": "e2e8509e2a5a5368ecba741f08db9f300febc416bf339cfdc095996068159514"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2026_senate.geojson",
+      "bytes": 1318649,
+      "sha256": "7f2acc3468abf068de48cb92e5f4bb8596a4ac538ac941dec5a5c53f262a5423"
+    },
+    {
+      "path": "runtime-packet/data/participation/observations.json",
+      "bytes": 21355,
+      "sha256": "632e6d569b29bb5831af9072c9ef490910364eef1edb2f3cfef0bcc164bb619f"
+    },
+    {
+      "path": "runtime-packet/data/programs/registry.json",
+      "bytes": 17046,
+      "sha256": "48b691bcf5dad373df77152541188818db20347f92b4df4ed43e0e65b119dee3"
+    },
+    {
+      "path": "runtime-packet/data/statistics/observations.json",
+      "bytes": 2688908,
+      "sha256": "45e38e4e5c8e11a487174e660e40a059206e68ae76ee5670e0f81dd363def23d"
+    },
+    {
+      "path": "runtime-packet/data/statistics/raw/DP03_metadata.json",
+      "bytes": 360,
+      "sha256": "46582a98068a8b0d33217acb0c4a4f8d3fffb6baf58d1902c3e99a7b2d567163"
+    },
+    {
+      "path": "static/app.css",
+      "bytes": 35954,
+      "sha256": "3206c80b80f023108647aa16dde5aa80f77845895f4529e735a9f3e5e30b5c20"
+    },
+    {
+      "path": "static/app.js",
+      "bytes": 34278,
+      "sha256": "a4ac66fa44111f8ce5fb0385eef596dfe375f67c226d6f1535e5d4a87ac98157"
+    },
+    {
+      "path": "static/case_state.js",
+      "bytes": 65766,
+      "sha256": "77cf62718ed38f008a33f7ffec99e6920100826622f76b26566af9c980801b76"
+    },
+    {
+      "path": "static/index.html",
+      "bytes": 16130,
+      "sha256": "6d571d82795470c2f541b6cfe3b6db33e032677367142ef8410372061af2a2a0"
+    },
+    {
+      "path": "static/investigation.js",
+      "bytes": 64728,
+      "sha256": "24f7d297b76ac36dd0aba649697b9a728ec7002dd085d343b27051554c8e6c3a"
+    },
+    {
+      "path": "static/map.js",
+      "bytes": 4912,
+      "sha256": "f5617271711e914621c9b1f05e6d4e845b60c81e94c4bf39e266a5eba4829951"
+    },
+    {
+      "path": "static/request.js",
+      "bytes": 6585,
+      "sha256": "a054423023fb447df2a8f9a62329e193ac2229750cdf1e139f53c55634ab93ab"
+    },
+    {
+      "path": "tests/fixtures/README.md",
+      "bytes": 481,
+      "sha256": "2347a032f3653a9f2ad71d71b4997633a20174acef5332b0ad9b06312b8c841c"
+    },
+    {
+      "path": "tests/fixtures/issue_acceptance.json",
+      "bytes": 20453,
+      "sha256": "d359d6261d134ef2c579185738c4fdcba830898c4fa4d623da9dbf242f5615be"
+    },
+    {
+      "path": "tests/fixtures/private_case.json",
+      "bytes": 3393,
+      "sha256": "655f69b7ca98d93916e6ea65de85817e8e54f77d7f2fe7cbf155c64c2622deec"
+    },
+    {
+      "path": "tests/fixtures/public_case.json",
+      "bytes": 2760,
+      "sha256": "7650afd87f08505e0ad3cffd47e2dd8fbde06b6b703486476ffe7c3342285c6c"
+    },
+    {
+      "path": "tests/test_case_replay.py",
+      "bytes": 1613,
+      "sha256": "32f03c316a70c03998beabf4ed9ee6dc4430226334cf0a2581887013c0af37b4"
+    },
+    {
+      "path": "tests/test_case_state.cjs",
+      "bytes": 52079,
+      "sha256": "1d261215d2d1d70fb6e750393acea0ee1c1e494f92bd8b4f30a4eaddac4a30be"
+    },
+    {
+      "path": "tests/test_claim_bindings.py",
+      "bytes": 2898,
+      "sha256": "ff3f719bb0c99699b68e152bace6a8cd351ac2bcbc99959709abb4662cbfcbfa"
+    },
+    {
+      "path": "tests/test_geometry.py",
+      "bytes": 1417,
+      "sha256": "cec408f91b461184a3ec5f9342f78b7d289dc9c0f606baaa050bd175fd5d3504"
+    },
+    {
+      "path": "tests/test_investigation.py",
+      "bytes": 19527,
+      "sha256": "9b4500f2e355b4a884784e137a312f820c4b55dd94efcf026803460591e5d057"
+    },
+    {
+      "path": "tests/test_public_profile.py",
+      "bytes": 4254,
+      "sha256": "a73789c456db0f59feb1b41d2a82606c23364cbf3c70e23ec2cf6bc2c545c161"
+    },
+    {
+      "path": "tests/test_release.py",
+      "bytes": 29699,
+      "sha256": "3a9c576e82e4b9de50f58420ee56b479bf23fbc082ff43de6ccabbf3a364f3b6"
+    },
+    {
+      "path": "tests/test_scope.py",
+      "bytes": 2978,
+      "sha256": "f03bf42da5fda5c139cc00aa928e12ec775c316fc37831930bcb8de999785e89"
+    },
+    {
+      "path": "tools/build_candidate_metadata.py",
+      "bytes": 1038,
+      "sha256": "bbc40c4a2851a03ce0dfb59760202eb1427e349b6ad8999c97a509d8e8f41576"
+    },
+    {
+      "path": "tools/build_release_manifest.py",
+      "bytes": 5952,
+      "sha256": "dfaeacdb4b3fabc3b00a63c995beb078a91978231fe2256f448b633a2ff9e00b"
+    },
+    {
+      "path": "tools/compile_statistics.py",
+      "bytes": 18684,
+      "sha256": "3c80a6ee756d401dfac52e817aa6fe6f170879a242d97d287e506b8549836211"
+    },
+    {
+      "path": "tools/probe_investigation.py",
+      "bytes": 3511,
+      "sha256": "6c45d0c28c7fe6077700ad25f1201fa14c0c60c27228b0f8667628207a754b8f"
+    },
+    {
+      "path": "tools/retain_r2_inputs.py",
+      "bytes": 2626,
+      "sha256": "66b91febe5f6a6e2e7b6801ed1e567ebf023397478cf879e3bde3ac0db70df7c"
+    },
+    {
+      "path": "tools/sources/README.md",
+      "bytes": 3144,
+      "sha256": "99f9b2992f4b9aa0b9a3fc12885f1ab4945f21c18304cd3a3365fac72ac5c83f"
+    },
+    {
+      "path": "tools/sources/acquire.py",
+      "bytes": 4929,
+      "sha256": "2594febffa78f951a69abd3113e25d096040b94226cff3f47bc106884a28e78e"
+    },
+    {
+      "path": "tools/sources/allowlist.json",
+      "bytes": 5242,
+      "sha256": "0f2d4427dd3e961e6cef84bb44761ec2db1c9439f50434e8959aace45aba3c7a"
+    },
+    {
+      "path": "tools/sources/normalize.py",
+      "bytes": 5928,
+      "sha256": "bb4b2a0f066dcb8b9133b5e9d3cd7f4bda90094d537a757e034d6abbb3d4a17b"
+    },
+    {
+      "path": "wsgi.py",
+      "bytes": 77,
+      "sha256": "83009d89ed6156c887f30c53d4ac96ab2b1541edb8aff87060b4295e502085cc"
+    }
+  ]
+}

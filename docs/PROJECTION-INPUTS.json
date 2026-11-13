@@ -1,0 +1,71 @@
+{
+  "schema": "ia1-projection-inputs/1",
+  "description": "Actual bundle bytes; origin catalog hashes are historical only. Integration will produce its own manifest and identity.",
+  "files": [
+    {
+      "path": "candidate-metadata/geography/relations.v1.json",
+      "bytes": 377,
+      "sha256": "9264fbafe83f5166eaa9a57c17609e83235cf681ab3e74d9a14abcf7f72b82fc"
+    },
+    {
+      "path": "candidate-metadata/recipes/aging_at_home.v1.json",
+      "bytes": 1227,
+      "sha256": "f090b4dfacb9da101b5293639e454a3c4e6d533d505e1b8643548fea4cae9e63"
+    },
+    {
+      "path": "candidate-metadata/responses/verification.v1.json",
+      "bytes": 653,
+      "sha256": "9bbc98d5a9cf6c11f2f31d508f5ab9c66993338e683280cfcf1296f55e9482ed"
+    },
+    {
+      "path": "runtime-packet/SOURCE-CATALOG.json",
+      "bytes": 41333,
+      "sha256": "fa69d802a5e5116b1161ad01fd4204ff8d0c154379a7530e9832bcb15d7251f3"
+    },
+    {
+      "path": "runtime-packet/data/geography/manifest.json",
+      "bytes": 2479,
+      "sha256": "b98dc281b11a4c2eb7c5e6eda3d9ddea4e3e4fc2fdb71715b6a7b95781aa0b72"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2024_house.geojson",
+      "bytes": 2730023,
+      "sha256": "703c631b459b6701701674594d48095bc62155339acdd5efb5f7b347036615f4"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2024_senate.geojson",
+      "bytes": 1319869,
+      "sha256": "93cc3eb1e6c457feef5369a0788b210337235f6bfbf8b2f212c1729c06d204b2"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2026_house.geojson",
+      "bytes": 2727530,
+      "sha256": "e2e8509e2a5a5368ecba741f08db9f300febc416bf339cfdc095996068159514"
+    },
+    {
+      "path": "runtime-packet/data/geography/raw/2026_senate.geojson",
+      "bytes": 1318649,
+      "sha256": "7f2acc3468abf068de48cb92e5f4bb8596a4ac538ac941dec5a5c53f262a5423"
+    },
+    {
+      "path": "runtime-packet/data/participation/observations.json",
+      "bytes": 21355,
+      "sha256": "632e6d569b29bb5831af9072c9ef490910364eef1edb2f3cfef0bcc164bb619f"
+    },
+    {
+      "path": "runtime-packet/data/programs/registry.json",
+      "bytes": 17046,
+      "sha256": "48b691bcf5dad373df77152541188818db20347f92b4df4ed43e0e65b119dee3"
+    },
+    {
+      "path": "runtime-packet/data/statistics/observations.json",
+      "bytes": 2688908,
+      "sha256": "45e38e4e5c8e11a487174e660e40a059206e68ae76ee5670e0f81dd363def23d"
+    },
+    {
+      "path": "runtime-packet/data/statistics/raw/DP03_metadata.json",
+      "bytes": 360,
+      "sha256": "46582a98068a8b0d33217acb0c4a4f8d3fffb6baf58d1902c3e99a7b2d567163"
+    }
+  ]
+}

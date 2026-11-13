@@ -1,0 +1,44 @@
+{
+  "version": "aging_at_home/1",
+  "program_id": "kupuna_care_hi",
+  "metrics": [
+    "population_65_plus",
+    "male_householder_65_plus_living_alone",
+    "female_householder_65_plus_living_alone",
+    "poverty_rate_65_plus"
+  ],
+  "rationale_sets": {
+    "snap_hi": [
+      "poverty_rate_all_people",
+      "median_household_income",
+      "unemployment_rate",
+      "rent_35_plus_percent_income",
+      "rent_burden_denominator"
+    ],
+    "medquest_hi": [
+      "poverty_rate_all_people",
+      "poverty_rate_65_plus",
+      "median_household_income",
+      "population_65_plus"
+    ],
+    "hcv_honolulu": [
+      "renter_occupied_units",
+      "median_gross_rent",
+      "rent_35_plus_percent_income",
+      "rent_burden_denominator"
+    ],
+    "kupuna_care_hi": [
+      "population_65_plus",
+      "male_householder_65_plus_living_alone",
+      "female_householder_65_plus_living_alone",
+      "poverty_rate_65_plus"
+    ],
+    "wic_hi": []
+  },
+  "rationale_source": {
+    "path": "districtbrief/rationale.py",
+    "sha256": "e5d79d78f6ae03e9de13de755ec7906723cca6933ab133b4801755dbbf33c1a8",
+    "version": "retained-rationale/1",
+    "meaning": "The reviewed sets and state-reference semantics are unchanged."
+  }
+}
