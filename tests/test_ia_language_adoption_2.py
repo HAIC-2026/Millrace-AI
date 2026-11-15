@@ -114,7 +114,7 @@ class SecondAdoptionTests(unittest.TestCase):
     def test_runtime_rejects_forged_records_approval_and_lineage(self):
         self.adopt();r2=self.record2.read_bytes();a3=self.approval.read_bytes();state=json.loads(self.pre)
         bad_approvals=[]
-        for k,v in (('max_count_requests',257),('max_count_requests',7.0),('max_count_requests',0),('max_count_requests','7'),('max_count_requests',True),
+        for k,v in (('max_count_requests',396),('max_count_requests',7.0),('max_count_requests',0),('max_count_requests','7'),('max_count_requests',True),
                 ('adoption_record_sha256','sha256:'+'6'*64),('adoption2_record_sha256','sha256:'+'6'*64),('config_hash',ADOPTION1_ACTIVE_CONFIG_HASH),
                 ('approval_reference','other'),('stage','qualification'),('policy_hash','sha256:'+'7'*64),('extra',1)):
             a=json.loads(a3);a[k]=v;bad_approvals.append(dumps(a))
@@ -138,19 +138,19 @@ class SecondAdoptionTests(unittest.TestCase):
             self.assertEqual(c.exception.code,'ledger_unavailable')
         put(self.budget,self.pre);self.assertEqual(ledger(self.root).summary()['count_requests'],6)
 
-    def test_allowable_range_256_is_metadata_only_and_money_guards_unchanged(self):
+    def test_allowable_range_395_is_metadata_only_and_money_guards_unchanged(self):
         from districtbrief import ia_language_accounting as acc
-        self.assertEqual((acc.MAX_COUNT_CEILING,acc.ADOPTION2_MAX_COUNT_REQUESTS,acc.POLICY['qualification_count_limit']),(256,7,3))
+        self.assertEqual((acc.MAX_COUNT_CEILING,acc.ADOPTION2_MAX_COUNT_REQUESTS,acc.POLICY['qualification_count_limit']),(395,7,3))
         self.assertEqual(acc.POLICY_HASH,'sha256:14ec7c8f8dede96f5ad543dfce02c7a3eb57e74edb40391a3aefeff897375ac5')
         self.assertEqual(acc.POLICY['limits_nano_usd'],{'test':15000000000,'demo':10000000000})
         out=self.adopt();self.assertEqual((out['max_count_requests'],out['count_capacity_remaining']),(7,1))  # helper default stays 7
         a3=self.approval.read_bytes();r2sha=sha(self.record2.read_bytes())
-        # A root-reviewed v3 may carry up to 256; the next value and non-plain ints are refused.
-        put(self.approval,dumps(approval_v3(REF,NEW,r2sha,256)))
-        s=ledger(self.root).summary();self.assertEqual((s['max_count_requests'],s['count_capacity_remaining']),(256,250))
-        for bad in (257,0,True,256.0,'256'):
+        # A root-reviewed v3 may carry up to 395; the next value and non-plain ints are refused.
+        put(self.approval,dumps(approval_v3(REF,NEW,r2sha,395)))
+        s=ledger(self.root).summary();self.assertEqual((s['max_count_requests'],s['count_capacity_remaining']),(395,389))
+        for bad in (396,0,True,395.0,'395'):
             put(self.approval,dumps(approval_v3(REF,NEW,r2sha,bad)));self.blocked(ledger(self.root))
-        put(self.approval,dumps(approval_v3(REF,NEW,r2sha,256)))
+        put(self.approval,dumps(approval_v3(REF,NEW,r2sha,395)))
         # Count headroom never bypasses dollar limits or unknown-usage holds.
         with patch.object(acc,'reservation',return_value=15000000000):
             with self.assertRaises(LanguageError) as c:ledger(self.root).reserve('test','h')
@@ -287,6 +287,7 @@ class SecondAdoptionProviderTests(unittest.TestCase):
         rec=self.root/'config-adoption-2.json';put(rec,rec.read_bytes().replace(b'root-go',b'rootxgo'))
         with self.assertRaises(LanguageError):self.interpret('test')
         self.assertEqual((self.calls,self.secrets),([],0))
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_operator_evaluate_refuses_before_question_input_under_cap7(self):
         from tools import ia_language_operator as operator
         opened=[]

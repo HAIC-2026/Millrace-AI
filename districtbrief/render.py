@@ -493,7 +493,7 @@ def program_html(env) -> str:
                '<p class="muted">No fixture observation is linked to this program.</p>')
             + f'<h4>Unknowns the agency determines</h4>{_list(f["unknowns"], "unknowns")}'
             f'<h4>Official referral</h4><p>{e(ref["next_step"])}<br>'
-            f'<span class="url">{e(ref["url"])}</span>'
+            f'<span class="url">{_official_link(ref["url"], e(ref["url"]))}</span>'
             + (f' · {e(ref["phone"])}' if ref.get("phone") else "")
             + (f' · TTY {e(ref["tty"])}' if ref.get("tty") else "")
             + (f' · county office: {e(ref["county_office"])}' if ref.get("county_office") else "")
@@ -585,9 +585,16 @@ def action_checklist_html(brief):
         elig_html=(f'<p class="brief-elig"><strong>Eligibility facts the agency determines:</strong> the same open questions as listed under the outreach hypothesis above.</p>'
                    if eligibility and all(x in hyp_unknowns for x in eligibility) else
                    f'<p class="brief-elig"><strong>Eligibility facts the agency determines:</strong> {e("; ".join(eligibility))}.</p>' if eligibility else "")
+        # The agency is already named by a selected program reference for the same program; it is not repeated.
+        same_program=any(en["kind"]=="program_relevance" and str(en.get("finding_id","")).startswith(f'prog:{action["program_id"]}@')
+                         for en in brief.get("entries") or [])
+        agency="" if same_program else f' · {e(hawaii_display(program.get("agency","")))}'
+        # Without the program reference tile, the agency step carries the recorded official referral contact.
+        referral=brief.get("action_referral") or {};referral_contact=not same_program and bool(referral.get("url") or referral.get("phone"))
         action_html=('<h3>Agency action</h3>'
-            f'<p>{e(program.get("name",action["program_id"]))} · {e(hawaii_display(program.get("agency","")))} · {e(human_words(action["access"]["recorded_status"]))}{(" (" + e(human_date(action["access"]["checked_at"])) + ")") if action["access"]["checked_at"] else ""}.{cost_note} {cites}'
-            + (f' · <strong>Recorded next step:</strong> {e(next_step)}' if next_step else "") + '</p>'
+            f'<p>{e(program.get("name",action["program_id"]))}{agency} · {e(human_words(action["access"]["recorded_status"]))}{(" (" + e(human_date(action["access"]["checked_at"])) + ")") if action["access"]["checked_at"] else ""}.{cost_note} {cites}'
+            + (f' · <strong>Recorded next step:</strong> {e(next_step)}' if next_step else "")
+            + (f' · Referral: {e(", ".join(x for x in (referral.get("url"), referral.get("phone"), ("TTY " + referral["tty"]) if referral.get("tty") else None) if x))}' if referral_contact else "") + '</p>'
             + (f'<p class="brief-sub">Routing and access to confirm (open questions, not verified facts):</p>{_list(routing,"brief-questions brief-routing")}' if routing else "")
             + elig_html)
     return '<section class="brief-action">'+action_html+checklist_html+tracking_html+'</section>' if action_html or checklist_html or tracking_html else ''
@@ -615,7 +622,12 @@ def indicator_context_html(brief):
     worded without repeating the section heading."""
     text = indicator_context_text(brief)
     if not text:return ''
-    text = hawaii_display(text.replace("District map context: poverty rate", "Poverty rate", 1))
+    text = text.replace("District map context: poverty rate", "Poverty rate", 1)
+    # Printed wording only: the source is named by the citation and the Sources list, so it is not repeated
+    # inline, and the bin caveat joins the bin list. The fit estimate keeps the longer text (conservative).
+    source = f"{brief['district_indicator']['publisher']}, {brief['district_indicator']['source_title']}. "
+    text = text.replace(source, "", 1).replace(" Bins are display intervals,", " These are display intervals,", 1)
+    text = hawaii_display(text)
     cites = ''.join(f'<a class="cite" href="#cite-{n}">[{n}]</a>' for n in brief.get('indicator_citations', []))
     return '<section class="brief-map-context"><h3>District map context</h3><p>' + e(text) + ' ' + cites + '</p></section>'
 
@@ -631,15 +643,27 @@ def _url_html(url) -> str:
             + ("/<wbr>" + "/<wbr>".join(e(part) for part in path.split("/")) if slash else ""))
 
 
+def _official_link(url, inner=None) -> str:
+    """An official https address as a link that opens in a new tab; other values stay plain text."""
+    url = str(url or "")
+    shown = inner if inner is not None else _url_html(url)
+    if not url.startswith("https://"):
+        return shown
+    return f'<a class="official-link" href="{e(url)}" target="_blank" rel="noopener noreferrer">{shown}</a>'
+
+
 _ISSUE_NAMES = {"aging_at_home/1": "Older-adult support at home", "food_assistance_outreach/1": "SNAP outreach",
                 "custom/1": "Custom (staff-composed steps)"}
 
 
 def printed_limitations(brief) -> list:
-    from .core import L_COMPARE, L_HYPOTHESIS
+    from .core import L_COMPARE, L_EDITS, L_HYPOTHESIS
     kinds = {en["kind"] for en in brief["entries"]}
     out = []
     for lim in brief["limitations"]:
+        # Every staff title, note, checklist and tracking line carries its own inline staff label.
+        if lim == L_EDITS:
+            continue
         if lim == L_COMPARE and not kinds & {"comparison", "outreach_hypothesis"}:
             continue
         if lim == L_HYPOTHESIS and "outreach_hypothesis" not in kinds and not brief.get("action"):
@@ -993,7 +1017,7 @@ def catalog_html(cat: dict) -> str:
 def sources_html(cat: dict) -> str:
     rows = "".join(
         f'<tr><th scope="row">{e(source_label(s["source_id"], s.get("url")))}</th><td>{e(hawaii_display(s["publisher"]))}</td>'
-        f'<td class="url">{e(s["url"])}</td><td>{e(human_date(s.get("retrieved_at_utc")))}</td>'
+        f'<td class="url">{_official_link(s["url"], e(s["url"]))}</td><td>{e(human_date(s.get("retrieved_at_utc")))}</td>'
         f'<td>{_source_button(s["source_id"], None, "Inspect")}</td></tr>' for s in cat["sources"])
     labels = {s["source_id"]: source_label(s["source_id"], s.get("url")) for s in cat["sources"]}
     # Label map for the investigation view (inert JSON data; never executed).
@@ -1111,10 +1135,10 @@ def source_html(res: dict) -> str:
         f'<div><dt>Publisher</dt><dd>{e(hawaii_display(s["publisher"]))}</dd></div>'
         f'<div><dt>Retrieved</dt><dd>{e(human_date(s.get("retrieved_at_utc")))}</dd></div>'
         + (f'<div><dt>Location in the source</dt><dd>{e(where)}</dd></div>' if where else "")
-        + f'<div class="kv-wide"><dt>Address</dt><dd class="url">{_url_html(s["url"])}</dd></div>'
+        + f'<div class="kv-wide"><dt>Address</dt><dd class="url">{_official_link(s["url"])}</dd></div>'
         + (f'<div class="kv-wide"><dt>Address after redirect</dt><dd class="url">{e(final)}</dd></div>' if final else "")
         + '</dl>'
         + (f'<h4>What the selected finding uses</h4>{supports}' if supports else "")
         + f'<h4>What this source cannot establish</h4><p>{e(_CANNOT.get(s.get("family"), "It records only what is shown above; other facts need separate confirmation."))}</p>'
-        + f'<p class="fine">{e(copy_note)} The address is shown for reference; the app does not open it.</p>'
+        + f'<p class="fine">{e(copy_note)} The address opens the publisher’s page in a new browser tab; the app itself does not fetch it.</p>'
     )

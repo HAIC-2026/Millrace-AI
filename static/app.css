@@ -2629,3 +2629,15 @@ p.page-foot {
   overflow-wrap: anywhere;
   word-break: normal;
 }
+
+/* Start here: the key finding of the applied plan, shown first in Findings. */
+.ia-start {
+  border: 2px solid #0b2a5b;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin: 0 0 0.9rem;
+  background: #f4f7fb;
+}
+.ia-start p { margin: 0.3rem 0 0; }
+.ia-next-step { margin: 0.4rem 0 0.6rem; }
+.ia-next-step p { margin: 0.2rem 0; }

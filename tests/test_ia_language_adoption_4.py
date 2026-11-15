@@ -81,7 +81,14 @@ class FourthAdoptionTests(unittest.TestCase):
         for p,(raw,f) in self.history.items():self.assertEqual((p.read_bytes(),fp(p)),(raw,f),p.name)
     def assert_untouched(self):
         self.assert_history();self.assertEqual(self.approval.read_bytes(),APPROVAL4);self.assertFalse(self.record4.exists())
-    def uncreatable_marker(self):os.chmod(self.root/'ledger',0o500)  # restored in tearDown
+    def uncreatable_marker(self):
+        # Root-independent fault: refuse only creation of this test's HALTED marker. A chmod 0o500
+        # directory does not stop root (DAC bypass), so the earlier fault was uid-dependent.
+        real=os.open;halt=str(self.root/'ledger'/'HALTED')
+        def guarded(path,*a,**k):
+            if os.fspath(path)==halt:raise PermissionError(13,'synthetic uncreatable marker',halt)
+            return real(path,*a,**k)
+        p=patch('os.open',guarded);p.start();self.addCleanup(p.stop)
 
     def test_production_pins_are_reviewed_values_and_refuse_the_synthetic_fixture(self):
         patch.stopall()  # drop only this test's overrides; cleanup stop() calls are idempotent
@@ -321,7 +328,7 @@ class FourthAdoptionTests(unittest.TestCase):
             with self.subTest(key=key):
                 put(self.approval,dumps(dict(good,**{key:'sha256:'+'0'*64})))
                 with self.assertRaises(LanguageError):self.ledger().approval()
-        for bad in (dict(good,max_count_requests=257),dict(good,max_count_requests=0),dict(good,stage='qualification'),
+        for bad in (dict(good,max_count_requests=396),dict(good,max_count_requests=0),dict(good,stage='qualification'),
                     {k:v for k,v in good.items() if k!='adoption4_record_sha256'},dict(good,extra=1),
                     dict(good,limits_nano_usd={'test':15000000001,'demo':10000000000})):
             put(self.approval,dumps(bad))

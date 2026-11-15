@@ -28,9 +28,11 @@ TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','tes
        'test_ia_language_district_provenance.py','test_ia_language_adoption_3.py','test_ia_language_repair.py',
        'test_ia_language_source_review.py','test_ia_language_adoption_4.py','test_ia_language_integrated_review.py',
        'test_ia_language_contract_fixes.py','test_ia_language_ox3_review.py','test_ia_language_v5_review.py','test_ia_language_fh_r1.py','test_ia_language_v6_review.py',
-       'test_ia_language_comparator_choices.py')
-FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md','ia-language-dev.json','ia-language-dev-v5-replay.json','ia-language-adoption3-synthetic.json','ia-language-prompt-v8.txt','ia-language-adoption4-synthetic.json')
-TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py','build_completion_projection.py','ia_language_operator.py','ia_language_config_adoption.py','ia_language_config_adoption_2.py','ia_language_config_adoption_3.py','ia_language_config_adoption_4.py')
+       'test_ia_language_comparator_choices.py','test_metric_caveats.py','test_brief_presentation.py',
+       'test_ia_language_adoption_5.py','test_ia_language_county_guard.py','test_ia_language_operator_cutoff.py',
+       'test_recommended_brief.py','recommended_brief_fixture.py')
+FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md','ia-language-dev.json','ia-language-dev-v5-replay.json','ia-language-adoption3-synthetic.json','ia-language-prompt-v8.txt','ia-language-adoption4-synthetic.json','recommended-brief-results.json')
+TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py','build_completion_projection.py','ia_language_operator.py','ia_language_config_adoption.py','ia_language_config_adoption_2.py','ia_language_config_adoption_3.py','ia_language_config_adoption_4.py','ia_language_config_adoption_5.py')
 EXCLUDED_PARTS=frozenset(('.venv','__pycache__','.git'))
 MANIFEST='RELEASE-MANIFEST.json'
 BASELINE_MANIFEST='686b23b6b7623d77f084ed4518e6d5adec620fbe713e17ee220caa63bce2e46d'

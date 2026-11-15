@@ -189,7 +189,13 @@ class ThirdAdoptionTests(unittest.TestCase):
         self.assertFalse(self.record3.exists());self.assertTrue((self.root/'ledger'/'HALTED').exists());self.assert_history()
 
     def uncreatable_marker(self):
-        os.chmod(self.root/'ledger',0o500)  # restored in tearDown
+        # Root-independent fault: refuse only creation of this test's HALTED marker. A chmod 0o500
+        # directory does not stop root (DAC bypass), so the earlier fault was uid-dependent.
+        real=os.open;halt=str(self.root/'ledger'/'HALTED')
+        def guarded(path,*a,**k):
+            if os.fspath(path)==halt:raise PermissionError(13,'synthetic uncreatable marker',halt)
+            return real(path,*a,**k)
+        p=patch('os.open',guarded);p.start();self.addCleanup(p.stop)
     def test_unconfirmed_halt_marker_is_reported_distinctly_and_state_left_for_inspection(self):
         # Fault after record 3 publish, and the HALTED marker cannot be created: never claim "halted".
         def fault(*_a,**_k):self.uncreatable_marker();raise OSError('approval storage fault')

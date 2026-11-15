@@ -1,5 +1,7 @@
 """End-to-end async proposals through WSGI and operator CLI, using fake provider I/O."""
 from __future__ import annotations
+import os
+import time
 import copy
 import importlib.util
 import io
@@ -142,6 +144,7 @@ class LanguageProposalTests(unittest.TestCase):
         expected=self.plan('custom');expected['district'].update(chamber='senate',code='016');expected['steps'][0]['args']['metric_ids']=['total_housing_units']
         decision=self.decision(expected);decision['plan']['map_session']=2026.0;self.decisions.append(decision)
         self.assertEqual(self.finish_http(self.request('Make one total-housing-units profile for Senate district 16.'))['normalized_plan'],expected)
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_actual_operator_cli_custom_default_food_source_and_edit_proposals(self):
         requests=[];plans=[];expected=[]
         for kind,question in [('custom','Profile median age in House28.'),('aging','Aging at home in House28.'),('food','SNAP outreach in House28.')]:

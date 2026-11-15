@@ -1,0 +1,1110 @@
+{
+ "cases": {
+  "house-013-aging_at_home": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-013-2024:male_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:0e75690745f38ce707e75ce58ce885e6fe4975375ce0136a485cfba065eb9a1e",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "male_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-013-2024:female_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:21554c36c78999332e4f839446a409b610505534adf640551da7eccd379a0d88",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "female_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-013-2024:population_65_plus",
+      "semantic_hash": "sha256:b835d0616c60fd4b91161647a5cf8b2b82895c4d27384c31bea3ef41f989612d",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "population_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-013-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:424592c6892d8a44e06725178143d8c6bb0571f59e523fd2c20edbdfd62b1975",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:ea7a6775fd103aecb11cb1e3983c6aeef191e7000508b1f84e1a56b762ff3588",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-HOUSE-013-2024~HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:107d7166d886bb590555598e2fc02449127278862b3b8ad941c6d98ae0c63a24",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "prog:kupuna_care_hi@HI-HOUSE-013-2024",
+      "semantic_hash": "sha256:c0a2374a62cdf84afee356dbf51e034de7b3afb64aed56b7510df1c9e09284ff",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "program_relevance",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "lead:kupuna_care_hi@HI-HOUSE-013-2024",
+      "semantic_hash": "sha256:a9ab7151026683a6e142885fe5c01cf5bad5288ef11d58679d19e3c00cdb6b02",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-013-2024"
+     },
+     "kind": "outreach_hypothesis",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "house",
+     "code": "013",
+     "state_fips": "15"
+    }
+   },
+   "responses": [
+    {
+     "action_ref": {
+      "action_id": "kupuna_verify/1",
+      "semantic_hash": "sha256:132097675f4de640ef8156f921b10703633ea3057082ab35ee820b9ef1cd621d"
+     },
+     "program_id": "kupuna_care_hi",
+     "tier": "verification_action"
+    }
+   ],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-HOUSE-013-2024:male_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:0e75690745f38ce707e75ce58ce885e6fe4975375ce0136a485cfba065eb9a1e",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-013-2024:female_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:21554c36c78999332e4f839446a409b610505534adf640551da7eccd379a0d88",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-013-2024:population_65_plus",
+       "semantic_hash": "sha256:b835d0616c60fd4b91161647a5cf8b2b82895c4d27384c31bea3ef41f989612d",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-013-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:424592c6892d8a44e06725178143d8c6bb0571f59e523fd2c20edbdfd62b1975",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "cmp:HI-HOUSE-013-2024~HI-STATE-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:107d7166d886bb590555598e2fc02449127278862b3b8ad941c6d98ae0c63a24",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "prog:kupuna_care_hi@HI-HOUSE-013-2024",
+       "semantic_hash": "sha256:c0a2374a62cdf84afee356dbf51e034de7b3afb64aed56b7510df1c9e09284ff",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "lead:kupuna_care_hi@HI-HOUSE-013-2024",
+       "semantic_hash": "sha256:a9ab7151026683a6e142885fe5c01cf5bad5288ef11d58679d19e3c00cdb6b02",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  },
+  "house-028-aging_at_home": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:male_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:2d1514a52f6e55250e1604a2e4cebdd2b43f10d804aab889d219a8e20770f6b9",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "male_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:female_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:1db0a09df38cc5a65adb3ee441a7a7cedfcc71144c5d61c3793c6da1ccd821ed",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "female_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:population_65_plus",
+      "semantic_hash": "sha256:a9486902e4bb56045b3cffb9cbd9d1f40e0272defb21db06f0ce3ec8544e9849",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "population_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:1cec5307f61b0e15aae97e9313749633a532333bdbb73c4c8ed6ba4fdc6f4122",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:ea7a6775fd103aecb11cb1e3983c6aeef191e7000508b1f84e1a56b762ff3588",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:191612d03a1e5471559222c0e3ef8ad71020c1047246d428b68be58580cb31dd",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "prog:kupuna_care_hi@HI-HOUSE-028-2024",
+      "semantic_hash": "sha256:77474f4da10b10afb818e89a5ed537ba2710fb3ad2b7ea0b01ffd15edd145a40",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "program_relevance",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "lead:kupuna_care_hi@HI-HOUSE-028-2024",
+      "semantic_hash": "sha256:053380f5a73c3793eaf231bbb829d458ba591f69ca3ac93d1bc1f352b29c7f07",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "outreach_hypothesis",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "house",
+     "code": "028",
+     "state_fips": "15"
+    }
+   },
+   "responses": [
+    {
+     "action_ref": {
+      "action_id": "kupuna_verify/1",
+      "semantic_hash": "sha256:8b537e73cadc84f617720049f4541eb84d3b5e47a9ea965c79051280a07c1833"
+     },
+     "program_id": "kupuna_care_hi",
+     "tier": "verification_action"
+    }
+   ],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:male_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:2d1514a52f6e55250e1604a2e4cebdd2b43f10d804aab889d219a8e20770f6b9",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:female_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:1db0a09df38cc5a65adb3ee441a7a7cedfcc71144c5d61c3793c6da1ccd821ed",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:population_65_plus",
+       "semantic_hash": "sha256:a9486902e4bb56045b3cffb9cbd9d1f40e0272defb21db06f0ce3ec8544e9849",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:1cec5307f61b0e15aae97e9313749633a532333bdbb73c4c8ed6ba4fdc6f4122",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:191612d03a1e5471559222c0e3ef8ad71020c1047246d428b68be58580cb31dd",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "prog:kupuna_care_hi@HI-HOUSE-028-2024",
+       "semantic_hash": "sha256:77474f4da10b10afb818e89a5ed537ba2710fb3ad2b7ea0b01ffd15edd145a40",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "lead:kupuna_care_hi@HI-HOUSE-028-2024",
+       "semantic_hash": "sha256:053380f5a73c3793eaf231bbb829d458ba591f69ca3ac93d1bc1f352b29c7f07",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  },
+  "house-028-custom": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:total_households",
+      "semantic_hash": "sha256:34f27c814099439242d3d140469628e85b93946a6cac656e51783a3e3df39631",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "total_households"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:population_65_plus",
+      "semantic_hash": "sha256:a9486902e4bb56045b3cffb9cbd9d1f40e0272defb21db06f0ce3ec8544e9849",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "population_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:median_age",
+      "semantic_hash": "sha256:56bf46648b7400d5efa89bd7fd9b127f0e5e54c3df35a4ef284637d78a0bc51b",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "median_age"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "house",
+     "code": "028",
+     "state_fips": "15"
+    }
+   },
+   "responses": [],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:total_households",
+       "semantic_hash": "sha256:34f27c814099439242d3d140469628e85b93946a6cac656e51783a3e3df39631",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:population_65_plus",
+       "semantic_hash": "sha256:a9486902e4bb56045b3cffb9cbd9d1f40e0272defb21db06f0ce3ec8544e9849",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:median_age",
+       "semantic_hash": "sha256:56bf46648b7400d5efa89bd7fd9b127f0e5e54c3df35a4ef284637d78a0bc51b",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  },
+  "house-028-food_assistance_outreach": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:median_household_income",
+      "semantic_hash": "sha256:325add8ab93626d0e0f17da72a3eab26702e5361797a4c60b0da9f9ad7062f60",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:0d97e92eb6e121a4906406b7028680f967fa4b21fa177a03c0edf6c117130131",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "prog:snap_hi@HI-HOUSE-028-2024",
+      "semantic_hash": "sha256:0a9920ed7fc5ab236875b12cd00df5818567c2ff273927032ace4e0e3ddaa659",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "program_relevance",
+     "program": {
+      "program_id": "snap_hi"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:f543e20f085bbfa3868d07ac68365d58344d9ce7359043d9f58f32cbaea96765",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:86fd08c19810f9c0d696a7dfd944f7d4fb127abd84e870f8b9f46443f9d3f766",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:median_household_income",
+      "semantic_hash": "sha256:e91828d4385cfd0c02c1c7d263de3e40e933f4fd5e66f0a4145502cdb9f85311",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:median_household_income",
+      "semantic_hash": "sha256:635c20227cf6fd24a74eb8172542b0d2e75858855c5ba671d0a192ed37c59bb7",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:unemployment_rate",
+      "semantic_hash": "sha256:a4df4508de85d55a39e1968fcc0313840ad8db596ae398eadbe574426a5672fe",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:unemployment_rate",
+      "semantic_hash": "sha256:cde7e6313abfc6e587bfe8e9022b0847a7886d488b99c818e3995d1147d8beae",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-HOUSE-028-2024~HI-STATE-2024:unemployment_rate",
+      "semantic_hash": "sha256:7b19d6c33cb37ff5d18c9b24977e9b076f50290a5107b75aa99b2c9de9735c2f",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:rent_35_plus_percent_income",
+      "semantic_hash": "sha256:611072e462d500a3c470ddeb2f42b39886e8a82d2953d5e08b1809969c48651d",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "rent_35_plus_percent_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-HOUSE-028-2024:rent_burden_denominator",
+      "semantic_hash": "sha256:b4ddfc832219b5cb82b9ffef8efbae0e83a4e235d34e9c2660ebe95d32676854",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "rent_burden_denominator"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "lead:snap_hi@HI-HOUSE-028-2024",
+      "semantic_hash": "sha256:9284f4dfb250da57367621e7dc3b8dcce5a9351f35dee84f6b3f3e3878150230",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-HOUSE-028-2024"
+     },
+     "kind": "outreach_hypothesis",
+     "program": {
+      "program_id": "snap_hi"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "house",
+     "code": "028",
+     "state_fips": "15"
+    }
+   },
+   "responses": [
+    {
+     "action_ref": {
+      "action_id": "snap_food_outreach_verify/1",
+      "semantic_hash": "sha256:5f653c6ccdb5719fa360032cd5fa4db163fc4441e8ee4963ff9a553da727f2cf"
+     },
+     "program_id": "snap_hi",
+     "tier": "verification_action"
+    }
+   ],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:median_household_income",
+       "semantic_hash": "sha256:325add8ab93626d0e0f17da72a3eab26702e5361797a4c60b0da9f9ad7062f60",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-028-2024:poverty_rate_all_people",
+       "semantic_hash": "sha256:0d97e92eb6e121a4906406b7028680f967fa4b21fa177a03c0edf6c117130131",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "prog:snap_hi@HI-HOUSE-028-2024",
+       "semantic_hash": "sha256:0a9920ed7fc5ab236875b12cd00df5818567c2ff273927032ace4e0e3ddaa659",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "lead:snap_hi@HI-HOUSE-028-2024",
+       "semantic_hash": "sha256:9284f4dfb250da57367621e7dc3b8dcce5a9351f35dee84f6b3f3e3878150230",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  },
+  "senate-006-food_assistance_outreach": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-006-2024:median_household_income",
+      "semantic_hash": "sha256:a180e4b8635879112a2ac4dd8b28a9ff02e604015376802153eee757938db377",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-006-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:5e845f6dcf0eef1790b76592f6d38cbb161fd58d8440ec45fd24725b50426bac",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "prog:snap_hi@HI-SENATE-006-2024",
+      "semantic_hash": "sha256:aa93da8121d268666d58109a14ae4481cb371dab3b61a54f6bf6f719b5751344",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "program_relevance",
+     "program": {
+      "program_id": "snap_hi"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:f543e20f085bbfa3868d07ac68365d58344d9ce7359043d9f58f32cbaea96765",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-SENATE-006-2024~HI-STATE-2024:poverty_rate_all_people",
+      "semantic_hash": "sha256:3bb977fd70d9f84d8a8abe344821a11ad893d1d016510b11b9d5b9d5b48c1d8f",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "poverty_rate_all_people"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:median_household_income",
+      "semantic_hash": "sha256:e91828d4385cfd0c02c1c7d263de3e40e933f4fd5e66f0a4145502cdb9f85311",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-SENATE-006-2024~HI-STATE-2024:median_household_income",
+      "semantic_hash": "sha256:1fda0285bc1167600d419781cb9230b605b7747964df7c5fe7c0657110c81066",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "median_household_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-006-2024:unemployment_rate",
+      "semantic_hash": "sha256:4a06a78b843dc81875764ee4a91615c502e0011874366a71e6acc71ef8a72b18",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:unemployment_rate",
+      "semantic_hash": "sha256:cde7e6313abfc6e587bfe8e9022b0847a7886d488b99c818e3995d1147d8beae",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-SENATE-006-2024~HI-STATE-2024:unemployment_rate",
+      "semantic_hash": "sha256:39b566eb0bc847c2f98b934df5a3d6870b1fbe48ecf00c0c376067eefca949df",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "unemployment_rate"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-006-2024:rent_35_plus_percent_income",
+      "semantic_hash": "sha256:d33af1c6a0771204f9497f832baf947b149d27203921cd1ebb5fc90d01637c7d",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "rent_35_plus_percent_income"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-006-2024:rent_burden_denominator",
+      "semantic_hash": "sha256:119fc359dff9fef04a95005b61d2d27742c0d7168989a79e6499667582b32dfb",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "rent_burden_denominator"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "lead:snap_hi@HI-SENATE-006-2024",
+      "semantic_hash": "sha256:114707c306964804cdba93b344bec14bc30089d47f7d5fb4c3e2922352fb75f1",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-006-2024"
+     },
+     "kind": "outreach_hypothesis",
+     "program": {
+      "program_id": "snap_hi"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "senate",
+     "code": "006",
+     "state_fips": "15"
+    }
+   },
+   "responses": [
+    {
+     "action_ref": {
+      "action_id": "snap_food_outreach_verify/1",
+      "semantic_hash": "sha256:a4e93cb8ef168ccbf76fca5f1ce29baf4bf89f4520b0732094de2a034f005941"
+     },
+     "program_id": "snap_hi",
+     "tier": "verification_action"
+    }
+   ],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-SENATE-006-2024:median_household_income",
+       "semantic_hash": "sha256:a180e4b8635879112a2ac4dd8b28a9ff02e604015376802153eee757938db377",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-SENATE-006-2024:poverty_rate_all_people",
+       "semantic_hash": "sha256:5e845f6dcf0eef1790b76592f6d38cbb161fd58d8440ec45fd24725b50426bac",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "prog:snap_hi@HI-SENATE-006-2024",
+       "semantic_hash": "sha256:aa93da8121d268666d58109a14ae4481cb371dab3b61a54f6bf6f719b5751344",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "lead:snap_hi@HI-SENATE-006-2024",
+       "semantic_hash": "sha256:114707c306964804cdba93b344bec14bc30089d47f7d5fb4c3e2922352fb75f1",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  },
+  "senate-025-aging_at_home": {
+   "claims": [
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-025-2024:male_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:dbeee407ace219f2479090f4646ee87bc3a72c31c85282c578bbe6682dc7f1f8",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "male_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-025-2024:female_householder_65_plus_living_alone",
+      "semantic_hash": "sha256:0551282251ff207d916037e2dfe450aa0bb6568e59d3ab6654f7d5ea44d528e3",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "female_householder_65_plus_living_alone"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-025-2024:population_65_plus",
+      "semantic_hash": "sha256:23ecf538912a99884fac179626cdfe1e56d0a1bd765bec43e9a627fc613971cc",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "population_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-SENATE-025-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:315b7e2d1a74a8719214c9c39ba78187dd066b479c8ed9ad0582a70d8d6c48a2",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "stat:HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:ea7a6775fd103aecb11cb1e3983c6aeef191e7000508b1f84e1a56b762ff3588",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-STATE-2024"
+     },
+     "kind": "statistic",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "cmp:HI-SENATE-025-2024~HI-STATE-2024:poverty_rate_65_plus",
+      "semantic_hash": "sha256:66ef9e75713c30b9ef7762fae6025f013ab6aa263be42c277e15decc0273675e",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "kind": "comparison",
+     "metric": {
+      "metric_id": "poverty_rate_65_plus"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "prog:kupuna_care_hi@HI-SENATE-025-2024",
+      "semantic_hash": "sha256:800c978c52287916047ca96f320b690e5979baadd1caa3d2e2f99e0aa1f18d3c",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "program_relevance",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    },
+    {
+     "claim_ref": {
+      "finding_id": "lead:kupuna_care_hi@HI-SENATE-025-2024",
+      "semantic_hash": "sha256:58f2c3c352eb7661c88ea9540b4f39040f8268914f20463ee9cfeb2ef3e7e654",
+      "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+     },
+     "geography": {
+      "geography_id": "HI-SENATE-025-2024"
+     },
+     "kind": "outreach_hypothesis",
+     "program": {
+      "program_id": "kupuna_care_hi"
+     }
+    }
+   ],
+   "plan": {
+    "district": {
+     "boundary_session": 2024,
+     "chamber": "senate",
+     "code": "025",
+     "state_fips": "15"
+    }
+   },
+   "responses": [
+    {
+     "action_ref": {
+      "action_id": "kupuna_verify/1",
+      "semantic_hash": "sha256:5a80ad58e70bba3f3f838ae170f2dc81ee20dd1119af2e8c1d7acb8cea0ac955"
+     },
+     "program_id": "kupuna_care_hi",
+     "tier": "verification_action"
+    }
+   ],
+   "steps": [
+    {
+     "claim_refs": [
+      {
+       "finding_id": "stat:HI-SENATE-025-2024:male_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:dbeee407ace219f2479090f4646ee87bc3a72c31c85282c578bbe6682dc7f1f8",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-SENATE-025-2024:female_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:0551282251ff207d916037e2dfe450aa0bb6568e59d3ab6654f7d5ea44d528e3",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-SENATE-025-2024:population_65_plus",
+       "semantic_hash": "sha256:23ecf538912a99884fac179626cdfe1e56d0a1bd765bec43e9a627fc613971cc",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-SENATE-025-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:315b7e2d1a74a8719214c9c39ba78187dd066b479c8ed9ad0582a70d8d6c48a2",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "cmp:HI-SENATE-025-2024~HI-STATE-2024:poverty_rate_65_plus",
+       "semantic_hash": "sha256:66ef9e75713c30b9ef7762fae6025f013ab6aa263be42c277e15decc0273675e",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "prog:kupuna_care_hi@HI-SENATE-025-2024",
+       "semantic_hash": "sha256:800c978c52287916047ca96f320b690e5979baadd1caa3d2e2f99e0aa1f18d3c",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    },
+    {
+     "claim_refs": [
+      {
+       "finding_id": "lead:kupuna_care_hi@HI-SENATE-025-2024",
+       "semantic_hash": "sha256:58f2c3c352eb7661c88ea9540b4f39040f8268914f20463ee9cfeb2ef3e7e654",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "status": "ok"
+    }
+   ]
+  }
+ },
+ "note": "Generated from real handler runs; projection only. Regenerate with --write."
+}

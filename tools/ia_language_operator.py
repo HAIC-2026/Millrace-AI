@@ -21,6 +21,22 @@ from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider, configuration_hash
 
 EVAL_ROOT=Path('/run/ia1-eval')
+# Operator/evaluator recovery cutoff (UTC epoch seconds), supplied by the evaluator environment. It bounds
+# only `smoke`/`evaluate`; public HTTP serving keeps its own budget/ceiling/rate controls and has no cutoff.
+# Absent, malformed or passed means refuse: there is no built-in date and no unlimited default.
+RECOVERY_CUTOFF_ENV='HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH'
+_now=time.time
+
+def recovery_cutoff():
+    raw=os.environ.get(RECOVERY_CUTOFF_ENV)
+    if type(raw) is not str or not re.fullmatch(r'[1-9][0-9]{8,11}',raw):return None
+    return int(raw)
+
+def before_cutoff(cutoff):
+    return cutoff is not None and _now()<cutoff
+
+NOT_STARTED={'status':'not_started','code':'recovery_cutoff_passed','model_calls':0,
+    'attribution':{'decision_origin':'not_decided','model_status':'not_reported','model_intent':'not_reported','recovery_category':'','failure_class':'start_refused'}}
 
 def protected_path(value,*,output=False):
     p=Path(value)
@@ -72,6 +88,10 @@ def main(argv=None):
             try:result=OpenAIProvider().probe(ledger,prepare_request(probe_request(i),i,'operator'))
             finally:ledger.release_job(fd)
         else:
+            # Recovery cutoff precedes every ledger read, input read and reservation.
+            cutoff=recovery_cutoff()
+            if cutoff is None:raise LanguageError('recovery_cutoff_unset',503)
+            if not before_cutoff(cutoff):raise LanguageError('recovery_cutoff_passed',503)
             # Evaluate needs durable count capacity for every intended case before the input is touched.
             if args.command=='evaluate' and ledger.summary()['count_capacity_remaining']<120:raise LanguageError('count_capacity_insufficient',503)
             rows,questions_hash=questions(args.questions,8 if args.command=='smoke' else 120,exact=120 if args.command=='evaluate' else None)
@@ -90,7 +110,10 @@ def main(argv=None):
                 with os.fdopen(fd,'wb') as f:
                     for row in rows:
                         begin=time.monotonic();before=ledger.summary()
-                        if halted:
+                        if not before_cutoff(cutoff):
+                            # Not started: recorded before any reservation, with no count or generation request.
+                            code,response=503,json.loads(json.dumps(NOT_STARTED))
+                        elif halted:
                             code,response=503,{'status':'error','code':'blocked_unresolved_liability','model_calls':0,
                                 'attribution':{'decision_origin':'not_decided','model_status':'not_decoded','model_intent':'not_decoded','recovery_category':'','failure_class':'accounting'}}
                         else:

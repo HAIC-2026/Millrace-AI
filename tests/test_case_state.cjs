@@ -980,3 +980,43 @@ test("saved contexts that differ only in comparison scope have distinct names", 
   const unknown = clone(p); unknown.steps.find((s) => s.operation === "compare").args.comparison_geography = "HI-COUNTY-999-2024";
   u.ctx.__p = unknown; assert.match(u.run("planLabel(__p)"), /compared with an unlisted geography$/);
 });
+
+// ------------------------------------------------------------------ recommended brief selector
+// Real handler results projected in tests/fixtures/recommended-brief-results.json (drift-checked by test_recommended_brief.py).
+const RB_CASES = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/recommended-brief-results.json"), "utf8")).cases;
+const recIds = (rec) => rec.claims.map((c) => c.claim_ref.finding_id);
+
+test("care recipe: one comparison with both numbers plus the Kūpuna Care verification step, no program tile", () => {
+  for (const [key, district] of [["house-013-aging_at_home", "HI-HOUSE-013-2024"], ["house-028-aging_at_home", "HI-HOUSE-028-2024"], ["senate-025-aging_at_home", "HI-SENATE-025-2024"]]) {
+    const rec = C.recommendedBrief(RB_CASES[key]);
+    assert.deepEqual(recIds(rec), ["cmp:" + district + "~HI-STATE-2024:poverty_rate_65_plus"], key);
+    assert.equal(rec.card.tier, "verification_action"); assert.equal(rec.card.program_id, "kupuna_care_hi");
+    assert.deepEqual(rec.action, rec.card.action_ref);
+    assert.ok(!rec.claims.some((c) => c.kind === "program_relevance" || c.kind === "outreach_hypothesis"));
+  }
+});
+
+test("SNAP recipe: two short district measures plus the SNAP verification step; supporting comparisons are not selectable", () => {
+  for (const [key, district] of [["senate-006-food_assistance_outreach", "HI-SENATE-006-2024"], ["house-028-food_assistance_outreach", "HI-HOUSE-028-2024"]]) {
+    const rec = C.recommendedBrief(RB_CASES[key]);
+    assert.deepEqual(recIds(rec), ["stat:" + district + ":poverty_rate_all_people", "stat:" + district + ":median_household_income"], key);
+    assert.equal(rec.card.program_id, "snap_hi"); assert.equal(rec.card.tier, "verification_action");
+  }
+});
+
+test("a plan without a program step recommends measures only and no agency step", () => {
+  const rec = C.recommendedBrief(RB_CASES["house-028-custom"]);
+  assert.deepEqual(recIds(rec), ["stat:HI-HOUSE-028-2024:population_65_plus", "stat:HI-HOUSE-028-2024:total_households"]);
+  assert.equal(rec.action, null);
+});
+
+test("every recommended finding is listed by a successful step, and the program reference stays selectable", () => {
+  for (const [key, res] of Object.entries(RB_CASES)) {
+    const listed = new Set(res.steps.filter((s) => s.status === "ok").flatMap((s) => s.claim_refs.map(C.refKey)));
+    const rec = C.recommendedBrief(res);
+    assert.ok(rec.claims.every((c) => listed.has(C.refKey(c.claim_ref))), key);
+    const program = res.claims.find((c) => c.kind === "program_relevance");
+    if (program) assert.ok(listed.has(C.refKey(program.claim_ref)), key + ": program reference remains available for manual selection");
+  }
+  assert.deepEqual(C.recommendedBrief(null), { claims: [], action: null, card: null });
+});

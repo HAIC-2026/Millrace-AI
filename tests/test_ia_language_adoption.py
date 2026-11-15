@@ -155,7 +155,7 @@ class AdoptionTests(unittest.TestCase):
 
     def test_strict_ceiling_and_stage_semantics(self):
         adopt(self.root);approval=json.loads(self.approval.read_bytes())
-        for bad in (True,6.0,'6',0,-1,257,None,10**100):
+        for bad in (True,6.0,'6',0,-1,396,None,10**100):
             with self.subTest(bad=bad):
                 put(self.approval,dumps(dict(approval,max_count_requests=bad)));self.blocked(active(self.root))
         missing=dict(approval);missing.pop('max_count_requests');put(self.approval,dumps(missing));self.blocked(active(self.root))
@@ -201,7 +201,7 @@ class AdoptionTests(unittest.TestCase):
     def test_helper_refuses_bad_preconditions_without_writing(self):
         for over,code in (({'active_config_hash':ADOPTION_ORIGIN_CONFIG_HASH},'invalid_pin'),({'catalog_digest':'cc64'},'invalid_pin'),
                 ({'image_digest':'sha256:'+'A'*64},'invalid_pin'),({'transition_reference':' '},'invalid_transition_reference'),
-                ({'max_count_requests':3},'invalid_max_count_requests'),({'max_count_requests':257},'invalid_max_count_requests'),
+                ({'max_count_requests':3},'invalid_max_count_requests'),({'max_count_requests':396},'invalid_max_count_requests'),
                 ({'max_count_requests':True},'invalid_max_count_requests')):
             with self.subTest(over=over):self.refused(code,**over);self.assertFalse(self.record.exists())
         a=json.loads(self.approval.read_bytes())
@@ -334,6 +334,7 @@ class AdoptedProviderAndOperatorTests(unittest.TestCase):
         with self.assertRaises(LanguageError):
             OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(self.prepared,active(self.root),'test',threading.Event(),time.monotonic()+25,lambda:None)
         self.assertEqual((self.calls,self.secrets),([],0))
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_operator_evaluate_refuses_before_question_input_under_cap6(self):
         from tools import ia_language_operator as operator
         opened=[]

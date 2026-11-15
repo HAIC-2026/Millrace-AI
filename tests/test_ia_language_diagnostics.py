@@ -1,4 +1,5 @@
 """Private opt-in synthetic smoke diagnostics. HTTP and evaluate never opt in."""
+import os
 import copy
 import importlib.util
 import io
@@ -54,6 +55,7 @@ class LanguageDiagnosticTests(unittest.TestCase):
         spoof=f.request('Profile House28.');spoof['diagnostics']='/run/ia1-eval/results/stolen.jsonl'
         self.assertEqual(f.http('/api/language/start',spoof)[0],400)
         self.assertEqual(f.secret_reads,1)
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_actual_cli_diagnostics_are_opt_in_0600_and_results_only(self):
         f=self.f;operator=self.operator();results=f.root/'results';results.mkdir(mode=0o700)
         question=f.root/'synthetic.jsonl';request=f.request('Profile median age in House28.')
@@ -67,6 +69,7 @@ class LanguageDiagnosticTests(unittest.TestCase):
         events=[json.loads(line)for line in diagnostics.read_text().splitlines()];self.assertEqual(len(events),2)
         self.assertEqual(events[0]['case_id'],'synthetic-only');self.assertEqual(events[1]['phase'],'validation');self.assertIsNone(events[1]['rejection_code'])
         self.assertEqual(f.ledger.summary()['buckets']['test']['settled_usage_estimate_nano_usd'],1500000)
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_actual_cli_diagnostic_write_failure_reports_failure_after_settlement(self):
         f=self.f;operator=self.operator();results=f.root/'results';results.mkdir(mode=0o700)
         question=f.root/'synthetic.jsonl';question.write_text(json.dumps({'case_id':'synthetic-only','request':f.request('Profile median age in House28.')})+'\n');question.chmod(0o600)

@@ -529,9 +529,25 @@ _NOT_AREA_AFTER=re.compile(r'^\s+(?:county|rates?|averages?|levels?|figures?|val
 # County comparator names: "<name> County", "County of <name>", "City and County of Honolulu".
 COUNTY_GEOGRAPHIES={'HI-COUNTY-001-2024':'hawaii','HI-COUNTY-003-2024':'honolulu','HI-COUNTY-005-2024':'kalawao',
     'HI-COUNTY-007-2024':'kauai','HI-COUNTY-009-2024':'maui'}
+_CN=r'(?:hawaii|honolulu|kalawao|kauai|maui)'
+# One county-name grammar for every county check: "<name> County", "County of <name>" (also "City and County of
+# Honolulu"), and a shared plural noun over a list ("Maui and Kauai counties", "Maui, Kauai and Hawaii counties").
+_CN_LIST=_CN+r'(?:\s*,\s*'+_CN+r')*(?:\s*,?\s*(?:and|or|&)\s+'+_CN+r')?'
+# List tail: "<A> County", "<A> and <B> County/counties"; list head: "County/counties of <A>[, <B>] [and <C>]".
+# A bare island name without a county word is never a county; "State of Hawaii" is not Hawaii County.
+# A plural tail needs two or more names: "other Hawaii counties" never names Hawaii County.
+_CN_LIST2=_CN+r'(?:\s*,\s*'+_CN+r')*\s*,?\s*(?:and|or|&)\s+'+_CN
+_COUNTY_GROUP=re.compile(r'(?<!state\sof\s)\b('+_CN_LIST2+r')\s+counties\b|(?<!state\sof\s)\b('+_CN_LIST+r')\s+countys?\b'
+    r'|\bcount(?:y|ies)\s+of\s+(?:the\s+)?('+_CN_LIST+r')\b')
+def _county_groups(plain):
+    """(county geography IDs, start, end) for each county mention; a shared-noun list is one mention."""
+    by_name={name:gid for gid,name in COUNTY_GEOGRAPHIES.items()};out=[]
+    for m in _COUNTY_GROUP.finditer(plain):
+        names=re.findall(_CN,m.group(1) or m.group(2) or m.group(3))
+        out.append(([by_name[n] for n in names],m.start(),m.end()))
+    return out
 def _named_counties(plain):
-    return {gid for gid,name in COUNTY_GEOGRAPHIES.items()
-            if re.search(r'\b'+name+r'\s+countys?\b|\bcounty\s+of\s+'+name+r'\b',plain)}  # possessive: apostrophe stripped
+    return {gid for gids,_a,_b in _county_groups(plain) for gid in gids}  # possessive: apostrophe stripped
 
 def _named_service_areas(plain):
     if not _SERVICE_AREA_WORDING.search(plain):return set()
@@ -614,6 +630,54 @@ def _nonlegislative_proof(original):
         directed=lowered is not None and any(_is_comparator(lowered,_Span(a,b)) for a,b in spans)
         if not directed:raise LanguageError('nonlegislative_district_unproven')
     raise Recovery('nonlegislative_district','unsupported',reason='unavailable_evidence')
+
+_REPLACE_TARGET=re.compile(r'\b(?:replace|swap|switch|change)\b[^.;]{0,60}?\b(?:with|to|for)\s+(?:the\s+)?$')
+_REPLACE_SOURCE_BEFORE=re.compile(r'\b(?:replace|swap|switch|change)\s+(?:the\s+)?(?:[\w-]+\s+){0,3}$')
+_REPLACE_SOURCE_AFTER=re.compile(r'^\s*(?:comparison|comparator|benchmark)?\s*(?:with|to|for)\b')
+_LIST_JOIN=re.compile(r'^\s*,?\s*(?:and|or|,)\s+(?:also\s+)?(?:the\s+|with\s+)?$')
+# A county named only as where the district lies ("House 13 includes Kalawao County", "in Maui County").
+_COUNTY_CONTEXT=re.compile(r'\b(?:includes?|including|contains?|containing|within|inside|part\s+of|located\s+in|lies\s+in|in)\s+(?:the\s+)?(?:city\s+and\s+)?$')
+# A parenthetical directly after a district names where it lies: "House 13 (Maui County)".
+_DISTRICT_PAREN=re.compile(r'\b(?:house|senate)\s*(?:district\s*)?\d{1,2}\s*\(\s*$')
+# Comparative requests, including ordinary forms without a directed cue ("between X and Y", "next to Y").
+_COMPARATIVE=re.compile(_COMPARISON_WORDS+r'|\b(?:between|next\s+to|alongside|beside|side\s+by\s+side)\b')
+_STATE_MENTION=re.compile(r'\b(?:the\s+)?state(?:wide)?\b(?!\s+(?:house|senate|legislat))|\bhawaii\s+state\b')
+# "not just/only/merely the State" adds the State; it is not an exclusion.
+_ADDITIVE_NOT=re.compile(r'\bnot\s+(?:just|only|merely)\s+$')
+# A directed or list position before a State mention: the State is then a requested comparator.
+_STATE_CUE=re.compile(r'\b(?:with|to|against|versus|vs\.?|than|and|or|plus|also|between|next\s+to|alongside|beside|not\s+(?:just|only|merely))\s+$')
+def _county_comparators(plain,plan,held_gids,comparator_gids):
+    """In a comparative request every positively named county must be a compared geography, and a State named in a
+    comparator position must be compared too. Excluded are negated or removed counties, a replacement source, and a
+    county named only as where the district lies. A negated or removed State is never compared, even if held."""
+    compared={s['args']['comparison_geography'] for s in plan['steps'] if s['operation']=='compare'}
+    if not compared and not _COMPARATIVE.search(plain):return
+    required,excluded=set(),set()
+    for gids,a,b in _county_groups(plain):
+        m=_Span(a,b);before=plain[max(0,a-80):a]
+        source=_REPLACE_SOURCE_BEFORE.search(before) and _REPLACE_SOURCE_AFTER.match(plain[b:b+40])
+        if source or _is_negated(plain,m) or _REMOVAL_BEFORE.search(before[-60:]):excluded.update(gids);continue
+        directed=_is_comparator(plain,m) or _REPLACE_TARGET.search(before)
+        if not directed and (_COUNTY_CONTEXT.search(before[-40:]) or (_DISTRICT_PAREN.search(before[-30:]) and re.match(r'^\s*\)',plain[b:]))):continue
+        required.update(gids)
+    positive_state,excluded_state,area_state=False,False,False
+    for m in _STATE_MENTION.finditer(plain):
+        before=plain[max(0,m.start()-60):m.start()]
+        source=_REPLACE_SOURCE_BEFORE.search(before) and _REPLACE_SOURCE_AFTER.match(plain[m.end():m.end()+40])
+        if not _ADDITIVE_NOT.search(before) and (source or _REMOVAL_BEFORE.search(before)):excluded_state=True
+        elif re.search(r'\barea\s+(?:to|as|is)\s+$',before) or re.match(r'^\s+(?:(?:service|inquiry|program)\s+)?areas?\b',plain[m.end():]):area_state=True  # service area, not a comparator
+        elif _STATE_CUE.search(before) or _is_comparator(plain,m):positive_state=True
+    if required-compared:raise LanguageError('explicit_comparator_conflict')
+    if excluded&compared-held_gids:raise LanguageError('explicit_comparator_conflict')
+    if 'HI-STATE-2024' in compared and excluded_state and not positive_state:raise LanguageError('explicit_comparator_conflict')
+    if positive_state and not excluded_state and 'HI-STATE-2024' not in compared:raise LanguageError('explicit_comparator_conflict')
+    # Statewide service-area wording is never State comparison intent: it cannot add a new State comparator.
+    if area_state and not positive_state and 'HI-STATE-2024' in compared-held_gids:raise LanguageError('explicit_comparator_conflict')
+    if required:
+        # New comparison geographies must be stated: the named counties, named districts, or the State when named.
+        # Only an explicit State comparison allows a new State comparator (never a statewide service-area mention).
+        allowed=required|comparator_gids|held_gids|({'HI-STATE-2024'} if positive_state else set())
+        if compared-allowed:raise LanguageError('explicit_comparator_conflict')
 
 def local_guard(prepared,decision,plan):
     utterance=prepared['provider_context']['utterance'].lower();context=prepared['context'];confirmed=context['confirmed_plan']
@@ -748,6 +812,7 @@ def local_guard(prepared,decision,plan):
                 raise Recovery('explicit_metric_ambiguous','clarify',reason='missing_context',field='metric',
                                choices=('m_poverty_rate_all_people','m_poverty_rate_65_plus'))
         if re.search(r'\b(?:with|against|versus|vs|minus|to)\s+(?:the\s+)?state\b',utterance) and any(s['operation']=='compare' and s['args']['comparison_geography']!='HI-STATE-2024' for s in plan['steps']):raise LanguageError('explicit_comparator_conflict')
+        _county_comparators(plain,plan,held_gids,comparator_gids)
     if decision['intent']=='inspect_source':
         focus=decision['focus_alias'];selected=context['selected_claim_refs']
         aliases=set(re.findall(r'\b(?:selected_[1-8]|source_[0-9]+)\b',utterance))

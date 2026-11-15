@@ -59,6 +59,19 @@
       <section class="ia-plan" aria-labelledby="ia-plan-h">
         <h2 id="ia-plan-h" class="ia-section-title">Investigation plan</h2>
         <p class="hint">Supported steps run on the bundled data. Edit a step’s scope, then apply the plan.</p>
+        <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
+          <h3 id="ia-question-heading" class="ia-group-title">Ask a question</h3>
+          <p id="ia-question-privacy" class="hint"></p>
+          <form id="ia-question-form" hidden>
+            <label for="ia-question-text">Ask about a district measure, a State or county comparison, a program reference or a source</label>
+            <textarea id="ia-question-text" rows="3" maxlength="500" placeholder="For example: How does senior poverty in House 28 compare with the state?"></textarea>
+            <p class="hint">Your question and limited investigation/Plan context are sent to OpenAI, an external model provider. Omit confidential or resident details. Notes and brief edits are excluded from model requests.</p>
+            <button type="submit" class="btn btn-primary">Ask question</button>
+            <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
+          </form>
+          <div id="ia-question-result" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
+        </section>
+        <p id="ia-language-off" class="hint" hidden>AI language questions are off in this release. Use the steps below or a typed request; the brief, sources and case files work the same.</p>
         <h3 id="ia-steps-h" class="ia-group-title">Steps <span id="ia-step-count" class="count"></span></h3>
         <ol id="ia-steps" class="ia-steps" aria-labelledby="ia-steps-h"></ol>
         <div class="ia-add">
@@ -86,20 +99,6 @@
           </form>
         </details>
         <div id="ia-interpretation" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
-        <p id="ia-language-off" class="hint" hidden>Language questions are not available in this version. Steps, typed requests, the brief, sources and case files all work without them.</p>
-
-        <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
-          <h3 id="ia-question-heading" class="ia-group-title">Question</h3>
-          <p id="ia-question-privacy" class="hint"></p>
-          <form id="ia-question-form" hidden>
-            <label for="ia-question-text">Question for the optional language service</label>
-            <textarea id="ia-question-text" rows="2" maxlength="500"></textarea>
-            <p class="hint">Your question and limited investigation/Plan context are sent to OpenAI, an external model provider. Omit confidential or resident details. Notes and brief edits are excluded from model requests.</p>
-            <button type="submit" class="btn">Ask question</button>
-            <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
-          </form>
-          <div id="ia-question-result" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
-        </section>
       </section>
 
       <main id="ia-main" class="ia-main" tabindex="-1" aria-labelledby="ia-evidence-h">
@@ -119,6 +118,11 @@
         <h2 id="ia-tray-h" class="ia-section-title">Brief</h2>
         <div class="ia-cta">
           <p id="ia-tray-count" class="ia-cta-status"></p>
+          <p id="ia-tray-capacity" class="hint"></p>
+          <div id="ia-recommend" class="ia-recommend" hidden>
+            <button type="button" id="ia-recommend-btn" class="btn" aria-describedby="ia-recommend-what">Use recommended brief</button>
+            <p id="ia-recommend-what" class="hint"></p>
+          </div>
           <div class="btn-row">
             <button type="button" id="ia-review-btn" class="btn" hidden>Mark staff notes reviewed</button>
             <button type="button" id="ia-brief-btn" class="btn btn-primary" aria-describedby="ia-brief-reason">Create one-page brief</button>

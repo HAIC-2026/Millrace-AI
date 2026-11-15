@@ -930,6 +930,36 @@
     return out;
   }
 
+  // One recommended brief, sized for one printed page with a short staff title, summary and next step:
+  // the plan's first comparison (both numbers in one finding), or without one two district measures, plus
+  // the agency verification step for the plan's program. The agency step itself prints the program's
+  // recorded referral, open eligibility/routing questions and sources, so the separate program reference
+  // tile is not auto-selected (it stays available for manual selection). Only findings listed by a
+  // successful plan step are selectable; evidence inside a hypothesis is not a standalone brief finding.
+  function recommendedBrief(res) {
+    if (!res || !Array.isArray(res.claims)) return { claims: [], action: null, card: null };
+    const listed = new Set((res.steps || []).filter((s) => s.status === "ok").flatMap((s) => (Array.isArray(s.claim_refs) ? s.claim_refs : []).map(refKey)));
+    const claims = res.claims.filter((c) => c.claim_ref && listed.has(refKey(c.claim_ref)));
+    const comparison = claims.find((c) => c.kind === "comparison");
+    const home = res.plan && res.plan.district ? geographyIdOf(res.plan.district) : null;
+    const FIRST = ["poverty_rate_65_plus", "poverty_rate_all_people", "population_65_plus", "median_household_income"];
+    const SECOND = ["population_65_plus", "median_household_income", "total_population", "households_with_social_security", "total_households"];
+    const order = (list) => (c) => { const i = list.indexOf(c.metric && c.metric.metric_id); return i < 0 ? list.length : i; };
+    const stats = claims.filter((c) => c.kind === "statistic" && (!home || (c.geography && c.geography.geography_id === home)));
+    let picks = [];
+    if (comparison) picks = [comparison];
+    else {
+      const a = stats.slice().sort((x, y) => order(FIRST)(x) - order(FIRST)(y))[0];
+      const b = a ? stats.filter((c) => c !== a && !(c.metric && a.metric && c.metric.metric_id === a.metric.metric_id)).sort((x, y) => order(SECOND)(x) - order(SECOND)(y))[0] : null;
+      picks = [a, b].filter(Boolean);
+    }
+    const program = claims.find((c) => c.kind === "program_relevance");
+    const pid = program && program.program ? program.program.program_id : null;
+    const cards = (res.responses || []).filter((c) => c.action_ref);
+    const card = cards.find((c) => c.tier === "verification_action" && c.program_id === pid) || cards.find((c) => c.tier === "verification_action") || null;
+    return { claims: picks, action: card ? card.action_ref : null, card: card };
+  }
+
   return {
     SCHEMA_VERSION, OPERATION_VERSION, CASE_SCHEMA, OPERATIONS, SERVICE_AREAS, ISSUES, CHECK_IDS, TEMPLATE_CHECK_IDS, TOKEN_KEYS, LIMITS, AGING_METRICS,
     canonical, planCanonical, validDate, utf8Length, refKey, actionKey, geographyIdOf,
@@ -938,6 +968,6 @@
     currentResults, toggleClaim, moveSelection, availableActions, chooseAction, setStaffText, setFindingNote, setChecklist, setTracking,
     copyParked, leaveParked, pendingReview, setExclusion, activeStaff, staffDigest, markReviewed, reviewCurrent,
     beginInterpret, beginRun, beginRestore, beginBrief, cancelPending, applyResponse, applyTransportFailure, shorteningChoices, printStatus,
-    exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments,
+    exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments, recommendedBrief,
   };
 });

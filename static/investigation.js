@@ -302,16 +302,21 @@
     const enabled = !!(window.IALanguage && catalog.language && catalog.language.enabled === true && catalog.language.schema_version === 'ia-language/1');
     // Language is optional. When it is not admitted the whole section stays hidden; guided controls are complete.
     $('#ia-question').hidden = !enabled && !languageResult;
-    $('#ia-language-off').hidden = enabled;
     $('#ia-question-form').hidden = !enabled;
-    $('#ia-question-privacy').textContent = enabled ? 'Optional: review a proposed plan before making any changes. Nothing is applied or run until you choose.' : '';
+    $('#ia-language-off').hidden = enabled;
+    $('#ia-question-privacy').textContent = enabled ? 'The answer is a proposed plan you can review. The figures come only from the bundled data when you run it; nothing changes until you choose.' : '';
     if (languageJob && !window.IALanguage.same(languageJob.context, languageContext())) cancelLanguage('The context changed, so the question and its preview were cancelled.');
     $('#ia-question-cancel').hidden = !(languageJob && languageJob.pending);
     const result = languageResult, box = $('#ia-question-result');
     if (!result) { fill(box, []); return; }
     const nodes = [h('p',{text:result.message || (result.status === 'propose' ? 'Proposed interpretation; nothing has been applied or run.' : 'Use the guided controls to continue.')})];
     if (result.status === 'propose') {
-      if (Array.isArray(result.typed_diff) && result.typed_diff.length) nodes.push(h('h4',{text:'Proposed changes'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + plain(d.before), 'to ' + plain(d.after)].filter(Boolean).join(' · ')}))));
+      const np = result.normalized_plan;
+      if (np && np.district && Array.isArray(np.steps)) {
+        nodes.push(h('h4',{text:'Proposed plan · ' + districtLabel(np.district)}),
+          h('ol',{class:'ia-proposal-steps'},np.steps.map(st => h('li',{text:(OP_LABEL[st.operation] || humanWords(st.operation)) + ': ' + stepScope(st)}))));
+      }
+      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('h4',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + plain(d.before), 'to ' + plain(d.after)].filter(Boolean).join(' · ')}))));
       if (Array.isArray(result.inherited_fields) && result.inherited_fields.length) {
         const context = languageJob && languageJob.context, confirmed = context && context.confirmed_plan;
         nodes.push(h('h4',{text:'Inherited from your confirmed context'}), h('ul',{},result.inherited_fields.map(key => h('li',{text:fieldLabel(key) + ': ' + plain(key === 'focus' ? context.focused_step_id : confirmed && confirmed[key])}))));
@@ -320,12 +325,12 @@
         const refs = Array.isArray(result.source_inspection_refs) ? result.source_inspection_refs : [];
         nodes.push(h('p',{text:'Choose a source to inspect. This does not change the plan.'}),...refs.filter(r => r && typeof r.source_id === 'string').map(r => h('button',{type:'button',class:'btn-link source-btn','data-source-id':r.source_id,'data-finding-id':r.finding_id || '',text:'Inspect source: ' + srcLabel(r.source_id)})));
       } else if (result.normalized_plan) {
-        nodes.push(btn('Apply proposal to draft', () => {
+        nodes.push(btn('Use this proposal in the draft', () => {
           if (!languageJob || !currentLanguage(languageJob, result)) { cancelLanguage('The context changed. Ask again or use guided controls.'); render(); return; }
           const issues = [];
           if (!C.validPlan(result.normalized_plan,'plan',issues) || !(state.runtime.recipe_versions || []).includes(result.normalized_plan.issue_id + '/1')) { cancelLanguage('This proposal is unavailable in the current release. Use guided controls.'); render(); return; }
           state = Object.assign({},state,{draft:JSON.parse(JSON.stringify(result.normalized_plan))});
-          cancelLanguage(); notice = 'Proposal placed in the draft. Review it, then choose Apply plan to run.'; render();
+          cancelLanguage(); notice = 'Proposal placed in the draft. Choose Apply plan to run it and see the findings.'; render();
         },{class:'btn btn-primary'}), ' ', btn('Discard proposal', () => {cancelLanguage();render();}));
       }
     }
@@ -781,7 +786,7 @@
       sources.length ? h("div", { class: "ia-sources" }, h("span", { class: "ia-sources-label", text: sources.length === 1 ? "Source:" : "Sources:" }),
         sources.map((r) => h("button", { type: "button", class: "btn-link source-btn", "data-source-id": r.source_id, "data-finding-id": typeof r.finding_id === "string" ? r.finding_id : c.claim_ref.finding_id, text: "Inspect " + srcName(r) }))) : null,
       h("details", { id: id + "-more" }, h("summary", {}, "Definition, margin of error and method", h("span", { class: "sr-only", text: " for " + name })),
-        h("dl", { class: "kv" }, claimRows(c).filter((r) => c.kind !== "outreach_hypothesis" || !["Reviewed measures", "Program connection", "Not known from this evidence", "Reviewed next step"].includes(r[0])).map((r) => h("div", {}, h("dt", { text: r[0] }), h("dd", { class: r[0] === "Source address" ? "url" : null }, Array.isArray(r[1]) ? h("ul", {}, r[1].map((x) => h("li", { text: plain(x) }))) : plain(r[1]))))),
+        h("dl", { class: "kv" }, claimRows(c).filter((r) => c.kind !== "outreach_hypothesis" || !["Reviewed measures", "Program connection", "Not known from this evidence", "Reviewed next step"].includes(r[0])).map((r) => h("div", {}, h("dt", { text: r[0] }), h("dd", { class: r[0] === "Source address" ? "url" : null }, Array.isArray(r[1]) ? h("ul", {}, r[1].map((x) => h("li", { text: plain(x) }))) : r[0] === "Source address" && /^https:\/\//.test(String(r[1])) ? h("a", { href: String(r[1]), target: "_blank", rel: "noopener noreferrer", class: "official-link", text: String(r[1]) }) : plain(r[1]))))),
         Array.isArray(c.dependencies) && c.dependencies.length ? h("div", {}, h("h4", { class: "ia-sub", text: c.kind === "outreach_hypothesis" ? "Complete reviewed basis (shown in full whatever the profile displays)" : "Depends on" }),
           h("ul", {}, c.dependencies.map((r) => h("li", { text: claimFull(r) })))) : null,
         limits.length ? h("div", {}, h("h4", { class: "ia-sub", text: "All limits of this finding" }), h("ul", {}, limits.map((l) => h("li", { text: plain(l) })))) : null));
@@ -794,7 +799,11 @@
     limitFreq = new Map();
     res.claims.forEach((c) => (Array.isArray(c.limitations) ? c.limitations : []).forEach((l) => limitFreq.set(l, (limitFreq.get(l) || 0) + 1)));
     limitMax = Math.max(0, ...limitFreq.values());
-    const nodes = [h("p", { class: "hint", text: "Findings for " + districtLabel(res.plan.district) + " from the last applied plan." + (dirty ? " The draft has unapplied edits; these findings do not include them yet." : "") + " Select findings for the brief: up to 8 can be selected; one-page fit is measured when you create the brief." })];
+    const rec = recommendedBrief(res), key = rec.claims[0];
+    const start = key ? h("div", { class: "ia-start", id: "ia-start" }, h("h3", { class: "ia-group-title", text: "Start here" }),
+      h("p", { text: findingText(key) }),
+      rec.claims.length > 1 || rec.card ? h("p", { class: "hint", text: "The recommended brief adds " + rec.claims.slice(1).map(claimShortName).concat(rec.card ? ["the agency verification step for " + programLabel(rec.card.program_id) + ", which prints the program's recorded referral, open questions and sources"] : []).join("; ") + ". Use recommended brief in the Brief panel, or select findings below; the program reference and every other finding stay available." }) : null) : null;
+    const nodes = [start, h("p", { class: "hint", text: "Findings for " + districtLabel(res.plan.district) + " from the last applied plan." + (dirty ? " The draft has unapplied edits; these findings do not include them yet." : "") + " Select findings for the brief: up to 8 can be selected; one-page fit is measured when you create the brief." })];
     res.steps.forEach((s, i) => {
       const refs = Array.isArray(s.claim_refs) ? s.claim_refs : [];
       const n = res.plan.steps.findIndex((x) => x.step_id === s.step_id);
@@ -819,6 +828,18 @@
     fill(box, nodes);
   }
 
+  // The program's recorded official referral, shown first on its agency card. Registry wording only.
+  function officialNextStep(prog) {
+    const ref = prog && prog.referral;
+    if (!ref || typeof ref.next_step !== "string" || !ref.next_step) return null;
+    const contact = [];
+    if (typeof ref.url === "string" && /^https:\/\//.test(ref.url)) contact.push(h("a", { href: ref.url, target: "_blank", rel: "noopener noreferrer", class: "official-link", text: ref.url }));
+    if (ref.phone) contact.push(" · " + ref.phone);
+    if (ref.tty) contact.push(" · TTY " + ref.tty);
+    if (ref.county_office) contact.push(" · county office: " + ref.county_office);
+    return h("div", { class: "ia-next-step" }, h("h4", { class: "ia-sub", text: "Official next step (recorded)" }), h("p", { text: ref.next_step }), contact.length ? h("p", {}, ...contact) : null);
+  }
+
   function renderResponses(res) {
     const box = $("#ia-responses"), b = C.active(state);
     if (!res || !res.responses.length) { fill(box, [h("p", { class: "muted", text: res ? "This plan has no program step, so there is no agency action to choose. A brief without one is valid; add a Program reference step to see options." : "Agency options appear after the plan runs." })]); return; }
@@ -839,6 +860,7 @@
       return h("article", { class: "card ia-response" + (on ? " is-selected" : ""), id: "ia-resp-" + i, "aria-labelledby": "ia-resp-h-" + i },
         h("header", {}, h("h3", { class: "ia-group-title", id: "ia-resp-h-" + i, text: programLabel(card.program_id) }), h("span", { class: "badge badge-info", text: TIER_LABEL[card.tier] || humanWords(card.tier) }),
           on ? h("span", { class: "badge badge-ok", text: "In brief" }) : null),
+        officialNextStep(prog),
         h("dl", { class: "kv" },
           p.agency ? h("div", {}, h("dt", { text: "Administering agency" }), h("dd", { text: hawaiiDisplay(p.agency) })) : null,
           p.jurisdiction ? h("div", {}, h("dt", { text: "Program jurisdiction (recorded)" }), h("dd", { text: hawaiiDisplay(p.jurisdiction) })) : null,
@@ -884,11 +906,39 @@
     return null;
   }
 
+  function recommendedBrief(res) { return C.recommendedBrief(res); }
+  function useRecommended() {
+    const res = C.currentResults(state), rec = recommendedBrief(res);
+    if (!rec.claims.length) return;
+    const want = new Set(rec.claims.map((c) => C.refKey(c.claim_ref)));
+    let next = state;
+    for (const r of C.active(next).selected_claim_refs.slice()) if (!want.has(C.refKey(r))) { const o = C.toggleClaim(next, r, false); if (o.error) return alertUser(o.error.message); next = o.state; }
+    for (const c of rec.claims) { const o = C.toggleClaim(next, c.claim_ref, true); if (o.error) return alertUser(o.error.message); next = o.state; }
+    state = next;
+    const b = C.active(state);
+    if (rec.action && !(b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action))) {
+      const r = C.chooseAction(state, rec.action);
+      if (r.error) return alertUser(r.error.message);
+      if (r.proposal.fork) { preview = r.proposal; notice = "Recommended findings selected. Review the agency action change below."; render(); $("#ia-preview").focus(); return; }
+      if (!r.proposal.noop) { const c = C.confirmChange(state, r.proposal, ids); if (c.error) return alertUser(c.error.message); state = c.state; if (c.forked) { notice = "Recommended findings and agency action selected."; runActive(); return; } }
+    }
+    notice = "Recommended findings" + (rec.action ? " and agency action" : "") + " selected. Add a short summary if you wish, then choose Create one-page brief.";
+    render();
+  }
+
   function renderTray(b, res, busy, dirty) {
     const claims = claimMap(res), ex = new Set(state.exclusions[b.branch_id] || []);
     const notes = (b.staff_edits.finding_notes || {});
     const nSel = b.selected_claim_refs.length;
-    $("#ia-tray-count").textContent = nSel ? plural(nSel, "finding", "findings") + " selected (up to 8)" + (b.selected_action_ref ? " · agency action chosen" : " · no agency action") + "." + " Up to 8 can be selected; how many fit one printed page depends on their length and your notes, and is measured when you create the brief." : "No findings selected yet.";
+    $("#ia-tray-count").textContent = nSel ? plural(nSel, "finding", "findings") + " selected" + (b.selected_action_ref ? " · agency action chosen." : " · no agency action.") : "No findings selected yet.";
+    $("#ia-tray-capacity").textContent = "With an agency action, one printed page usually has room for one comparison or about two short measure findings, plus a short title, summary and next step. The recommended brief is sized for that. Program reference tiles, extra findings and longer notes may not fit; the fit is measured when you create the brief.";
+    const rec = res && !busy && !dirty ? recommendedBrief(res) : { claims: [] };
+    const recOn = rec.claims.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && rec.claims.length === nSel && (!rec.action || (b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action)));
+    $("#ia-recommend").hidden = !rec.claims.length;
+    $("#ia-recommend-btn").disabled = !!recOn;
+    $("#ia-recommend-btn").className = nSel ? "btn" : "btn btn-primary";
+    $("#ia-recommend-btn").textContent = recOn ? "Recommended brief selected" : "Use recommended brief";
+    $("#ia-recommend-what").textContent = rec.claims.length ? "Selects " + rec.claims.map((c) => (KIND_LABEL[c.kind] || humanWords(c.kind)).toLowerCase() + ": " + claimShortName(c)).join("; ") + (rec.card ? "; agency action: verify " + programLabel(rec.card.program_id) + " with the agency" : "") + (nSel && !recOn ? ". Replaces the current selection." : ".") : "";
     fill($("#ia-selected"), nSel ? b.selected_claim_refs.map((r, i) => {
       const c = claims.get(C.refKey(r)), sid = "ia-sel-" + r.semantic_hash.slice(7, 19);
       return h("li", { id: sid }, h("span", { class: "tray-label", text: findingText(c) }),
@@ -1147,6 +1197,7 @@
       if (b && !b.disabled) b.focus(); else $("#ia-brief-reason").focus();
     });
     $("#ia-brief-btn").addEventListener("click", () => createBrief(false));
+    $("#ia-recommend-btn").addEventListener("click", () => useRecommended());
     $("#ia-clean-brief-btn").addEventListener("click", () => createBrief(true));
     $("#ia-print-btn").addEventListener("click", () => { if (C.printStatus(state).ok && briefFits()) window.print(); });
     $("#ia-download-staff").addEventListener("change", render);

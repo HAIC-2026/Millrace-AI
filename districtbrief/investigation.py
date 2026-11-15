@@ -225,6 +225,9 @@ class Investigation:
             brief['map_session']=plan['map_session'];brief['statistical_session']=2024
             brief['action']=selected_response
             brief['action_program']=copy.deepcopy(self.core.programs[selected_response['program_id']]) if selected_response else None
+            # The district-specific recorded referral of the action's program finding (the same one its reference tile shows).
+            ref_claim=bindings.claims.get((selected_response.get('program_claim_ref') or {}).get('finding_id')) if selected_response else None
+            brief['action_referral']=copy.deepcopy(ref_claim.get('referral')) if ref_claim else None
             self._cite_action(brief,selected_response,bindings)
             self._cite_indicator(brief,plan,bindings)
             brief['checklist']=copy.deepcopy(selected_response['template_checklist']) if selected_response else []

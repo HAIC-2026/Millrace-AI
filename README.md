@@ -1,16 +1,131 @@
 # Millrace AI · District Brief Builder
 
-District Brief Builder is a deterministic evidence workbench for Hawaiʻi legislative staff.
+District Brief Builder is a web workbench that helps Hawaiʻi legislative staff turn a district question into a sourced, one-page agency verification brief.
 
-Choose a House or Senate district, inspect aggregate measures, compare compatible estimates, and prepare an agency verification brief. The aging-at-home and SNAP outreach recipes connect published aggregate indicators with dated program references. Agencies determine eligibility and current availability.
+**Try it:** [haic.millrace.ai](https://haic.millrace.ai). It needs no account, sign-in or setup. The checks below used Chrome.
 
-This prototype serves 51 House districts, 25 Senate districts, 20 measures, State and all five county comparators, and complete district boundaries. Guided controls and Typed request make no model calls. Optional Language questions stay disabled until provider, accounting and quality admission passes. This candidate bundles the factual snapshot needed to run locally without credentials or a private archive.
+Team **Millrace AI** built District Brief Builder for the HAIC 2026 Know Your District challenge. Millrace AI is the team. District Brief Builder is the product. This repository holds its working source.
 
-This source is an isolated completion candidate. The hosted main application retains R2 evidence. New county, recipe, indicator and language work remains candidate-only until its release gates pass.
+You choose one of Hawaiʻi's 51 House or 25 Senate districts and an issue. The app runs a visible, editable plan on a bundled snapshot of public aggregate data. Each ACS figure shows its publisher, period, universe, margin of error and source location. Administrative figures show their publisher, period, coverage and sheet cell. Program references show their official page and checked date. You choose findings and an agency action, add labeled staff notes, and print a one-page brief. Agencies determine eligibility and current availability.
+
+**Status:** working prototype. The hosted app runs guided controls only. Language questions are off in this release. Every number comes from deterministic operations on the bundled snapshot. The hosted app makes no model call.
+
+## Try the House 028 Care example
+
+This path takes about five minutes. It follows the older-adult support-at-home issue in House District 28.
+
+1. **Open the app.** [haic.millrace.ai](https://haic.millrace.ai) opens on House 028 with the issue **Older-adult support at home**. The plan has four steps: profile measures, a comparison with the State, the Kūpuna Care program reference and a reviewed outreach hypothesis. Its results already appear under **Findings and evidence**, led by a **Start here** summary.
+2. **Edit the plan (optional).** Under **Investigation plan**, open **Change scope** on a step, or use **Add a supported step**. Choose **Apply plan** to run your edit. **Run again** repeats an unchanged plan.
+3. **Inspect one estimate.** Find **Population age 65 and over, House 028: 6,463 persons (90% margin of error ±542 persons)**. Choose its **Inspect** source button. The source panel shows the publisher (Hawaiʻi DBEDT / U.S. Census Bureau ACS), the period (ACS 2020–2024 5-year), the universe (total population) and the location (sheet DP05, cell DF27, margin DG27). The source was retrieved October 30, 2026. Its address opens the publisher's file in a new tab. The app itself fetches nothing.
+4. **Read the comparison.** The comparison step reports the age-65+ poverty rate: House 028 29.0% (±4.3) and State of Hawaiʻi 9.2% (±0.5). The app labels this a point difference of +19.8 percentage points. It performs no significance test.
+5. **Review the agency route.** Under **Agency verification**, read the **Kūpuna Care** card. It starts with the **Official next step (recorded)** from the program record, with its link and phone number. It lists the facts the agency determines under **Questions to confirm with the agency**.
+6. **Build the brief.** In the **Brief** panel, choose **Use recommended brief**. It selects the comparison and the Kūpuna Care agency action. The printed agency action carries the program's recorded referral link and phone, its open questions and its sources. These come from the program record checked October 30, 2026, not a live check. You can instead pick any findings with **Select for brief**, including the program reference, and choose **Use this agency action in the brief**. Extra findings may not fit one page. Choosing no action is also valid.
+7. **Add a staff note.** Under **Staff notes**, enter a short title, a one-line summary and, if you like, one short next step. Choose **Mark staff notes reviewed**, then **Create one-page brief**. The status reads **Ready to print**. Staff text prints with the label *Staff edit — not a verified fact*.
+8. **Print or save.** Choose **Print or save as PDF** to use your browser's print dialog.
+9. **Save and reopen the case.** Under **Save or reopen the case**, choose **Download case file**. By default the file holds only the plan, versions and selected references. Select **Include staff notes (plain text, not encrypted)** to add your notes. Open a fresh tab, choose **Open a case file**, and review the preview. Reopened staff notes need a new review before a brief.
+
+What the example does **not** establish:
+
+- The map shows the 2026 boundary session. The statistics use 2024 district boundaries. House 028 has identical boundary geometry in both sessions, and the map says so.
+- The age-65+ count is not Kūpuna Care's age-60+ population. It does not measure care need, eligibility, a participation gap or current capacity.
+- The October 30, 2026 retrieval date does not confirm current program status.
+
+The **SNAP outreach** issue follows the same workflow with its own three-step plan: a profile of the all-people poverty rate and median household income, the SNAP program reference and a reviewed outreach hypothesis. Its plan has no State comparison step. Its recommended brief selects two short district measures, the all-people poverty rate and median household income, plus the agency action. Verification routes to the DHS Benefit, Employment and Support Services Division (BESSD).
+
+## What the release covers
+
+| Area | Included in this release |
+| --- | --- |
+| Districts | All 51 House and 25 Senate districts. Statistics use 2024 district boundaries. The map can show the 2026 or 2024 session. |
+| Measures | 20 American Community Survey (ACS) 2020–2024 five-year measures: age 65+, older householders living alone, income, Social Security receipt, poverty, employment, housing and rent burden. Each value keeps its published 90% margin of error. |
+| Comparisons | Point differences against the State, any of the five counties or another district for the same measure. County choice supplies context. It does not establish that a district lies inside a county. |
+| Program workflows | Two guided issues: **Older-adult support at home** (Kūpuna Care) and **SNAP outreach**. |
+| Program references | SNAP, Med-QUEST, WIC, Kūpuna Care and the City and County of Honolulu Housing Choice Voucher program. Each record has an official link, agency, checked date and the facts the agency determines. |
+| Administrative figures | 24 published participation figures: DHS monthly SNAP and Med-QUEST figures (statewide or island) and DBEDT county SNAP figures. They give context only and are never assigned to a district. |
+| Map | The selected district's boundary, with a text alternative and selectable parts. Shading shows the district's all-people poverty class when its 2026 boundary matches the 2024 statistical boundary. |
+| Brief and case | A printable one-page brief with numbered sources. A downloadable case file reopens only against the exact matching evidence. |
+
+### Data sources and dates
+
+| Source | Publisher | Used for | Retrieved |
+| --- | --- | --- | --- |
+| ACS 2020–2024 5-year workbooks for House, Senate, State and counties | Hawaiʻi DBEDT, republishing U.S. Census Bureau ACS | All 1,640 statistical values | 2026-10-30 |
+| ACS profile group definitions (DP02–DP05) | U.S. Census Bureau Data API | Variable labels and definitions | 2026-10-30 |
+| State legislative district boundaries, 2024 and 2026 sessions | U.S. Census Bureau TIGERweb | Map and boundary-session checks | 2026-10-30 |
+| SNAP monthly participation summary, state fiscal year 2027 | Hawaiʻi DHS BESSD | Statewide SNAP context | 2026-10-30 |
+| Medicaid enrollment report, 2026 | Hawaiʻi DHS Med-QUEST | Statewide and island Med-QUEST context | 2026-10-30 |
+| County report, section H | Hawaiʻi DBEDT | County SNAP context | 2026-10-30 |
+| Program pages and statutes (BESSD, Med-QUEST, DOH WIC, DOH Executive Office on Aging, HRS §§349-16 and 349-17, Honolulu Department of Community Services) | Each named agency | Program references and verification questions | 2026-10-30 |
+
+These labels are descriptive. The app shows when an official title or publication date is not recorded. See [source notices](DATA-NOTICES.md) and the [included-input inventory](docs/PROJECTION-INPUTS.json).
+
+This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
+
+## Challenge requirements
+
+The table maps the Know Your District brief to this release. "Partly" means part of the requirement is met and the rest is stated.
+
+| Requirement | Status | How this release handles it |
+| --- | --- | --- |
+| District summaries for all districts | Met | Every House and Senate district runs the same guided plan. |
+| Age, income, poverty, employment and housing indicators | Met | 20 ACS measures. Tax, BLS, BEA and UHERO data are not included. |
+| Compare with county and State | Met | Same-definition point differences with both margins shown. No significance test. |
+| Every figure cites source, period and geography | Met | Each ACS finding and brief line links to publisher, period, universe, boundary session and cell location. Administrative figures show their source, period, coverage and cell. Program references show their official record and checked date. |
+| State uncertainty and missing data | Met | Margins of error stay with values. Values the source has not published carry an unpublished status instead of a number. |
+| Plain-language question interface | Not met | Language questions are off. Guided steps and a literal typed-request parser are available. See [optional language questions](#optional-language-questions). |
+| Program information with official links; agency decides eligibility | Met | Five program references, two guided workflows and an agency action card with questions to confirm. |
+| Potentially eligible populations and uptake gaps | Partly | The app offers a labeled outreach hypothesis and an agency verification route. It does not estimate eligible-but-unenrolled residents. The data do not support that estimate at district level. |
+| District maps | Partly | Selected-district boundary and poverty shading with a text alternative. No statewide comparison map. |
+| Export a sourced summary | Met | One-page brief through the browser's print dialog. See [task results](#task-results) for print status. |
+| Public aggregate data only; no individual records | Met | The snapshot holds published aggregate values. The app has no resident lookup. |
+| Accessible interface (WCAG 2.1 AA) | Not certified | Labeled controls, a skip link, a map text alternative and a 360-pixel layout were observed. Screen-reader use is unverified. |
+| Keep program information current | Partly | Each record keeps a checked date. Refresh tools cover statistics and geometry. Program and administrative records need manual review. See [controlled source refresh](#controlled-source-refresh). |
+| Validation of mapping and program results | Partly | Automated checks and developer task checks below. No staff or subject-matter-expert review has occurred. |
+
+## Task results
+
+These are developer checks, not a staff usability study or a measure of user accuracy. An AI browser agent operated the checks under developer direction. Each row is one observation on a named build. R12 is the guided release published November 14, 2026 (HST). This build adds a recommended brief and a Start here summary, and changes R12's language notice, agency cards, source links and printed wording. It keeps R12's data and calculations, and corrects the caveat shown with the all-people poverty rate. "Hosted" means [haic.millrace.ai](https://haic.millrace.ai). "Local" means the same R12 release manifest served from a developer computer. Evidence kinds:
+
+- **Reader check:** you can repeat it from [Try the House 028 Care example](#try-the-house-028-care-example) or [Check the checkout](#check-the-checkout).
+- **Attested summary:** a public-safe summary of a private developer record.
+
+| Task | Expected | Observed | Result | Build, date (HST), environment | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| House 028 Care brief | Two findings, Kūpuna Care action and short staff notes produce a printable brief | Status **Ready to print**, Print enabled | Complete | R12, Nov 14, local Chrome | Reader check |
+| House 013 Care brief and source | Source panel matches the finding | 5,488 ±511 persons at DP05 AX27/AY27. Brief reached **Ready to print** | Complete | R12, Nov 14, hosted Chrome | Reader check |
+| Senate 025 Care brief | Multi-part district stays selectable | Map lists 10 parts. Brief reached **Ready to print** | Complete | R12, Nov 14, local Chrome | Reader check |
+| House 028 SNAP outreach brief | Income and poverty findings with BESSD action | Brief reached **Ready to print** | Complete | R12, Nov 14, local Chrome | Reader check |
+| Default and staff case files | Default file omits staff text. Opt-in file includes it. Reopen requires review | Default omitted staff fields. Opt-in held 3 staff fields. Fresh-tab reopen required review, then **Ready** | Complete | R12, Nov 14, hosted Chrome | Reader check |
+| Case from an earlier release | Refused before replay, with a route to the matching release | Refused. The offered link opened the retained earlier release, which replayed the case unchanged | Complete | R12, Nov 14, hosted Chrome | Attested summary |
+| Narrow screen | House 013 brief usable at 360 pixels wide | **Ready** and Print visible. No horizontal page overflow | Complete | R12, Nov 14, hosted Chrome | Reader check |
+| Oversized staff summary | Brief refuses to overflow one page and keeps edits | Overflow refused, Print disabled, edits kept. A shorter summary restored **Ready** | Correct unsupported response | R12, Nov 14, local Chrome | Attested summary |
+| Tab left open across the release update | Old tab blocks new briefs and keeps its case | Brief blocked and Print disabled. Case kept intact. Status text stayed on a pending message, and the source panel showed current data | Partial | R12, Nov 14, hosted Chrome | Attested summary |
+| Hosted release checks | All districts, county comparisons, SNAP, indicator, secure cookie, no model call | All checks passed. Language reported off, zero model calls before and after | Complete | R12, Nov 14, hosted HTTP | Attested summary |
+| Native Chrome Print, Cancel and Save as PDF | Cancel keeps edits. Saved PDF is readable | Not yet performed on R12 or this build | Unverified | — | — |
+| Spoken VoiceOver journey | Hear and operate the full task | Not yet performed | Unverified | — | — |
+| Walkthrough by the team captain, README only (not a first-time user) | Reach the House 028 brief using only these directions | Not yet performed | Unverified | — | — |
+| Recommended brief, House 028 (this build) | **Use recommended brief** selects the comparison and agency action, and the brief reaches **Ready to print** | Not yet checked in a browser on the final build | Unverified | — | — |
+| Plain-language questions | Interpret ordinary questions into supported steps | Off in both builds. The question panel is hidden, a one-line notice says so, and guided steps remain available | Unsupported | R12, Nov 14, hosted Chrome | Reader check |
+
+Known limits from these checks:
+
+- Native print on R12 and this build was not observed because the browser agent could not reach the native dialog. An earlier release printed an edited House 028 brief through native Chrome. Physical printers and other browsers are untested.
+- Apple PDFKit text extraction, which macOS apps such as Preview use for search and copy, moves underscore characters in source URLs inside Chrome-saved PDFs. The PDF's stored text holds the exact URLs.
+- One-page fit is measured when you create the brief. With an agency action, one page usually fits one comparison or about two short measure findings, plus a short title, summary and next step. Longer text or extra findings are refused, and your edits are kept. Fallback fonts are untested.
+- Reload a tab that was open before a release update. Download work before you reload.
+
+## Known limits
+
+- The app supports published aggregate evidence and point differences for compatible measures. It does not estimate eligible-but-unenrolled residents, test statistical significance, rank districts, measure causal impact or establish current service capacity.
+- County choice supplies comparison context. It does not establish district containment or program jurisdiction.
+- The selected-district poverty shading uses fixed illustrative intervals. It shades 2026 geometry only when it matches the 2024 statistical boundary.
+- Program records were checked October 30, 2026. Confirm current rules, contacts and availability with the agency.
+- Accessibility is not certified. Screen-reader use is unverified.
+- The State portal terms leave a commercial-use limitation on State-derived data. See [scope and reuse](#scope-and-reuse).
 
 ## Run the bundled snapshot
 
-Use Python 3.11 or later. Run these commands from the repository root:
+Use Python 3.11. Run these commands from the repository root:
 
 ```sh
 python3.11 -m venv .venv
@@ -22,41 +137,7 @@ Open [the local app](http://127.0.0.1:8080). Choose a district and run the visib
 
 The Dockerfile packages the same bundled snapshot. Mount a private writable directory at `/var/lib/haic`. The container uses a nonroot user. Configure HTTPS at your hosting boundary.
 
-## Facts, references and verification
-
-The default `public` input profile includes 1,640 statistical observations, 24 administrative observations, five program records, four original geometry captures, and authored recipe metadata. The original 1,560 observations retain their R2 analytical meaning. Eighty observations add four county profiles from the same retained workbook. Source annotations remain explicit. Geometry provides district boundaries and cross-session compatibility. It does not establish program jurisdiction or access.
-
-This is a smaller factual projection of the historical R2 archive. Its data and metadata have new identities. Source inspection verifies the bundled projection and displays historical origin hashes and locators. It does not claim to reread omitted workbooks or pages. Program evidence uses authored references instead of copied passages. The four included geometry captures still receive original-byte verification.
-
-`runtime-packet/PACKET-MANIFEST.json` identifies the bundled facts. `candidate-metadata/MANIFEST.json` identifies the authored metadata. Their combination identifies analytical evidence. `RELEASE-MANIFEST.json` separately identifies the current source build and lists every publication member. See [data provenance](DATA-PROVENANCE.json), the [included-input inventory](docs/PROJECTION-INPUTS.json), and [source notices](DATA-NOTICES.md).
-
-This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
-
-## Saved cases and historical R2 replay
-
-Cases bind to an evidence snapshot and semantic claim references. The default public profile refuses historical R2 cases before analytical dispatch. It preserves the saved file and current browser case. It does not relabel historical sources or attach old finding notes to new claims.
-
-Use the matching live R2 application or the explicit local `r2` profile to reopen those cases. The local profile requires your complete retained historical inputs. The [R2 replay guide](docs/R2-REPLAY.md) gives the exact inventory, installer and verification commands. Current source refresh cannot reconstruct that historical archive. The source build ID can change while the imported branch retains its historical release provenance.
-
-Case state stays in browser memory until you download a file. Default downloads exclude staff work. Including staff text requires an explicit preview. Imported staff work needs contextual review before a brief. JSON downloads are unencrypted. Read [privacy and security behavior](PRIVACY.md) before entering information.
-
-## Optional language questions
-
-The separate Question control can propose a bounded plan or source-inspection request through OpenAI. It sends the question and value-free plan/catalog context. It excludes notes, claim values, source bodies and case files. Omit confidential or resident details. Interpret remains a separate zero-model literal parser.
-
-A proposal changes no confirmed plan or result. Review the typed diff, apply it to the draft, then apply the plan and Run separately. Changes to context invalidate pending proposals. Guided controls remain available when language is disabled or fails.
-
-Production enablement requires the approved shared two-bucket ledger, Linux secret mount, exact provider configuration and independent quality acceptance. The operator harness is included in the image. HTTP uses the demonstration bucket. Operator evaluation uses the testing bucket. Reservations are liability ceilings, not billed spend.
-
-## Public33af case replay
-
-The earlier public evidence remains available from [the exact published e2f2cf0 checkout](https://github.com/HAIC-2026/Millrace-AI/tree/e2f2cf031fe7f193de08524a9ce49d5d5f14b5d4). Follow [the pinned replay instructions](docs/PUBLIC33AF-REPLAY.md). This candidate refuses old public33af and R2 cases before analytical dispatch. Start a blank case to use new evidence. No notes or selections migrate between evidence snapshots.
-
-## Controlled source refresh
-
-The app never follows user-provided source URLs or fetches live evidence during a query. [The separate source tools](tools/sources/README.md) can create an unreviewed statistical and geometry candidate. State workbooks require operator-supplied files. Only the fixed Census endpoints can be fetched automatically. The tools validate source identity, file hashes, table labels, geography, annotations and geometry structure. They refuse incomplete or malformed captures and never install outputs automatically.
-
-Refreshing statistics and geometry leaves program and administrative dates unchanged. Those records need separate review. Review source changes, terms and analytical compatibility before creating a new admitted snapshot. Existing cases keep their original identities.
+The hosted app runs this container on one AWS Lightsail instance in `us-east-2`. A Caddy reverse proxy serves it, and Cloudflare proxies the public hostname. The only Python dependencies are Gunicorn and `packaging`, pinned by hash in `requirements.txt`. The browser code uses no third-party libraries.
 
 ## Check the checkout
 
@@ -67,10 +148,42 @@ Refreshing statistics and geometry leaves program and administrative dates uncha
 node --test tests/test_case_state.cjs
 ```
 
-Python checks exercise all 76 districts, source inspection, claim bindings, case replay, HTTP sessions, and packet tamper rejection. Node checks exercise case state and staff-context protections. Case fixtures in `tests/fixtures/` are synthetic test material. They are separate from the runtime facts.
+Python checks exercise all 76 districts, source inspection, claim bindings, case replay, HTTP sessions, and packet tamper rejection. Node checks exercise case state and staff-context protections. The Python suite also runs Node for its recommended-selection test, so install Node before running the full checks. The app itself does not need Node at run time. Case fixtures in `tests/fixtures/` are synthetic test material. They are separate from the runtime facts.
+
+On November 15, 2026 (HST), both suites passed on the developer's macOS checkout of this build. Earlier versions of two language-adoption test files could fail when run as the root user, because root bypasses a file-permission fault the tests inject. This build's tests no longer rely on that fault. The developer checks used Python 3.11.6 and Node 22.22.0.
+
+## Facts, references and verification
+
+The default `public` input profile includes 1,640 statistical observations, 24 administrative observations, five program records, four original geometry captures, and authored recipe metadata. Source annotations remain explicit. Geometry provides district boundaries and cross-session compatibility. It does not establish program jurisdiction or access.
+
+This is a smaller factual projection of the historical R2 archive. Its data and metadata have new identities. Source inspection verifies the bundled projection and displays historical origin hashes and locators. It does not claim to reread omitted workbooks or pages. Program evidence uses authored references instead of copied passages. The four included geometry captures still receive original-byte verification.
+
+`runtime-packet/PACKET-MANIFEST.json` identifies the bundled facts. `candidate-metadata/MANIFEST.json` identifies the authored metadata. Their combination identifies analytical evidence. `RELEASE-MANIFEST.json` separately identifies the current source build and lists every publication member. See [data provenance](DATA-PROVENANCE.json), the [included-input inventory](docs/PROJECTION-INPUTS.json), and [source notices](DATA-NOTICES.md).
+
+## Saved cases and historical R2 replay
+
+Cases bind to an evidence snapshot and semantic claim references. The current app refuses a case from different evidence before analytical dispatch. It preserves the saved file and current browser case. It does not relabel historical sources or attach old finding notes to new claims.
+
+The earlier hosted release is called R2. Cases saved from it reopen at [haic-r2.millrace.ai](https://haic-r2.millrace.ai). The current app offers that link when it refuses such a case. You can also use the explicit local `r2` profile, which requires the complete retained historical inputs. The [R2 replay guide](docs/R2-REPLAY.md) gives the exact inventory, installer and verification commands. Current source refresh cannot reconstruct that historical archive.
+
+Case state stays in browser memory until you download a file. Default downloads exclude staff work. Including staff text requires an explicit preview. Imported staff work needs contextual review before a brief. JSON downloads are unencrypted. Read [privacy and security behavior](PRIVACY.md) before entering information.
+
+## Optional language questions
+
+Language questions are off in this release. The app hides the question panel, shows a one-line notice instead, and makes no model call. Guided steps, typed requests, sources, the brief and case files all work without language questions. **Typed request help** documents the literal request syntax. That parser runs on the server and calls no model.
+
+The source includes an optional language proposal feature. It is disabled by default and is not enabled on the hosted app. An earlier quality qualification did not meet its gate. Enabling it requires an approved provider configuration, a secret mount, spending accounting and a new independent quality acceptance.
+
+## Cases from earlier public releases
+
+The earlier public evidence remains available from [the exact published e2f2cf0 checkout](https://github.com/HAIC-2026/Millrace-AI/tree/e2f2cf031fe7f193de08524a9ce49d5d5f14b5d4). Follow [the pinned replay instructions](docs/PUBLIC33AF-REPLAY.md). This release refuses old public33af and R2 cases before analytical dispatch. Start a blank case to use new evidence. No notes or selections migrate between evidence snapshots.
+
+## Controlled source refresh
+
+The app never follows user-provided source URLs or fetches live evidence during a query. [The separate source tools](tools/sources/README.md) can create an unreviewed statistical and geometry candidate. State workbooks require operator-supplied files. Only the fixed Census endpoints can be fetched automatically. The tools validate source identity, file hashes, table labels, geography, annotations and geometry structure. They refuse incomplete or malformed captures and never install outputs automatically.
+
+Refreshing statistics and geometry leaves program and administrative dates unchanged. Those records need separate review. To refresh a program record, a reviewer rechecks the official page, updates the record and its checked date, and builds a new evidence snapshot. Review source changes, terms and analytical compatibility before creating a new admitted snapshot. Existing cases keep their original identities.
 
 ## Scope and reuse
-
-The workbench supports published aggregate evidence and bounded point differences for compatible measures. It does not estimate eligible-but-unenrolled residents, test statistical significance, rank districts, measure causal impact, or establish current service capacity. County choice supplies comparison context. It does not establish district containment or program jurisdiction. The selected-district poverty indicator uses fixed illustrative intervals. It shades 2026 geometry only when it matches the 2024 statistical boundary.
 
 Project-authored code is [MIT licensed](LICENSE). Outside source material has separate terms described in [license scope](LICENSE-SCOPE.md) and [data notices](DATA-NOTICES.md). State portal terms create an unresolved commercial-use limitation for State-derived information. This informational projection does not assert unrestricted commercial rights. Obtain applicable permission or independently replace affected sources before a covered commercial use.

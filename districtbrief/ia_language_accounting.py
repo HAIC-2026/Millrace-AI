@@ -36,7 +36,7 @@ POLICY_HASH='sha256:'+hashlib.sha256(dumps(POLICY)).hexdigest()
 # Finite ALLOWABLE range for root-reviewed approval metadata, not an approved ceiling: every
 # actual ceiling still comes from a separately reviewed protected approval (record-2 helper: 7).
 # Dollar limits, rates, contingency and unknown-usage holds bound spend independently.
-MAX_COUNT_CEILING=256
+MAX_COUNT_CEILING=395
 # The one reviewed financial-continuity transition. The active hash is runtime
 # metadata in the protected record, never a self-referential source constant.
 ADOPTION_FILE='config-adoption.json'
@@ -100,6 +100,26 @@ _V5_LINEAGE=((None,0,ADOPTION_CHECKPOINT['sequence']),
     (ADOPTION1_ACTIVE_CONFIG_HASH,ADOPTION_CHECKPOINT['sequence'],ADOPTION2_CHECKPOINT['sequence']),
     (ADOPTION2_ACTIVE_CONFIG_HASH,ADOPTION2_CHECKPOINT['sequence'],ADOPTION3_CHECKPOINT['sequence']),
     (ADOPTION3_ACTIVE_CONFIG_HASH,ADOPTION3_CHECKPOINT['sequence'],ADOPTION4_CHECKPOINT['sequence']))
+
+# The one reviewed fifth transition: exactly record 4's committed active configuration (f73) to one new
+# active configuration, same ledger and financial origin, at the exhausted 253-count checkpoint. Its fixed
+# ceiling is 395 (142 new count admissions inside the unchanged dollar limits). The new active hash is
+# runtime metadata in record 5, never a source constant; record 4, its active hash and the checkpoint
+# budget are fixed pins. Records 1-4 bind the historical catalog under approval v6.
+ADOPTION5_FILE='config-adoption-5.json'
+ADOPTION5_SCHEMA='ia-language-config-adoption/5'
+ADOPTION4_RECORD_SHA256='sha256:9785a2bf73542af00a62757b538e489e1625b5d543497dc7b58d872ba82ec4ed'
+ADOPTION4_ACTIVE_CONFIG_HASH='sha256:f73aa800b625eab3d24c2a60b0f533e66f9769db5c3e8e5adf5b5d810206ff16'
+# Committed approval v5 ceiling at the exhausted checkpoint (raised 127->253 under earlier reviewed cap GOs).
+ADOPTION4_COMMITTED_MAX_COUNT_REQUESTS=253
+ADOPTION5_CHECKPOINT={'sequence':1265,'count_requests':253,'settled_nano_usd':2364916000,'held_nano_usd':0,'unresolved':False}
+ADOPTION5_BUDGET_SHA256='sha256:535ca077d3403df74f1fc5935781a7ac9d2d74e01d05c16c332f2ade2a3220de'
+ADOPTION5_MAX_COUNT_REQUESTS=395
+_V6_KEYS=_V5_KEYS|{'adoption5_record_sha256'}
+_RECORD5_KEYS=_RECORD2_KEYS
+# v6 positional lineage: the v5 ranges plus f73 for 635<seq<=1265; new active seq>1265.
+_V6_LINEAGE=_V5_LINEAGE+((ADOPTION4_ACTIVE_CONFIG_HASH,ADOPTION4_CHECKPOINT['sequence'],ADOPTION5_CHECKPOINT['sequence']),)
+_EARLIER_ACTIVE=(ADOPTION_ORIGIN_CONFIG_HASH,ADOPTION1_ACTIVE_CONFIG_HASH,ADOPTION2_ACTIVE_CONFIG_HASH,ADOPTION3_ACTIVE_CONFIG_HASH,ADOPTION4_ACTIVE_CONFIG_HASH)
 
 def _sha(v):return type(v) is str and _SHA.fullmatch(v) is not None
 def _ref(v):return type(v) is str and bool(v.strip()) and len(v)<=500
@@ -228,6 +248,35 @@ def validate_adoption4_record(raw,approval,config_hash,catalog_digest):
             or 'sha256:'+hashlib.sha256(raw).hexdigest()!=approval['adoption4_record_sha256']):raise ValueError()
     return r
 
+def adoption5_record(*,active_config_hash,catalog_digest,original_approval_reference,transition_reference,
+        source_component_sha256,image_digest,review_receipt_sha256,budget_sha256):
+    return {'schema_version':ADOPTION5_SCHEMA,'ledger_id':ADOPTION_LEDGER_ID,'origin_config_hash':ADOPTION_ORIGIN_CONFIG_HASH,
+        'previous_active_config_hash':ADOPTION4_ACTIVE_CONFIG_HASH,'active_config_hash':active_config_hash,
+        'previous_adoption_record_sha256':ADOPTION4_RECORD_SHA256,'policy_hash':POLICY_HASH,'catalog_digest':catalog_digest,
+        'original_approval_reference':original_approval_reference,'transition_reference':transition_reference,
+        'source_component_sha256':source_component_sha256,'image_digest':image_digest,'review_receipt_sha256':review_receipt_sha256,
+        'checkpoint':dict(ADOPTION5_CHECKPOINT,budget_sha256=budget_sha256)}
+
+def approval_v6(reference,active_config_hash,record5_sha256,max_count_requests):
+    a=approval_v5(reference,active_config_hash,ADOPTION4_RECORD_SHA256,max_count_requests)
+    a.update(schema_version='ia-language-approval/6',adoption5_record_sha256=record5_sha256);return a
+
+def validate_adoption5_record(raw,approval,config_hash,catalog_digest):
+    """Exact single record-4-active-to-new-active pair; raises ValueError on any mismatch."""
+    r=strict_json(raw)
+    if type(r) is not dict or set(r)!=_RECORD5_KEYS or raw!=dumps(r):raise ValueError()
+    cp=r['checkpoint']
+    if (r['schema_version']!=ADOPTION5_SCHEMA or r['ledger_id']!=ADOPTION_LEDGER_ID or r['origin_config_hash']!=ADOPTION_ORIGIN_CONFIG_HASH
+            or r['previous_active_config_hash']!=ADOPTION4_ACTIVE_CONFIG_HASH or r['previous_adoption_record_sha256']!=ADOPTION4_RECORD_SHA256
+            or not _sha(config_hash) or r['active_config_hash']!=config_hash or config_hash in _EARLIER_ACTIVE
+            or r['policy_hash']!=POLICY_HASH or not _sha(catalog_digest) or r['catalog_digest']!=catalog_digest
+            or r['original_approval_reference']!=approval['approval_reference'] or not _ref(r['transition_reference'])
+            or not all(_sha(r[k]) for k in ('source_component_sha256','image_digest','review_receipt_sha256'))
+            or type(cp) is not dict or set(cp)!=set(ADOPTION5_CHECKPOINT)|{'budget_sha256'} or cp['budget_sha256']!=ADOPTION5_BUDGET_SHA256
+            or any(type(cp[k]) is not type(v) or cp[k]!=v for k,v in ADOPTION5_CHECKPOINT.items())
+            or 'sha256:'+hashlib.sha256(raw).hexdigest()!=approval['adoption5_record_sha256']):raise ValueError()
+    return r
+
 def reservation(input_tokens=MAX_INPUT):
     if type(input_tokens) is not int or not 0<input_tokens<=MAX_INPUT:raise LanguageError('input_token_limit')
     base=input_tokens*RATES['uncached_input']+MAX_OUTPUT*RATES['output']
@@ -266,6 +315,7 @@ class BudgetLedger:
         self.adoption2_path=self.control_dir/ADOPTION2_FILE
         self.adoption3_path=self.control_dir/ADOPTION3_FILE
         self.adoption4_path=self.control_dir/ADOPTION4_FILE
+        self.adoption5_path=self.control_dir/ADOPTION5_FILE
         self.catalog_digest=catalog_digest
     def _check(self,p,mode,owner,group=None,directory=False):
         s=p.lstat()
@@ -288,26 +338,27 @@ class BudgetLedger:
             keys=set(a) if type(a) is dict else set()
             if (not (v=='ia-language-approval/1' and (keys==_V1_KEYS or keys==_V1_KEYS|{'max_count_requests'}))
                     and not (v=='ia-language-approval/2' and keys==_V2_KEYS) and not (v=='ia-language-approval/3' and keys==_V3_KEYS)
-                    and not (v=='ia-language-approval/4' and keys==_V4_KEYS) and not (v=='ia-language-approval/5' and keys==_V5_KEYS)):raise ValueError()
+                    and not (v=='ia-language-approval/4' and keys==_V4_KEYS) and not (v=='ia-language-approval/5' and keys==_V5_KEYS)
+                    and not (v=='ia-language-approval/6' and keys==_V6_KEYS)):raise ValueError()
             if a['approved'] is not True or a['provider']!='openai' or a['model']!=MODEL or a['limits_nano_usd']!=POLICY['limits_nano_usd'] or a['policy_hash']!=POLICY_HASH or a['config_hash']!=self.config_hash or a['stage'] not in ('qualification','evaluation') or not _ref(a['approval_reference']) or (reference is not None and a['approval_reference']!=reference):raise ValueError()
             if ('max_count_requests' in a or a['stage']=='evaluation') and not _ceiling(a.get('max_count_requests')):raise ValueError()
             if v=='ia-language-approval/1':
                 # A staged or committed adoption record disables every legacy authority.
-                if any(os.path.lexists(p) for p in (self.adoption_path,self.adoption2_path,self.adoption3_path,self.adoption4_path)):raise ValueError()
+                if any(os.path.lexists(p) for p in (self.adoption_path,self.adoption2_path,self.adoption3_path,self.adoption4_path,self.adoption5_path)):raise ValueError()
                 return a,None
             if a['stage']!='evaluation' or not _sha(a['adoption_record_sha256']):raise ValueError()
             if v=='ia-language-approval/2':
                 # A staged or committed second record disables the first-transition authority.
-                if any(os.path.lexists(p) for p in (self.adoption2_path,self.adoption3_path,self.adoption4_path)):raise ValueError()
+                if any(os.path.lexists(p) for p in (self.adoption2_path,self.adoption3_path,self.adoption4_path,self.adoption5_path)):raise ValueError()
                 return a,validate_adoption_record(self._protected_read(self.adoption_path),a,self.config_hash,self.catalog_digest)
             if a['adoption_record_sha256']!=ADOPTION1_RECORD_SHA256 or not _sha(a['adoption2_record_sha256']):raise ValueError()
             # Under v5 records 1-3 bind their committed (historical) catalog; earlier authorities are unchanged.
-            historical=ADOPTION_HISTORICAL_CATALOG_DIGEST if v=='ia-language-approval/5' else self.catalog_digest
+            historical=ADOPTION_HISTORICAL_CATALOG_DIGEST if v in ('ia-language-approval/5','ia-language-approval/6') else self.catalog_digest
             first=validate_adoption_record(self._protected_read(self.adoption_path),a,ADOPTION1_ACTIVE_CONFIG_HASH,historical)
             if v=='ia-language-approval/3':
                 # v3: the immutable first record (exact pinned bytes) and record 2 must both bind.
                 # A staged or committed third record disables the second-transition authority.
-                if os.path.lexists(self.adoption3_path) or os.path.lexists(self.adoption4_path):raise ValueError()
+                if any(os.path.lexists(p) for p in (self.adoption3_path,self.adoption4_path,self.adoption5_path)):raise ValueError()
                 second=validate_adoption2_record(self._protected_read(self.adoption2_path),a,self.config_hash,self.catalog_digest)
                 return a,dict(second,first_transition_reference=first['transition_reference'])
             # v4: records 1 and 2 are exact reviewed pins (their active hashes c0d/82a); record 3 binds the running config.
@@ -315,15 +366,24 @@ class BudgetLedger:
             second=validate_adoption2_record(self._protected_read(self.adoption2_path),a,ADOPTION2_ACTIVE_CONFIG_HASH,historical)
             if v=='ia-language-approval/4':
                 # A staged or committed fourth record disables the third-transition authority.
-                if os.path.lexists(self.adoption4_path):raise ValueError()
+                if os.path.lexists(self.adoption4_path) or os.path.lexists(self.adoption5_path):raise ValueError()
                 third=validate_adoption3_record(self._protected_read(self.adoption3_path),a,self.config_hash,self.catalog_digest)
                 return a,dict(third,first_transition_reference=first['transition_reference'],second_transition_reference=second['transition_reference'])
             # v5: records 1-3 are exact reviewed pins (active hashes c0d/82a/829); record 4 binds the running config and catalog.
             if a['adoption3_record_sha256']!=ADOPTION3_RECORD_SHA256 or not _sha(a['adoption4_record_sha256']):raise ValueError()
             third=validate_adoption3_record(self._protected_read(self.adoption3_path),a,ADOPTION3_ACTIVE_CONFIG_HASH,historical)
-            fourth=validate_adoption4_record(self._protected_read(self.adoption4_path),a,self.config_hash,self.catalog_digest)
-            return a,dict(fourth,first_transition_reference=first['transition_reference'],second_transition_reference=second['transition_reference'],
-                third_transition_reference=third['transition_reference'])
+            if v=='ia-language-approval/5':
+                # A staged or committed fifth record disables the fourth-transition authority.
+                if os.path.lexists(self.adoption5_path):raise ValueError()
+                fourth=validate_adoption4_record(self._protected_read(self.adoption4_path),a,self.config_hash,self.catalog_digest)
+                return a,dict(fourth,first_transition_reference=first['transition_reference'],second_transition_reference=second['transition_reference'],
+                    third_transition_reference=third['transition_reference'])
+            # v6: records 1-4 are exact reviewed pins (active hashes c0d/82a/829/f73); record 5 binds the running config and catalog.
+            if a['adoption4_record_sha256']!=ADOPTION4_RECORD_SHA256 or not _sha(a['adoption5_record_sha256']):raise ValueError()
+            fourth=validate_adoption4_record(self._protected_read(self.adoption4_path),a,ADOPTION4_ACTIVE_CONFIG_HASH,historical)
+            fifth=validate_adoption5_record(self._protected_read(self.adoption5_path),a,self.config_hash,self.catalog_digest)
+            return a,dict(fifth,first_transition_reference=first['transition_reference'],second_transition_reference=second['transition_reference'],
+                third_transition_reference=third['transition_reference'],fourth_transition_reference=fourth['transition_reference'])
         except (OSError,ValueError,KeyError,TypeError,UnicodeError,RecursionError):raise LanguageError('approval_unavailable',503) from None
     def approval_template(self,reference,stage='qualification',max_count_requests=None):
         a={'schema_version':'ia-language-approval/1','approved':True,'approval_reference':reference,
@@ -368,11 +428,18 @@ class BudgetLedger:
             if state['schema_version']!='ia-language-ledger/1' or state['policy_hash']!=POLICY_HASH or state['config_hash']!=origin or state['limits_nano_usd']!=POLICY['limits_nano_usd'] or not isinstance(state['entries'],list):raise ValueError()
             if state['approval_reference']!=a['approval_reference'] or (adopted and state['ledger_id']!=adopted['ledger_id']):raise ValueError()
             previous=adopted.get('previous_active_config_hash') if adopted else None
-            fourth=bool(adopted) and 'third_transition_reference' in adopted
-            third=bool(adopted) and 'second_transition_reference' in adopted and not fourth
+            fifth=bool(adopted) and 'fourth_transition_reference' in adopted
+            fourth=bool(adopted) and 'third_transition_reference' in adopted and not fifth
+            third=bool(adopted) and 'second_transition_reference' in adopted and not fourth and not fifth
             for e in state['entries']:
                 if e['bucket'] not in ('test','demo') or e['state'] not in ('reserved','dispatched','unknown','settled','released') or type(e['reserved_nano_usd']) is not int or e['reserved_nano_usd']<0:raise ValueError()
-                if fourth:
+                if fifth:
+                    # v6 lineage is positional: the preserved origin/c0d/82a/829/f73 ranges end at sequence 1265; new active seq>1265.
+                    stamp=e.get('config_hash');seq=e['sequence']
+                    if type(seq) is not int or (stamp is None and 'config_hash' in e):raise ValueError()
+                    if not (any(stamp==s and lo<seq<=hi for s,lo,hi in _V6_LINEAGE)
+                            or (stamp==self.config_hash and seq>ADOPTION5_CHECKPOINT['sequence'])):raise ValueError()
+                elif fourth:
                     # v5 lineage is positional: the preserved origin/c0d/82a/829 ranges end at sequence 635; new active seq>635.
                     stamp=e.get('config_hash');seq=e['sequence']
                     if type(seq) is not int or (stamp is None and 'config_hash' in e):raise ValueError()
@@ -387,7 +454,7 @@ class BudgetLedger:
                             or (stamp==self.config_hash and seq>ADOPTION3_CHECKPOINT['sequence'])):raise ValueError()
                 # Unstamped historical entries derive the origin header; new entries carry their active config.
                 elif e.get('config_hash',origin) not in ((origin,self.config_hash) if previous is None else (origin,previous,self.config_hash)):raise ValueError()
-                if previous is not None and not third and not fourth:
+                if previous is not None and not third and not fourth and not fifth:
                     # Lineage is positional: unstamped origin entries end at checkpoint 1, previous-active
                     # entries at checkpoint 2, and only later entries carry the new active configuration.
                     stamp=e.get('config_hash');seq=e['sequence']
@@ -430,7 +497,7 @@ class BudgetLedger:
         with self._lock():
             a=self.approval(reference)
             # Adopted authority never creates another ledger, even if budget.json disappears.
-            if a['schema_version']!='ia-language-approval/1' or any(os.path.lexists(p) for p in (self.adoption_path,self.adoption2_path,self.adoption3_path,self.adoption4_path)):raise LanguageError('ledger_initialization_forbidden',409)
+            if a['schema_version']!='ia-language-approval/1' or any(os.path.lexists(p) for p in (self.adoption_path,self.adoption2_path,self.adoption3_path,self.adoption4_path,self.adoption5_path)):raise LanguageError('ledger_initialization_forbidden',409)
             if self.path.exists() or self.path.is_symlink():raise LanguageError('ledger_exists',409)
             state={'schema_version':'ia-language-ledger/1','ledger_id':str(uuid.uuid4()),'created_at':time.time(),
                 'approval_reference':a['approval_reference'],'config_hash':self.config_hash,'policy_hash':POLICY_HASH,
@@ -455,10 +522,12 @@ class BudgetLedger:
                 'adoption2_record_sha256':a.get('adoption2_record_sha256'),
                 'adoption3_record_sha256':a.get('adoption3_record_sha256'),
                 'adoption4_record_sha256':a.get('adoption4_record_sha256'),
+                'adoption5_record_sha256':a.get('adoption5_record_sha256'),
                 'previous_active_config_hash':adopted.get('previous_active_config_hash') if adopted else None,
                 'config_lineage':([state['config_hash']] if not adopted else [adopted['origin_config_hash'],
                     *([ADOPTION1_ACTIVE_CONFIG_HASH] if 'second_transition_reference' in adopted else []),
                     *([ADOPTION2_ACTIVE_CONFIG_HASH] if 'third_transition_reference' in adopted else []),
+                    *([ADOPTION3_ACTIVE_CONFIG_HASH] if 'fourth_transition_reference' in adopted else []),
                     *([adopted['previous_active_config_hash']] if 'previous_active_config_hash' in adopted else []),self.config_hash]),
                 'adoption_lineage':([] if not adopted else ([{'record':ADOPTION_FILE,'sha256':a['adoption_record_sha256'],
                     'transition_reference':adopted.get('first_transition_reference',adopted['transition_reference'])}]
@@ -468,8 +537,11 @@ class BudgetLedger:
                     +([{'record':ADOPTION3_FILE,'sha256':a['adoption3_record_sha256'],
                         'transition_reference':adopted.get('third_transition_reference',adopted['transition_reference'])}]
                       if 'adoption3_record_sha256' in a else [])
-                    +([{'record':ADOPTION4_FILE,'sha256':a['adoption4_record_sha256'],'transition_reference':adopted['transition_reference']}]
-                      if 'adoption4_record_sha256' in a else []))),
+                    +([{'record':ADOPTION4_FILE,'sha256':a['adoption4_record_sha256'],
+                        'transition_reference':adopted.get('fourth_transition_reference',adopted['transition_reference'])}]
+                      if 'adoption4_record_sha256' in a else [])
+                    +([{'record':ADOPTION5_FILE,'sha256':a['adoption5_record_sha256'],'transition_reference':adopted['transition_reference']}]
+                      if 'adoption5_record_sha256' in a else []))),
                 'max_count_requests':ceiling,'count_capacity_remaining':max(0,ceiling-count),
                 'policy_hash':state['policy_hash'],'buckets':buckets,
                 'unresolved':any(e['state'] in ('reserved','dispatched','unknown') for e in state['entries']),

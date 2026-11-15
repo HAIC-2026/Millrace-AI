@@ -1,6 +1,8 @@
 """OX language source review (v1 -> v2) regressions: held-context direction, metric edits, cross-measure,
 held rule, jurisdiction, comparator provenance, service-area scope, transport classification, control conflict,
 negated constraints and closed decision attribution. Injected strict-function wire only; no quality claim."""
+import os
+import time
 import copy
 import importlib.util
 import io
@@ -180,6 +182,7 @@ class SourceReviewHttpOperatorTests(unittest.TestCase):
     """Actual WSGI routes and the actual operator CLI rows carry the same closed attribution."""
     def setUp(self):self.f=proposal_fixtures.LanguageProposalTests();self.f.setUp()
     def tearDown(self):self.f.tearDown()
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_http_status_and_operator_rows_record_attribution_and_origin_counts(self):
         f=self.f;snap={'district':H('028'),'map_session':2026,'issue_id':'custom','service_area_id':None,
             'steps':[{'step_id':'s1','operation':'program_evidence','args':{'program_ids':['snap_hi']}}]}

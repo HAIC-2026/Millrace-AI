@@ -113,6 +113,8 @@ L_HYPOTHESIS = ("Outreach leads are hypotheses for staff follow-up, built from a
                 "references; they are not measured need, gaps or eligibility findings.")
 L_OVERLAP = "House and Senate districts can overlap; a comparison does not imply independent populations."
 L_EDITS = "Staff edits are labeled separately and are not verified facts."
+# First sentence of the packet poverty limitation: it applies to every poverty-status measure.
+POVERTY_UNIVERSE_NOTE = "Poverty status universe excludes several populations."
 
 STATUS_TEXT = {
     "reference_checked": "Reference checked",
@@ -146,6 +148,8 @@ class Core:
         self.geo = GeographyIndex(self.packet.dir)
         stats = self.packet.read_json("data/statistics/observations.json")
         self.stat_limitations = list(stats.get("limitations", []))
+        if not self.stat_limitations[1].startswith(POVERTY_UNIVERSE_NOTE + " "):
+            raise ValueError("poverty limitation text changed; review metric-specific caveats")
         self.observations = {o["observation_id"]: o for o in stats["observations"]}
         self.metrics: dict = {}
         self.profiles: dict = {}
@@ -318,11 +322,15 @@ class Core:
         rc = o["raw_cells"]
         metric = self.metrics[o["metric_id"]]
         limitations = [L_ACS]
-        if o["joint_statistic"]:
+        # The age-specific poverty caveat below already states the joint-statistic limitation for that measure.
+        if o["joint_statistic"] and o["metric_id"] != "poverty_rate_65_plus":
             limitations.append("Published joint statistic for the stated universe; it is not a count of "
                                "program-eligible people.")
-        if o["metric_id"].startswith("poverty_rate"):
+        if o["metric_id"] == "poverty_rate_65_plus":
             limitations.append(self.stat_limitations[1])
+        elif o["metric_id"] == "poverty_rate_all_people":
+            # Only the universe sentence applies; the age-specific sentence describes the 65+ measure.
+            limitations.append(POVERTY_UNIVERSE_NOTE)
         if o["metric_id"] == "households_with_social_security":
             limitations.append(self.stat_limitations[2])
         annotation_meaning = None
