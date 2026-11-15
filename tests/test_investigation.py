@@ -37,7 +37,7 @@ class InvestigationTests(unittest.TestCase):
             cmp=next(c for c in o['claims'] if c['kind']=='comparison');self.assertEqual(cmp['difference']['display'],expected);self.assertIn('No statistical difference test was performed.',cmp['text'])
             self.assertEqual([x['program_id'] for x in o['responses']],['kupuna_care_hi'])
     def test_partial_and_no_hidden_substitute(self):
-        r=self.request();r['plan']['steps'][1]['args']['comparison_geography']='HI-COUNTY-003-2024';o=self.i.handle(r)
+        r=self.request();r['plan']['steps'][1]['args']['comparison_geography']='HI-COUNTY-999-2024';o=self.i.handle(r)
         self.assertEqual(o['status'],'partial');self.assertEqual(o['steps'][1]['reason_code'],'comparison_geography_unavailable');self.assertTrue(o['claims'])
     def test_interpret_full_grammar_and_zero_dispatch(self):
         for utterance,status in [('aging at home in house 28','ok'),('use district 13','clarification'),('compare poverty with state','unsupported'),('add snap but not for seniors','unsupported'),('compare senior poverty with state without uncertainty','unsupported'),('add med-quest','ok')]:
@@ -205,7 +205,7 @@ class InvestigationTests(unittest.TestCase):
         brief=self.i.handle(b)['brief'];self.assertEqual(len(brief['entries']),1)
         program=self.i.core.prog_finding('kupuna_care_hi','HI-HOUSE-028-2024')
         self.assertTrue({e['source_id'] for e in program['evidence']} <= {c['source_id'] for c in brief['citations']})
-        self.assertTrue(brief['action_citations']);self.assertIn('Verification action',brief['html']);self.assertLessEqual(brief['print_units'],7000)
+        self.assertTrue(brief['action_citations']);self.assertIn('Agency action',brief['html']);self.assertIn('Recorded next step:',brief['html']);self.assertLessEqual(brief['print_units'],7000)
 
     def test_brief_canaries_absent_from_operational_logs(self):
         r=self.request();o=self.i.handle(r);b=self.brief(r,o);b['selected_action_ref']=o['responses'][0]['action_ref']
@@ -221,3 +221,284 @@ class InvestigationTests(unittest.TestCase):
     def test_unexpected_step_failure_is_bounded(self):
         with patch.object(self.i.core,'profile',side_effect=RuntimeError('PRIVATE_CANARY')):o=self.i.handle(self.request())
         self.assertEqual(o['status'],'partial');self.assertEqual(o['steps'][0]['status'],'error');self.assertNotIn('PRIVATE_CANARY',json.dumps(o))
+
+
+class StaffPresentationTests(unittest.TestCase):
+    """Ordinary staff text (screen brief, print brief, source view) carries human labels only; machine identities
+    stay in the reply, the case contract and diagnostics. The print-fit estimate is unchanged by presentation."""
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp=tempfile.TemporaryDirectory();cls.app=Application(cls.tmp.name,secure_cookie=False);cls.i=cls.app.investigation
+    @classmethod
+    def tearDownClass(cls):
+        for h in cls.app.service.metrics.handlers:h.close()
+        cls.tmp.cleanup()
+    request=InvestigationTests.request
+    @staticmethod
+    def visible(html):
+        import re
+        return re.sub(r'<[^>]+>',' ',html)
+    def assert_human(self,text):
+        import re
+        for pattern in (r'sha256',r'[0-9a-f]{12,}',r'snapshot',r'\b(stat|cmp|prog|lead|admin):',r'\bdbedt_\w+|\bhi_\w+_\w+|\btigerweb_\w+',
+                        r'extracted/|data/statistics|packet path|\.txt\b',r'[{}]',r'\bbrief:[0-9a-f]',r'frozen fixture',r'No model generated'):
+            self.assertIsNone(re.search(pattern,text,re.I),(pattern,re.search(pattern,text,re.I) and text[max(0,re.search(pattern,text,re.I).start()-60):][:140]))
+
+    def test_printed_brief_is_human_and_keeps_machine_identity_in_data(self):
+        for chamber,code in [('house','028'),('house','013'),('senate','025')]:
+            r=self.request(chamber,code);o=self.i.handle(r)
+            b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in o['claims'][:4]],selected_action_ref=o['responses'][0]['action_ref'],
+                staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
+            brief=self.i.handle(b)['brief'];text=self.visible(brief['html'])
+            self.assert_human(text)
+            self.assertIn('Retrieved 2026-',text);self.assertNotIn('Checked 2026',text)
+            self.assertIn('ACS 2020–2024 5-year estimates by '+('Senate' if chamber=='senate' else 'House')+' district (workbook)',text)
+            self.assertIn('Sheet DP0',text)
+            # Machine identities remain available outside the printed text.
+            self.assertTrue(brief['snapshot_id'].startswith('sha256:'));self.assertTrue(all(c['sha256'] and c['source_id'] for c in brief['citations']))
+            self.assertEqual([e['finding_id'] for e in brief['entries']],[c['claim_ref']['finding_id'] for c in o['claims'][:4]])
+            self.assertIn('data-finding-id="'+brief['entries'][0]['finding_id']+'"',brief['html'])
+
+    def test_h013_kalawao_route_stays_in_the_printed_verification_questions(self):
+        r=self.request('house','013');o=self.i.handle(r)
+        b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[o['claims'][0]['claim_ref']],selected_action_ref=o['responses'][0]['action_ref'],staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
+        text=self.visible(self.i.handle(b)['brief']['html'])
+        self.assertIn('House 013 includes Kalawao',text);self.assertIn('808-586-0100',text)
+
+    def test_presentation_does_not_change_the_print_estimate(self):
+        # Values measured on the accepted v10 renderer for the default four-finding brief with the agency step.
+        for (chamber,code),units in {('house','028'):4817,('house','013'):4996,('senate','025'):4817}.items():
+            r=self.request(chamber,code);o=self.i.handle(r)
+            b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in o['claims'][:4]],selected_action_ref=o['responses'][0]['action_ref'],
+                staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
+            self.assertEqual(self.i.handle(b)['brief']['print_units'],units,(chamber,code))
+
+    def test_source_view_names_what_it_supports_and_cannot_establish(self):
+        from districtbrief import render
+        out=self.i.handle(self.request());seen=set()
+        for c in out['claims']:
+            for ref in c['source_inspection_refs']:
+                key=(ref['source_id'],ref['finding_id'])
+                if key in seen:continue
+                seen.add(key);html=render.source_html(self.i.core.source(*key));text=self.visible(html)
+                self.assert_human(text)
+                for label in ('Publisher','Retrieved','What this source cannot establish','official document title and publication date are not recorded'):
+                    self.assertIn(label,text,key)
+                self.assertIn(render.source_label(ref['source_id']),text)
+        self.assertGreaterEqual(len(seen),5)
+
+    def test_locator_wording_and_source_labels(self):
+        from districtbrief import render
+        self.assertEqual(render.human_locator('DP03!D145 (MOE E145)'),'Sheet DP03, cell D145 (MOE E145)')
+        self.assertEqual(render.human_locator('extracted/hi_kupuna_law.txt lines 112–116'),'Lines 112–116')
+        self.assertEqual(render.human_locator('Historical source locator: {"line_end": 65, "line_start": 61, "text_path": "extracted/hi_snap_rules.txt"}'),'Lines 61–65')
+        self.assertEqual(render.human_locator('{"sheet": "JUL", "cell": "H12", "row_label": "STATE"}'),'Sheet JUL, cell H12 (row STATE)')
+        self.assertEqual(render.human_locator('sheet: JUL; cell: H12; path: data/x.xlsx'),'Sheet JUL; Cell H12')
+        sources=self.i.core.packet.sources
+        for sid,src in sources.items():
+            label=render.source_label(sid,src.get('url'))
+            self.assertTrue(label and sid not in label and not label.startswith('Recorded source'),sid)
+        html=render.sources_html({'sources':[dict(src,source_id=sid) for sid,src in sources.items()]})
+        import re
+        data=json.loads(re.search(r'<script type="application/json" id="source-label-data">(.*?)</script>',html,re.S).group(1))
+        self.assertEqual(set(data),set(sources))
+
+    def test_catalog_coverage_copy_follows_catalog_geographies(self):
+        from districtbrief import render
+        cat=self.app.service.catalog();text=self.visible(render.catalog_html(cat)).split('Normalized geographies')[0]
+        self.assertEqual(len(cat['geographies']),82)
+        for label in ('State of Hawaiʻi','Maui County','Hawaii County','Honolulu County','Kalawao County','Kauai County'):
+            self.assertIn(label,text)
+        self.assertIn('Comparison geographies (6):',text);self.assertIn('Every House and Senate district of the 2024 boundary session has statistics (76).',text)
+        self.assertNotIn('Not normalized',text);self.assertNotIn('without statistics',text);self.assertIn('1,640 statistics in this data',text);self.assertNotIn('IA-1',text)
+        self.assertIn('This app displays complete retained district boundaries',text)
+        # A limited snapshot: fewer districts, only the State as comparison, one unavailable geography named.
+        limited=copy.deepcopy(cat)
+        limited['geographies']=[g for g in cat['geographies'] if g['kind']=='state']+[g for g in cat['geographies'] if g['kind']=='district'][:3]
+        limited['unavailable_geographies']=[{'geography_id':'HI-COUNTY-009-2024','label':'Maui County'}]
+        kept={g['geography_id'] for g in limited['geographies']};limited['observations']=[o for o in cat['observations'] if o['geography_id'] in kept]
+        t=self.visible(render.catalog_html(limited)).split('Normalized geographies')[0]
+        self.assertIn('3 of 76 House and Senate districts of the 2024 boundary session have statistics.',t)
+        self.assertIn('Comparison geographies (1): State of Hawaiʻi.',t);self.assertIn('Geographies without statistics in this data: Maui County.',t)
+
+    def test_brief_groups_selected_findings_and_prints_outreach_in_verbatim_parts(self):
+        import re
+        from districtbrief import render
+        r=self.request('house','013');o=self.i.handle(r)
+        picks=[c for c in o['claims'] if c['kind'] in ('statistic','outreach_hypothesis')][:1]+[c for c in o['claims'] if c['kind']=='outreach_hypothesis']
+        b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in picks],selected_action_ref=o['responses'][0]['action_ref'],staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
+        brief=self.i.handle(b)['brief'];html=brief['html'];text=self.visible(html)
+        self.assertNotIn('Verified findings',text);self.assertIn('Selected findings',text)
+        self.assertIn('Published estimates (survey estimates with margins of error)',text);self.assertIn('Outreach hypotheses (not measured gaps or eligibility findings)',text)
+        hyp=next(en for en in brief['entries'] if en['kind']=='outreach_hypothesis')
+        claim,segs=render.outreach_parts(hyp['text'])
+        self.assertEqual(claim+''.join(' '+h+' '+'; '.join(items) for h,items in segs),hyp['text'],'segments keep every character')
+        self.assertEqual([h for h,_ in segs][1:],['Program context (informational):','Unknowns the agency determines:','Next step:'])
+        self.assertIn('class="brief-part-item"',html)
+        self.assertIsNone(render.outreach_parts('A sentence without the recorded section labels.'))
+        markers=[[int(n) for n in re.findall(r'\[(\d+)\]',m)] for m in re.findall(r'((?:<a class="cite"[^>]*>\[\d+\]</a>)+)',html)]
+        self.assertTrue(markers and all(m==sorted(m) for m in markers),'citation markers in order')
+        self.assertIn(' · <strong>Recorded next step:</strong>',html)
+        self.assertIn('Hawaiʻi DOH Executive Office on Aging',text);self.assertNotIn('labelled',text)
+        self.assertIn('Hawaiʻi DBEDT / U.S. Census Bureau ACS',text)
+        self.assertEqual(brief['entries'][0]['text'],picks[0]['text'],'recorded claim text unchanged in the brief data')
+
+    def test_display_names_keep_records_and_titles(self):
+        from districtbrief import render
+        self.assertEqual(render.hawaii_display('Hawaii DHS, Benefit, Employment & Support Services Division'),'Hawaiʻi DHS, Benefit, Employment & Support Services Division')
+        self.assertEqual(render.hawaii_display('Hawaii statewide through county aging offices'),'Hawaiʻi statewide through county aging offices')
+        for kept in ('Hawaii County','Bridging the Gap Hawaii (HI-501 Continuum of Care)','https://files.hawaii.gov/dbedt/x.xlsx'):
+            self.assertEqual(render.hawaii_display(kept),kept)
+        self.assertEqual(self.i.core.packet.sources['dbedt_2024_house']['publisher'],'Hawaii DBEDT / U.S. Census Bureau ACS','stored record unchanged')
+
+    def test_printed_dollar_wording_is_readable_and_records_unchanged(self):
+        import re
+        from districtbrief import render
+        from districtbrief.interpret import food_assistance_recipe
+        plan=food_assistance_recipe({'state_fips':'15','chamber':'house','code':'028','boundary_session':2024})
+        r=self.request();r.update(plan=plan,recipe_version='food_assistance_outreach/1');o=self.i.handle(r)
+        income=next(c for c in o['claims'] if c['kind']=='statistic' and c['metric']['metric_id']=='median_household_income')
+        hyp=next(c for c in o['claims'] if c['kind']=='outreach_hypothesis')
+        b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[income['claim_ref'],hyp['claim_ref']],selected_action_ref=o['responses'][0]['action_ref'],staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
+        brief=self.i.handle(b)['brief'];text=self.visible(brief['html'])
+        self.assertIn('Median household income: $57,784 (2024 inflation-adjusted dollars) (90% margin of error ±$5,211); universe: Households',text)
+        self.assertIn('Median household income: $57,784 ±$5,211 (state $100,389 ±$1,121; difference −$42,605) (2024 inflation-adjusted dollars)',text)
+        self.assertIsNone(re.search(r'\d 2024 inflation-adjusted|\bUSD\b',text),'no adjacent value and year, no raw USD in the printed page')
+        # Recorded text, entry text and claim identity are unchanged.
+        self.assertIn('57,784 2024 inflation-adjusted USD (±5,211 90% MOE)',income['text'])
+        self.assertEqual([en['text'] for en in brief['entries']],[income['text'],hyp['text']])
+        # Other wording is printed unchanged and safely escaped.
+        for t in ('Renter units paying 35%+ of income for gross rent 2,866 ±412 housing units.','Poverty rate, all people 23.4% ±3.1 (state 10.0% ±0.3; difference +13.4 percentage points)',
+                  'House District 028 (boundary session 2024): Median household income MOE 5,211 (controlled estimate; no sampling MOE) 57,784 2024 inflation-adjusted USD'):
+            self.assertEqual(render.dollar_wording(t),t)
+        odd=render._finding_body({'kind':'statistic','text':'X: <b>Label</b> 1,000 USD per month (±10 90% MOE); universe: U; ACS 2020–2024 5-year.'})
+        self.assertIn('&lt;b&gt;Label&lt;/b&gt;: $1,000 (dollars per month) (90% margin of error ±$10)',odd)
+
+    def _brief_for(self,chamber,code,want,food=False,staff=None):
+        from districtbrief.interpret import food_assistance_recipe
+        r=self.request(chamber,code)
+        if food:
+            plan=food_assistance_recipe({'state_fips':'15','chamber':chamber,'code':code,'boundary_session':2024});r.update(plan=plan,recipe_version='food_assistance_outreach/1')
+        o=self.i.handle(r)
+        picks=[next(c for c in o['claims'] if c['kind']==k and (m is None or c.get('metric',{}).get('metric_id')==m) and (k!='statistic' or c['geography']['geography_id'].split('-')[1] in ('HOUSE','SENATE'))) for k,m in want]
+        b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in picks],selected_action_ref=o['responses'][0]['action_ref'],staff_edits=staff or {},checklist_edits=[],tracking=None,
+            edits_reviewed_for={'branch_id':b['branch_id'],'revision':1,'plan_hash':plan_hash(b['plan'])} if staff else None)
+        return self.i.handle(b)['brief'],picks
+
+    def test_printed_brief_is_compact_without_losing_recorded_content(self):
+        import re
+        from districtbrief import render
+        from districtbrief.core import L_COMPARE,L_NO_ELIG,L_HYPOTHESIS
+        brief,picks=self._brief_for('house','028',[('statistic','population_65_plus'),('statistic','poverty_rate_65_plus')],staff={'note':'Short staff summary.'})
+        html=brief['html'];text=re.sub(r'\s+',' ',self.visible(html)).replace('( ','(').replace(' )',')')
+        self.assertIn('Population age 65 and over: 6,463 persons (90% margin of error ±542 persons)',text)
+        self.assertIn('Poverty rate, age 65 and over: 29.0% (90% margin of error ±4.3 percentage points)',text)
+        self.assertIn('Short staff summary.',text)
+        self.assertNotIn('Point differences of published estimates only',text,'no comparison or hypothesis printed')
+        self.assertIn(L_COMPARE,brief['limitations'],'recorded limitations unchanged')
+        printed=render.printed_limitations(brief)
+        self.assertTrue(set(printed)<=set(brief['limitations']));self.assertIn(L_NO_ELIG,printed);self.assertIn(L_HYPOTHESIS,printed)
+        self.assertNotIn('class="brief-foot"',html,'footer repeated two printed limitations')
+        self.assertNotIn('Current availability and cost unverified.',text);self.assertIn('Current availability, capacity, wait, funding and cost remain unverified.',text)
+        for c in brief['citations']:
+            self.assertIn(f'href="{c["url"]}"',html)
+        self.assertIn('ACS 2020–2024 5-year estimates by House district (workbook). https://files.hawaii.gov/dbedt/census/acs/acs2024/5yr/acs2024_5yr_house_hi.xlsx · Retrieved 2026-10-30',re.sub(r'\s+',' ',self.printed_text(html)).replace(' .','.'))
+        self.assertEqual([en['text'] for en in brief['entries']],[c['text'] for c in picks],'recorded entry text unchanged')
+
+    @staticmethod
+    def printed_text(html):
+        """What a reader sees and copies: inline tags (<wbr>, <span>, <a>) add nothing, other tags separate, entities decoded."""
+        import re,html as h
+        return h.unescape(re.sub(r'<[^>]+>',' ',re.sub(r'</?(?:wbr|span|a)\b[^>]*>','',html)))
+
+    def test_printed_sources_show_full_canonical_urls_and_locators(self):
+        # Saved PDFs may drop link targets, so each source's full recorded address must be printed text.
+        import re
+        from districtbrief import render
+        cases=[('house','013',[('statistic','population_65_plus'),('statistic','poverty_rate_65_plus')],False),
+               ('senate','025',[('statistic','population_65_plus'),('statistic','poverty_rate_65_plus')],False),
+               ('house','028',[('statistic','median_household_income'),('outreach_hypothesis',None)],True)]
+        for chamber,code,want,food in cases:
+            brief,_=self._brief_for(chamber,code,want,food=food,staff={'note':'Short staff summary.'})
+            printed=self.printed_text(brief['html'])
+            self.assertTrue(brief['citations'])
+            for c in brief['citations']:
+                rec=self.i.core.packet.sources[c['source_id']]
+                self.assertEqual(c['url'],rec['url'],'citation keeps the canonical recorded URL')
+                self.assertIn(c['url'],printed,f'{chamber} {code}: full URL printed for {c["source_id"]}')
+                self.assertNotRegex(printed,re.escape(c['url'])+r'\w','no truncated or altered tail')
+                self.assertIn(f'href="{c["url"]}"',brief['html'],'link target unchanged')
+                item=self.printed_text(re.search(rf'<li id="cite-{c["n"]}">.*?</li>',brief['html']).group(0))
+                self.assertIn(render.hawaii_display(c['publisher']),item);self.assertIn('Retrieved '+render.human_date(c.get('retrieved_at_utc')),item)
+                self.assertNotIn('…',item)
+                for raw in c['locators']:
+                    m=render._SHEET_CELL.match(str(raw))
+                    if m:
+                        self.assertIn(f'Sheet {m["sheet"]}',item);self.assertIn(f'{m["cell"]} (MOE {m["moe"]})',item)
+                    else:
+                        self.assertIn(render.human_locator(raw),item)
+        # Unknown or hostile strings stay escaped; the address is still printed exactly as text.
+        bad={'n':9,'source_id':'not_in_catalog','publisher':'<b>Pub</b> & co','url':'https://example.org/a/<script>?q="x"&r=1',
+             'retrieved_at_utc':'2026-10-30T00:00:00Z','locators':['<img src=x onerror=1>']}
+        out=render._citation_html(bad)
+        self.assertNotIn('<script>',out);self.assertNotIn('<b>',out);self.assertNotIn('<img',out)
+        self.assertIn('<span class="url-host">https://example.org</span>/<wbr>a/<wbr>&lt;script&gt;?q=&quot;x&quot;&amp;r=1',out)
+        self.assertIn(bad['url'],self.printed_text(out))
+
+    def test_printed_urls_wrap_only_after_path_slashes_in_the_brief_font(self):
+        # The address keeps scheme://host on one line, offers breaks only after path slashes, and uses no
+        # invisible characters, so copied or extracted text is the canonical address after removing line wraps.
+        import re,html as h,os
+        from districtbrief import render
+        brief,_=self._brief_for('house','013',[('statistic','population_65_plus'),('statistic','poverty_rate_65_plus')],staff={'note':'Short staff summary.','next_steps':'Call the county office on aging this week.'})
+        page=brief['html']
+        for ch in ('\u200b','\u200c','\u200d','\u2060','\ufeff','\u00ad'):
+            self.assertNotIn(ch,page)
+        spans=re.findall(r'<span class="url">(.*?)</span> · Retrieved',page)
+        self.assertEqual(len(spans),len(brief['citations']))
+        for c,span in zip(brief['citations'],spans):
+            scheme,_,rest=c['url'].partition('://');host,_,path=rest.partition('/')
+            self.assertTrue(span.startswith(f'<span class="url-host">{h.escape(scheme+"://"+host)}</span>/<wbr>'),span)
+            self.assertNotIn('<wbr>',re.search(r'<span class="url-host">(.*?)</span>',span).group(1))
+            self.assertEqual(span.count('<wbr>'),path.count('/')+1,'one break opportunity after each path slash')
+            self.assertTrue(all(span[i-1]=='/' for i in [m.start() for m in re.finditer('<wbr>',span)]))
+            self.assertEqual(h.unescape(re.sub(r'<[^>]+>','',span)),c['url'])
+        self.assertEqual(render._url_html('https://example.org'),'<span class="url-host">https://example.org</span>')
+        self.assertEqual(render._url_html('a/b'),'a/<wbr>b')
+        # Brief font and sizes: the address uses the brief's named stack at the 8.5pt secondary size.
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static','app.css'),encoding='utf-8') as f:
+            css=f.read()
+        rule=lambda sel: re.search(re.escape(sel)+r' \{([^}]*)\}',css).group(1)
+        self.assertIn('font-family: inherit;',rule('.brief-doc .brief-cites .url'));self.assertIn('font-size: inherit;',rule('.brief-doc .brief-cites .url'))
+        self.assertIn('font-variant-ligatures: none;',rule('.brief-doc .brief-cites .url'))
+        self.assertIn('white-space: nowrap;',rule('.url .url-host'))
+        self.assertIn('--brief-body: 9.5pt;',css);self.assertIn('--brief-small: 8.5pt;',css)
+        self.assertIn('font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;',css)
+        # The fit probe measures the same spacings that print: no print-only spacing overrides remain.
+        for sel in ('#print-root .brief-doc section.staff-edit','#print-root .brief-doc h2 {','#print-root .brief-doc .brief-limits {'):
+            self.assertNotIn(sel,css)
+
+    def test_snap_brief_prints_hypothesis_label_once_and_eligibility_once(self):
+        import re
+        brief,picks=self._brief_for('house','028',[('statistic','median_household_income'),('outreach_hypothesis',None)],food=True)
+        text=re.sub(r'\s+',' ',self.visible(brief['html']))
+        self.assertNotIn('Outreach hypothesis Outreach hypothesis',text);self.assertEqual(text.count('Outreach hypothesis — not a measured gap'),1)
+        self.assertIn('Eligibility facts the agency determines: the same open questions as listed under the outreach hypothesis above.',text)
+        self.assertEqual(text.count('Countable gross/net income and allowable deductions'),1,'listed once, under the hypothesis')
+        self.assertIn('Median household income: $57,784 (2024 inflation-adjusted dollars) (90% margin of error ±$5,211)',text)
+
+    def test_figure_wording_covers_recorded_statistics_and_keeps_values(self):
+        import re
+        from districtbrief import render
+        cat=self.i.core.catalog();formatted=unchanged=0
+        def vals(t):
+            t=re.sub(r'2024 inflation-adjusted (USD|dollars)|(USD|dollars) per month|90% MOE|90% margin of error|ACS 2020–2024 5-year|\(boundary session 2024\)','',t)
+            return [x.replace('$','') for x in re.findall(r'[+−-]?\$?\d[\d,.]*',t)]
+        for o in cat['observations']:
+            t=self.i.core.stat_finding(o['geography_id']+':'+o['metric_id'])['text'];d=render.figure_wording(t)
+            if d==t:
+                unchanged+=1;self.assertIn('controlled estimate',t);continue
+            formatted+=1;self.assertEqual(vals(t),vals(d),t);self.assertNotIn('90% MOE',d)
+        self.assertEqual((formatted,unchanged),(1634,6))
+        self.assertEqual(render.figure_wording('Something else 12 ±3 <b>'),'Something else: 12 ±3 <b>')
+        self.assertEqual(render.figure_wording('No figures here.'),'No figures here.')

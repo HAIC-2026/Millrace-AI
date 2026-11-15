@@ -3,131 +3,172 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>District Brief Builder — Prototype A (guided routing)</title>
+<title>District Brief Builder</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<a class="skip-link" href="#ia-main">Skip to investigation results</a>
-<a class="skip-link" href="#main">Skip to guided results</a>
+<a class="skip-link" href="#ia-main">Skip to findings</a>
 <header class="app-header">
-  <h1>District Brief Builder <span class="variant">Prototype A · guided deterministic routing</span></h1>
-  <p class="app-meta">Snapshot <code id="snapshot-id">loading…</code> · <span id="packet-status">verifying packet…</span> · Model inference attempts: <strong id="model-calls">0</strong> · Local fixture only, no live data</p>
+  <h1>District Brief Builder</h1>
+  <p class="app-meta">Investigate a district issue, check the evidence, choose an agency action and hand off a one-page brief. Uses bundled public data; nothing is fetched live. <span id="packet-status" class="app-status" role="status"></span></p>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
-  <button type="button" role="tab" id="tab-btn-investigation" aria-controls="tab-investigation" aria-selected="true">Investigation</button>
-  <button type="button" role="tab" id="tab-btn-workflow" aria-controls="tab-workflow" aria-selected="false" tabindex="-1">Guided single operation</button>
-  <button type="button" role="tab" id="tab-btn-catalog" aria-controls="tab-catalog" aria-selected="false" tabindex="-1">Data catalog (all 1,560 observations)</button>
+  <button type="button" role="tab" id="tab-btn-investigation" aria-controls="tab-investigation" aria-selected="true">District investigation</button>
+  <button type="button" role="tab" id="tab-btn-workflow" aria-controls="tab-workflow" aria-selected="false" tabindex="-1">Single lookup</button>
+  <button type="button" role="tab" id="tab-btn-catalog" aria-controls="tab-catalog" aria-selected="false" tabindex="-1">Data catalog</button>
   <button type="button" role="tab" id="tab-btn-sources" aria-controls="tab-sources" aria-selected="false" tabindex="-1">Sources</button>
-  <button type="button" role="tab" id="tab-btn-commands" aria-controls="tab-commands" aria-selected="false" tabindex="-1">Typed commands</button>
+  <button type="button" role="tab" id="tab-btn-commands" aria-controls="tab-commands" aria-selected="false" tabindex="-1">Typed request help</button>
 </nav>
 
 <div id="tab-investigation" role="tabpanel" aria-labelledby="tab-btn-investigation" class="ia">
   <div id="ia-boot"><p class="loading" role="status">Loading the investigation workspace…</p></div>
   <div id="ia-workspace" hidden>
     <section class="ia-context" aria-labelledby="ia-context-h">
-      <h2 id="ia-context-h" class="sr-only">Investigation context</h2>
-      <div class="ia-context-fields">
-        <div class="field"><label for="ia-chamber">Chamber</label>
-          <select id="ia-chamber"><option value="house">House</option><option value="senate">Senate</option></select></div>
-        <div class="field"><label for="ia-code">District</label><select id="ia-code"></select></div>
-        <div class="field"><label for="ia-issue">Issue</label>
-          <select id="ia-issue"><option value="aging_at_home">Older-adult support at home</option><option value="custom">Custom (staff-composed steps)</option></select></div>
-        <div class="field"><label for="ia-service">Inquiry service area <span class="req">(staff-chosen)</span></label>
-          <select id="ia-service"><option value="">None chosen</option><option value="statewide">Statewide</option><option value="oahu">Oʻahu</option><option value="hawaii_island">Hawaiʻi Island</option><option value="maui">Maui</option><option value="molokai">Molokaʻi</option><option value="lanai">Lānaʻi</option><option value="kauai">Kauaʻi</option><option value="kalawao">Kalawao</option></select></div>
-        <div class="field"><label for="ia-map-session">Map boundary session</label>
-          <select id="ia-map-session"><option value="2026">2026</option><option value="2024">2024</option></select></div>
+      <div class="ia-context-main">
+        <h2 id="ia-context-h" class="ia-section-title">District and issue</h2>
+        <div class="ia-context-fields">
+          <div class="field"><label for="ia-district">District</label>
+            <select id="ia-district" aria-describedby="ia-district-help"></select>
+            <p id="ia-district-help" class="hint">All 51 House and 25 Senate districts.</p></div>
+          <div class="field"><label for="ia-issue">Issue</label>
+            <select id="ia-issue"><option value="aging_at_home">Older-adult support at home</option><option value="custom">Custom (staff-composed steps)</option></select></div>
+          <div class="field"><label for="ia-map-session">Boundary shown on map</label>
+            <select id="ia-map-session" aria-describedby="ia-session-help"><option value="2026">2026 session</option><option value="2024">2024 session</option></select>
+            <p id="ia-session-help" class="hint">Statistics always use 2024 boundaries.</p></div>
+          <div class="field"><label for="ia-service">Program area <span class="optional">(optional)</span></label>
+            <select id="ia-service" aria-describedby="ia-service-help"><option value="">None chosen</option><option value="statewide">Statewide</option><option value="oahu">Oʻahu</option><option value="hawaii_island">Hawaiʻi Island</option><option value="maui">Maui</option><option value="molokai">Molokaʻi</option><option value="lanai">Lānaʻi</option><option value="kauai">Kauaʻi</option><option value="kalawao">Kalawao</option></select>
+            <p id="ia-service-help" class="hint">Staff choice for program questions; not a coverage finding.</p></div>
+        </div>
+        <p id="ia-context-summary" class="ia-context-summary"></p>
+        <div id="ia-context-apply" class="ia-context-apply" hidden>
+          <button type="button" id="ia-context-apply-btn" class="btn btn-primary" aria-describedby="ia-context-apply-why">Review and apply these changes</button>
+          <span id="ia-context-apply-why" class="hint">Opens the context review in the plan; nothing runs until you confirm.</span>
+        </div>
+        <p class="ia-statusline"><span id="ia-status" role="status" aria-live="polite"></span> <button type="button" id="ia-cancel" class="btn btn-small" hidden>Cancel request</button></p>
+        <div id="ia-alert" class="notice notice-error" role="alert" tabindex="-1" hidden></div>
       </div>
-      <p id="ia-context-summary" class="ia-context-summary"></p>
-      <p class="fine"><span id="ia-runtime"></span> · Statistics always use 2024 district boundaries. Model calls: 0.</p>
-      <p class="ia-statusline"><span id="ia-status" role="status" aria-live="polite"></span> <button type="button" id="ia-cancel" class="btn" hidden>Cancel request</button></p>
-      <div id="ia-alert" class="notice notice-error" role="alert" tabindex="-1" hidden></div>
+      <details id="ia-mapbox" class="ia-mapbox">
+        <summary><span class="ia-map-summary-title">District boundary map</span><span id="ia-map-summary" class="hint ia-map-summary"></span></summary>
+        <div id="ia-map" class="ia-map" aria-live="polite"></div>
+        <dl id="ia-map-text" class="kv kv-compact" aria-label="District boundary in words"></dl>
+      </details>
     </section>
 
     <div class="ia-grid">
       <section class="ia-plan" aria-labelledby="ia-plan-h">
-        <h2 id="ia-plan-h">Plan</h2>
-        <form id="ia-ask" novalidate>
-          <div class="field"><label for="ia-utterance">Typed request <span class="req">(optional)</span></label>
-            <textarea id="ia-utterance" rows="2" maxlength="500" aria-describedby="ia-interpretation"></textarea></div>
-          <button type="submit" id="ia-interpret-btn" class="btn">Interpret</button>
-          <p class="fine">Interpret sends this typed text to the server to match it against supported phrases. It is not kept in the case or in a case file.</p>
-        </form>
-        <div id="ia-interpretation" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
-
-        <h3 id="ia-steps-h">Steps <span id="ia-step-count" class="fine"></span></h3>
+        <h2 id="ia-plan-h" class="ia-section-title">Investigation plan</h2>
+        <p class="hint">Supported steps run on the bundled data. Edit a step’s scope, then apply the plan.</p>
+        <h3 id="ia-steps-h" class="ia-group-title">Steps <span id="ia-step-count" class="count"></span></h3>
         <ol id="ia-steps" class="ia-steps" aria-labelledby="ia-steps-h"></ol>
         <div class="ia-add">
           <div class="field"><label for="ia-add-op">Add a supported step</label>
             <select id="ia-add-op"><option value="profile">Profile measures</option><option value="compare">Compare with a geography</option><option value="program_evidence">Program reference</option><option value="outreach_lead">Reviewed outreach hypothesis</option><option value="administrative_evidence">Administrative records</option></select></div>
-          <button type="button" id="ia-add-btn" class="btn">Add step</button>
+          <button type="button" id="ia-add-btn" class="btn" aria-describedby="ia-add-reason">Add step</button>
         </div>
-        <div class="btn-row">
-          <button type="button" id="ia-apply" class="btn btn-primary">Apply plan</button>
-          <button type="button" id="ia-discard" class="btn" hidden>Discard draft edits</button>
+        <p id="ia-add-reason" class="reason"></p>
+        <div class="ia-apply-block">
+          <div class="btn-row">
+            <button type="button" id="ia-apply" class="btn btn-primary" aria-describedby="ia-apply-reason">Apply plan</button>
+            <button type="button" id="ia-discard" class="btn" hidden>Discard draft edits</button>
+          </div>
+          <p id="ia-apply-reason" class="reason"></p>
         </div>
         <section id="ia-preview" class="notice notice-clarify" tabindex="-1" aria-live="polite" hidden></section>
+
+        <details id="ia-typed" class="ia-typed">
+          <summary>Type a request instead <span class="optional">optional</span></summary>
+          <form id="ia-ask" novalidate>
+            <div class="field"><label for="ia-utterance">Typed request</label>
+              <textarea id="ia-utterance" rows="2" maxlength="500" aria-describedby="ia-utterance-help"></textarea>
+              <p id="ia-utterance-help" class="hint">Supported phrases include “aging at home in house 28”, “use house 13”, “compare senior poverty with maui county”, “add snap”, “remove step s3” and “show the full profile”. Other text is not interpreted. The text is matched on the server and is not kept in the case or a case file.</p></div>
+            <button type="submit" id="ia-interpret-btn" class="btn">Read request</button>
+          </form>
+        </details>
+        <div id="ia-interpretation" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
+        <p id="ia-language-off" class="hint" hidden>Language questions are not available in this version. Steps, typed requests, the brief, sources and case files all work without them.</p>
+
+        <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
+          <h3 id="ia-question-heading" class="ia-group-title">Question</h3>
+          <p id="ia-question-privacy" class="hint"></p>
+          <form id="ia-question-form" hidden>
+            <label for="ia-question-text">Question for the optional language service</label>
+            <textarea id="ia-question-text" rows="2" maxlength="500"></textarea>
+            <p class="hint">Your question and limited investigation/Plan context are sent to OpenAI, an external model provider. Omit confidential or resident details. Notes and brief edits are excluded from model requests.</p>
+            <button type="submit" class="btn">Ask question</button>
+            <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
+          </form>
+          <div id="ia-question-result" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
+        </section>
       </section>
 
-      <main id="ia-main" class="ia-main" tabindex="-1">
+      <main id="ia-main" class="ia-main" tabindex="-1" aria-labelledby="ia-evidence-h">
         <section id="ia-error" class="notice notice-error" role="alert" tabindex="-1" hidden></section>
-        <section class="ia-mapbox" aria-labelledby="ia-map-h">
-          <h2 id="ia-map-h">District boundary</h2>
-          <div id="ia-map" class="ia-map" aria-live="polite"></div>
-          <dl id="ia-map-text" class="kv"></dl>
-        </section>
-        <section aria-labelledby="ia-evidence-h">
-          <h2 id="ia-evidence-h">Evidence</h2>
+        <section class="ia-results" aria-labelledby="ia-evidence-h">
+          <h2 id="ia-evidence-h" class="ia-section-title" tabindex="-1">Findings and evidence</h2>
           <div id="ia-evidence"></div>
         </section>
-        <section aria-labelledby="ia-responses-h">
-          <h2 id="ia-responses-h">Responses</h2>
-          <p class="fine">A program reference, a reviewed outreach hypothesis and a staff verification step are different things. Choosing one or none is valid. Nothing here determines eligibility or need.</p>
+        <section class="ia-results" aria-labelledby="ia-responses-h">
+          <h2 id="ia-responses-h" class="ia-section-title">Agency verification</h2>
+          <p class="hint">A program reference, a reviewed outreach hypothesis and a staff verification step are different things. Choosing one or none is valid. Nothing here determines eligibility or need.</p>
           <div id="ia-responses"></div>
         </section>
       </main>
 
       <aside class="tray ia-tray" aria-labelledby="ia-tray-h">
-        <h2 id="ia-tray-h">Action brief</h2>
-        <p id="ia-tray-count" class="fine"></p>
+        <h2 id="ia-tray-h" class="ia-section-title">Brief</h2>
+        <div class="ia-cta">
+          <p id="ia-tray-count" class="ia-cta-status"></p>
+          <div class="btn-row">
+            <button type="button" id="ia-review-btn" class="btn" hidden>Mark staff notes reviewed</button>
+            <button type="button" id="ia-brief-btn" class="btn btn-primary" aria-describedby="ia-brief-reason">Create one-page brief</button>
+            <button type="button" id="ia-clean-brief-btn" class="btn" hidden>Create brief without staff notes</button>
+          </div>
+          <p id="ia-brief-reason" class="reason" role="status" tabindex="-1"></p>
+          <p id="ia-review-state" class="hint"></p>
+        </div>
+        <section id="ia-review" class="ia-review" aria-live="polite"></section>
+        <h3 class="ia-group-title">Selected findings</h3>
         <ol id="ia-selected" class="ia-selected"></ol>
         <div id="ia-retired"></div>
-        <h3>Verification checklist</h3>
+        <h3 class="ia-group-title">Office checklist</h3>
         <div id="ia-checklist"></div>
-        <h3>Staff text</h3>
-        <p class="fine">Staff text, checklist entries and tracking are sent to the server only when you create a brief, and the app does not store them. Reloading or closing this page discards them unless you download a case file with staff work included.</p>
+        <h3 class="ia-group-title">Staff notes</h3>
+        <p class="hint">Printed as labeled staff edits, never as verified facts. Sent to the server only when you create a brief and not stored by the app; reloading or closing the page discards them unless you download a case file with staff notes.</p>
         <div id="ia-staff"></div>
-        <section id="ia-review" class="ia-review" aria-live="polite"></section>
-        <p id="ia-review-state" class="fine" role="status"></p>
-        <div class="btn-row">
-          <button type="button" id="ia-review-btn" class="btn" hidden>Mark staff content reviewed</button>
-          <button type="button" id="ia-brief-btn" class="btn btn-primary">Create one-page brief</button>
-          <button type="button" id="ia-clean-brief-btn" class="btn" hidden>Create brief without staff content</button>
-        </div>
       </aside>
     </div>
 
     <section id="ia-brief" class="panel ia-brief" tabindex="-1" aria-labelledby="ia-brief-h">
-      <h2 id="ia-brief-h">Brief</h2>
-      <p id="ia-brief-status" class="fine" role="status"></p>
-      <button type="button" id="ia-print-btn" class="btn btn-primary" disabled>Print or save as PDF</button>
+      <h2 id="ia-brief-h" class="ia-section-title">One-page brief</h2>
+      <div class="ia-brief-bar">
+        <button type="button" id="ia-print-btn" class="btn btn-primary" disabled aria-describedby="ia-brief-status">Print or save as PDF</button>
+        <p id="ia-brief-status" class="reason" role="status"></p>
+      </div>
+      <section id="ia-brief-fit" class="notice notice-unsupported ia-brief-fit" tabindex="-1" aria-live="polite" hidden></section>
       <div id="ia-brief-out" class="brief-preview"></div>
     </section>
 
     <section class="panel ia-case" aria-labelledby="ia-case-h">
-      <h2 id="ia-case-h">Case file and branches</h2>
-      <p class="fine"><strong>Unsaved work is lost when this page is reloaded or closed.</strong> The case exists only in this page: nothing is stored in the browser or placed in a link. Download a case file to keep it; staff work is included only if you tick the box. Earlier contexts stay as branches (up to four) and return only by replaying their exact evidence.</p>
+      <h2 id="ia-case-h" class="ia-section-title">Save or reopen the case</h2>
+      <p><strong>Unsaved work is lost when this page is reloaded or closed.</strong> The case exists only in this page: nothing is stored in the browser or placed in a link. Download a case file to keep it.</p>
+      <h3 class="ia-group-title">Contexts in this case</h3>
+      <p class="hint">Earlier districts or issues stay as separate contexts (up to four). Restoring one replays its exact evidence.</p>
       <ul id="ia-branches" class="ia-branches"></ul>
       <div class="ia-case-actions">
-        <div>
-          <button type="button" id="ia-download" class="btn">Download case file</button>
-          <label class="ia-check" for="ia-download-staff"><input type="checkbox" id="ia-download-staff"> Include staff work (plain text, not encrypted)</label>
-          <p class="fine">By default the file holds only the typed plan, versions and selected references. It leaves out typed requests, titles, notes, roles, dates, tracking and done marks.</p>
+        <div class="ia-case-col">
+          <h3 class="ia-group-title">Download</h3>
+          <p class="hint">By default the file holds only the plan, versions and selected references. It leaves out typed requests, titles, notes, roles, dates, tracking and done marks.</p>
+          <label class="ia-check" for="ia-download-staff"><input type="checkbox" id="ia-download-staff"> Include staff notes (plain text, not encrypted)</label>
           <div id="ia-staff-preview" class="ia-staff-preview" aria-live="polite" hidden></div>
+          <button type="button" id="ia-download" class="btn">Download case file</button>
         </div>
-        <div class="field"><label for="ia-import-file">Open a case file</label>
-          <input type="file" id="ia-import-file" accept="application/json,.json">
-          <p class="fine">The file is read in this page and never uploaded. Only its typed plan and references are replayed.</p></div>
+        <div class="ia-case-col">
+          <h3 class="ia-group-title">Reopen</h3>
+          <div class="field"><label for="ia-import-file">Open a case file</label>
+            <input type="file" id="ia-import-file" accept="application/json,.json" aria-describedby="ia-import-help">
+            <p id="ia-import-help" class="hint">The file is read in this page and never uploaded. Only its plan and references are replayed.</p></div>
+        </div>
       </div>
       <section id="ia-import-preview" class="notice" tabindex="-1" aria-live="polite" hidden></section>
     </section>
@@ -159,7 +200,7 @@
         <select id="ctl-profile-mode"><option value="full">Full profile (all 20 measures)</option><option value="selected">Selected measures</option></select></div>
       <div class="field"><label for="ctl-profile-metrics">Selected profile measures</label>
         <select id="ctl-profile-metrics" multiple size="6" aria-describedby="profile-help"></select>
-        <p id="profile-help" class="fine">Choose Selected measures to apply this list. Hold Command or Control to choose several. Comparison controls do not filter a full profile.</p></div>
+        <p id="profile-help" class="fine">Choose Selected measures to apply this list. Hold Command (Mac) or Control (Windows) to choose several. Comparison controls do not filter a full profile.</p></div>
     </fieldset>
 
     <fieldset id="fs-admin">
@@ -193,7 +234,7 @@
       </div>
       <div class="field"><label for="ctl-utterance">Typed command</label>
         <textarea id="ctl-utterance" rows="2" maxlength="500" placeholder="e.g. profile house 1" aria-describedby="utterance-help"></textarea>
-        <p id="utterance-help" class="fine">Literal commands only (see “Typed commands”). Unrecognized text is not interpreted.</p></div>
+        <p id="utterance-help" class="fine">Literal commands only (see “Typed request help”). Unrecognized text is not interpreted.</p></div>
     </fieldset>
 
     <p id="c-runtime-panel" class="fine" hidden><span id="c-runtime-status" role="status"></span></p>
@@ -234,24 +275,25 @@
 </div>
 
 <div id="tab-commands" role="tabpanel" aria-labelledby="tab-btn-commands" class="panel" hidden>
-  <h2>Typed commands and runtime</h2>
+  <h2>Typed request help</h2>
   <div id="commands-body"></div>
 </div>
 
 <dialog id="source-dialog" aria-labelledby="source-title">
   <div class="dialog-head">
-    <h2 id="source-title">Source record</h2>
+    <h2 id="source-title">Source</h2>
     <button type="button" id="close-source" class="btn">Close</button>
   </div>
   <div id="source-body"></div>
 </dialog>
 
-<p class="fine">This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+<p class="fine page-foot">This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
 <div id="print-root"></div>
 <script src="/static/request.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/case_state.js"></script>
 <script src="/static/map.js"></script>
+<script src="/static/language_state.js"></script>
 <script src="/static/investigation.js"></script>
 </body>
 </html>

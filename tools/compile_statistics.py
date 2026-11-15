@@ -10,7 +10,7 @@ source packet manifest ``SOURCE-PACKET-MANIFEST.json`` before use):
 
 Outputs:
   data/statistics/observations.json  20 measures x (51 House + 25 Senate districts,
-                                     State of Hawaii, Maui County) = 1,560 rows
+                                     State of Hawaii and five counties) = 1,640 rows
   PACKET-MANIFEST.json               release packet manifest with a new snapshot_id
 
 Column mapping is read from each sheet's own headers: row 1 names the geography
@@ -209,6 +209,12 @@ def compile_observations(source_manifest: dict) -> bytes:
                                {"state_fips": "15", "chamber": chamber, "district_code": code, "geoid": "15" + code,
                                 "boundary_session": 2024, "summary_level": level}))
 
+    # Append the four additional native county profiles; retain existing ordering.
+    for name, code in (("Hawaii", "001"), ("Honolulu", "003"), ("Kalawao", "005"), ("Kauai", "007")):
+        selections.append(("counties", f"{name} County, Hawaii", f"HI-COUNTY-{code}-2024",
+                           {"state_fips": "15", "chamber": None, "district_code": None, "geoid": "15" + code,
+                            "boundary_session": None, "boundary_vintage": "2024-01-01", "summary_level": "050"}))
+
     observations = []
     for kind, header, key, geography in selections:
         source = sources[f"dbedt_2024_{kind}"]
@@ -240,7 +246,7 @@ def compile_observations(source_manifest: dict) -> bytes:
                 "spatial_method": "native published geography; no apportionment",
                 "joint_statistic": mid in JOINT,
             })
-    assert len(observations) == len(METRICS) * 78
+    assert len(observations) == len(METRICS) * 82
     payload = {"schema_version": "1.0", "observations": observations, "limitations": LIMITATIONS}
     return (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 

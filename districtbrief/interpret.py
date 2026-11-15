@@ -13,7 +13,13 @@ def recipe(district):
         {'step_id':'s3','operation':'program_evidence','args':{'program_ids':['kupuna_care_hi']}},
         {'step_id':'s4','operation':'outreach_lead','args':{'program_id':'kupuna_care_hi'}}]}
 
-def interpret(utterance,plan):
+def food_assistance_recipe(district):
+    return {'district':district,'map_session':2026,'issue_id':'food_assistance_outreach','service_area_id':None,'steps':[
+        {'step_id':'s1','operation':'profile','args':{'metric_ids':['poverty_rate_all_people','median_household_income']}},
+        {'step_id':'s2','operation':'program_evidence','args':{'program_ids':['snap_hi']}},
+        {'step_id':'s3','operation':'outreach_lead','args':{'program_id':'snap_hi'}}]}
+
+def interpret(utterance,plan,*,allow_food=False):
     # Replace reviewed spelling variants one character at a time so match spans stay original.
     chars=[];offset=[]
     for i,c in enumerate(utterance):
@@ -41,6 +47,18 @@ def interpret(utterance,plan):
     # Every family uses fullmatch. These tokens receive a concrete supported-method explanation.
     if re.search(r'\b(?:not|never|without|except|exclude|don\x27t|eligible|unenrolled|nonparticip|significant|causal|impact|current|live|rank|trend|resident)\b',t):
         return unresolved('This qualifier or request is outside the tested grammar. Use the visible plan controls; eligibility gaps, statistical tests, causal effects and current fetching are unsupported.',status='unsupported')
+    food=re.fullmatch(r'\s*snap outreach in (house|senate)\s+(\d{1,3})\s*',t)
+    if food:
+        if not allow_food:return unresolved('SNAP outreach recipe is unavailable in this evidence snapshot.',status='unsupported')
+        chamber=food.group(1);code=int(food.group(2))
+        if not 1<=code<=(51 if chamber=='house' else 25):return unresolved('District is outside the admitted chamber range.',status='unsupported')
+        district={'state_fips':'15','chamber':chamber,'code':f'{code:03}','boundary_session':2024}
+        proposed=food_assistance_recipe(district)
+        match('issue_id','food_assistance_outreach',food)
+        match('district',district,food,food.start(1),food.end(2))
+        return 'ok',proposed,result
+    if re.fullmatch(r'\s*snap outreach in district\s+\d{1,3}\s*',t):
+        return unresolved('Choose the chamber explicitly before using SNAP outreach.')
     m=re.fullmatch(r'\s*(?:(aging at home|older-adult support at home) in |use |profile )(house|senate)\s+(\d{1,3})\s*',t)
     if m:
         chamber=m.group(2);code=int(m.group(3))

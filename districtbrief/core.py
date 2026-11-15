@@ -99,9 +99,8 @@ CONTROLLED_MOE_MEANING = (
 )
 L_ACS = ("ACS 2020–2024 5-year estimates (DBEDT republication) with published 90% margins of error; "
          "values describe the five-year period, not a single year.")
-L_FIXTURE = ("Normalized statistics cover all 51 House and 25 Senate districts (boundary session 2024), the "
-             "State of Hawaiʻi and Maui County: 20 measures each (1,560 observations). Other counties and "
-             "other workbook measures are not normalized.")
+L_FIXTURE = ("ACS statistics cover published normalized district and county profiles in this snapshot. "
+             "Other workbook measures are not normalized.")
 L_COMPARE = ("Point differences of published estimates only; no derived margin of error is substituted and "
              "no statistical significance or causality is implied.")
 L_COUNTS = ("Counts for geographies of different size are shown side by side without a difference; "
@@ -284,10 +283,10 @@ class Core:
                 "approx_county": self.county_of(pid) if p["kind"] == "district" else None,
             } for pid, p in self.profiles.items()],
             "unavailable_geographies": [
-                {"geography_id": "HI-COUNTY-001-2024", "label": "Hawaii County"},
-                {"geography_id": "HI-COUNTY-003-2024", "label": "Honolulu County"},
-                {"geography_id": "HI-COUNTY-005-2024", "label": "Kalawao County"},
-                {"geography_id": "HI-COUNTY-007-2024", "label": "Kauai County"},
+                {"geography_id": f"HI-COUNTY-{code}-2024", "label": name}
+                for code, name in (("001", "Hawaii County"), ("003", "Honolulu County"),
+                                   ("005", "Kalawao County"), ("007", "Kauai County"), ("009", "Maui County"))
+                if f"HI-COUNTY-{code}-2024" not in self.profiles
             ],
             "metrics": list(self.metrics.values()),
             "programs": [{
@@ -464,8 +463,7 @@ class Core:
         names = {"HI-COUNTY-001-2024": "Hawaii County", "HI-COUNTY-003-2024": "Honolulu County",
                  "HI-COUNTY-005-2024": "Kalawao County", "HI-COUNTY-007-2024": "Kauai County"}
         if pid in names:
-            return (f"{names[pid]} is in the raw county workbook but is not normalized in this fixture; "
-                    "only Maui County is available at county level.")
+            return f"{names[pid]} has no normalized statistics in this snapshot."
         m = re.match(r"^HI-(HOUSE|SENATE)-(\d{3})-(\d{4})$", pid)
         if m:
             chamber, code, session = m.group(1).lower(), m.group(2), int(m.group(3))

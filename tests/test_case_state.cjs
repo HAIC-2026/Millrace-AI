@@ -660,3 +660,323 @@ test("a late reply to a cancelled request cannot end or alter the newer pending 
   assert.equal((ui.match(/C\.applyResponse\(/g) || []).length, 1);
   assert.match(ui, /C\.applyResponse\(state, body, \{[^}]*request_id: request\.request_id \}\)/);
 });
+
+// Event regression: the literal typed-request "Put in draft plan" control only installs the
+// proposal as the draft. Running stays behind the separate Apply plan / Run again action. The real UI
+// functions are evaluated with an inert renderer and a recording send stub (no network).
+test("a literal proposal changes only the draft; a separate plan action makes the single run request", () => {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  function runActive() {", "  // Optional language") + part("  function applyPlan() {", "  function defaultArgs") +
+    part("  function renderInterpretation() {", "  function renderSteps");
+  function harness(proposed) {
+    const buttons = [], requests = [];
+    const ctx = { C, ids, state: run(C.createState(RUNTIME, ids)), notice: "", preview: null,
+      interp: { status: "ok", utterance: "use house 13", matched_fields: [], inherited_fields: [], choices: [], reason: null, proposed_plan: null },
+      h: (...a) => a, $: () => ({ focus() {} }), fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
+      fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
+      render() {}, syncMap() {}, holdFocus() {}, send: (r) => requests.push(r) };
+    ctx.interp.proposed_plan = proposed(ctx.state);
+    vm.createContext(ctx); vm.runInContext(code, ctx); vm.runInContext("renderInterpretation()", ctx);
+    return { ctx, buttons, requests };
+  }
+  // 1. Proposal equal to the confirmed plan (no-op).
+  let t = harness((s) => clone(C.active(s).plan));
+  t.buttons.find((b) => /^Put in draft plan$/.test(b.label)).fn();
+  assert.equal(t.requests.length, 0, "no run on the literal action");
+  assert.match(t.ctx.notice, /nothing has run/i); assert.doesNotMatch(t.ctx.notice, /Apply plan/, "unchanged proposal: the shown control is Run again");
+  assert.equal(t.ctx.state.pending, null);
+  vm.runInContext("applyPlan()", t.ctx);   // explicit Run again
+  assert.equal(t.requests.length, 1); assert.equal(t.requests[0].mode, "run");
+  // 2. Changed proposal (another district) with fewer than four contexts.
+  t = harness((s) => { const p = clone(C.active(s).plan); p.district = Object.assign({}, p.district, { code: "013" }); return p; });
+  assert.ok(t.ctx.state.case.branches.length < 4);
+  t.buttons.find((b) => /^Put in draft plan$/.test(b.label)).fn();
+  assert.equal(t.requests.length, 0, "no run on the literal action");
+  assert.equal(t.ctx.state.draft.district.code, "013");
+  assert.match(t.ctx.notice, /Nothing has run/); assert.match(t.ctx.notice, /choose Apply plan/);
+  assert.equal(C.active(t.ctx.state).plan.district.code, "028", "confirmed results unchanged");
+  vm.runInContext("applyPlan()", t.ctx);   // explicit Apply plan opens the context review only
+  assert.equal(t.requests.length, 0);
+  assert.ok(t.ctx.preview && t.ctx.preview.fork);
+  vm.runInContext("commit(preview)", t.ctx); // explicit Apply change and run
+  assert.equal(t.requests.length, 1); assert.equal(t.requests[0].mode, "run"); assert.equal(t.requests[0].plan.district.code, "013");
+});
+
+
+// Presentation regression (R4): a failed attempt to create a NEW brief is attributed to that attempt, and a
+// previous brief that still matches the context is named as the previous one and stays printable. With no
+// valid previous brief the existing messages and print block are unchanged. Real UI functions, inert DOM.
+function uiHarness(state, fit) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // ------------------------------------------------------------------ labels", "  // ------------------------------------------------------------------ state plumbing") +
+    part("  function finish(result) {", "  // Keyboard focus never falls") + part("  function renderError() {", "  const claimMap") +
+    part("  function renderBrief(b) {", "  // Whether the current brief passed") +
+    part(ui.includes("  // Name a staff group in the reopen preview") ? "  // Name a staff group in the reopen preview" : "  function renderCase(b, busy) {", "  // ------------------------------------------------------------------ map") +
+    part("  // One staff contribution as a labelled sentence", "  // One-page check on the real layout") +
+    (ui.includes("  // Staff-note review chip") ? part("  // Staff-note review chip", "  // One compact selector")
+      // Earlier versions computed the chip inline in render(); evaluate that exact expression for comparison.
+      : (/\n\s*(b\.review_state !== "clean" \? h\([^\n]*\) : null),\n/.exec(ui) ? "function reviewChip(b) { return " + /\n\s*(b\.review_state !== "clean" \? h\([^\n]*\) : null),\n/.exec(ui)[1] + "; }" : ""));
+  const nodes = new Map();
+  const $ = (sel) => { if (!nodes.has(sel)) nodes.set(sel, { sel, textContent: "", hidden: false, disabled: false, dataset: {}, children: [], classList: { remove() {}, toggle() {} }, querySelectorAll() { return []; }, querySelector() { return null; }, focus() {} }); return nodes.get(sel); };
+  const catalog = { metrics: [{ metric_id: "poverty_rate_65_plus", label: "Poverty rate, age 65 and over" }, { metric_id: "population_65_plus", label: "Population age 65 and over" }],
+    geographies: [{ geography_id: "HI-STATE-2024", label: "State of Hawaiʻi" }], unavailable_geographies: [], programs: [{ program_id: "kupuna_care_hi", name: "Kūpuna Care" }] };
+  const ctx = { C, ids, state, catalog, notice: "", interp: null, importing: null, $,
+    h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), btn: (label) => ({ button: label }), fill: (n, c) => { n.children = c; },
+    measureBrief: () => fit || { ok: true, over: 0 }, briefFits: () => !fit || fit.ok, render() {}, flushActive() {}, syncMap() {}, focusResults() {}, replayHelp: () => null, choiceList: () => null, claimMap: () => new Map(), savedDigest: null, ids, bootRun: false };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, $, run: (expr) => vm.runInContext(expr, ctx) };
+}
+function briefState() {
+  let s = run(C.createState(RUNTIME, ids));
+  s = ok(C.toggleClaim(s, claim(s, "stat:house028:population_65_plus"), true));
+  const b = C.beginBrief(s, {}, ids);
+  return C.applyResponse(b.state, reply(b.request)).state;
+}
+function failBrief(s) { const b = C.beginBrief(s, {}, ids); assert.equal(b.error, undefined); return C.applyTransportFailure(b.state, b.request.request_id, "network"); }
+
+test("a failed new brief attempt names the retained previous brief; printability follows the measured page check; otherwise existing blocks apply", () => {
+  // 1. Valid previous brief, then a failed recreation in the same context.
+  const prior = briefState();
+  assert.equal(C.printStatus(prior).ok, true);
+  let f = failBrief(prior), u = uiHarness(f.state);
+  u.ctx.__r = f; u.run("finish(__r)");
+  assert.match(u.ctx.notice, /^The new brief was not created\./); assert.match(u.ctx.notice, /previous brief is kept unchanged/); assert.doesNotMatch(u.ctx.notice, /printable/);
+  u.run("renderBrief(C.active(state))");
+  assert.match(u.$("#ia-brief-status").textContent, /^Ready to print the previous brief/); assert.equal(u.$("#ia-print-btn").disabled, false, "retained brief stays printable");
+  assert.deepEqual(f.state.briefs[C.active(f.state).branch_id], prior.briefs[C.active(prior).branch_id], "previous brief retained unchanged");
+  u.run("renderError()");
+  assert.match(JSON.stringify(u.$("#ia-error").children), /previous brief is kept unchanged/); assert.doesNotMatch(JSON.stringify(u.$("#ia-error").children), /printable/);
+  assert.match(JSON.stringify(u.$("#ia-error").children), /Create the brief again/, "operation recovery kept");
+
+  // 1b. Same retained current brief, but the measured page layout does not fit: retention is acknowledged,
+  // nothing claims it is printable, and the measured too-long status with disabled Print remains.
+  f = failBrief(prior); u = uiHarness(f.state, { ok: false, over: 2, tag: "x" });
+  u.ctx.__r = f; u.run("finish(__r)");
+  assert.match(u.ctx.notice, /^The new brief was not created\./); assert.match(u.ctx.notice, /previous brief is kept unchanged/); assert.doesNotMatch(u.ctx.notice, /printable|Ready/);
+  u.run("renderBrief(C.active(state))");
+  assert.match(u.$("#ia-brief-status").textContent, /^Not ready to print: .*about 2% longer than one page/); assert.equal(u.$("#ia-print-btn").disabled, true);
+  u.run("renderError()");
+  assert.doesNotMatch(JSON.stringify(u.$("#ia-error").children), /printable/);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8"), /still current and printable/, "no panel copy asserts printability from case state alone");
+
+  // 2. No previous brief: unchanged wording and print stays blocked.
+  let s = run(C.createState(RUNTIME, ids)); s = ok(C.toggleClaim(s, claim(s, "stat:house028:population_65_plus"), true));
+  f = failBrief(s); u = uiHarness(f.state); u.ctx.__r = f; u.run("finish(__r)");
+  assert.equal(u.ctx.notice, "The brief was not created. Your work is kept.");
+  u.run("renderBrief(C.active(state))");
+  assert.equal(u.$("#ia-print-btn").disabled, true); assert.doesNotMatch(u.$("#ia-brief-status").textContent, /previous/);
+
+  // 3. Stale previous brief (selection changed): not offered as printable, no "previous brief" claim.
+  s = ok(C.toggleClaim(briefState(), claim(briefState(), "stat:house028:poverty_rate_65_plus"), true));
+  assert.equal(C.printStatus(s).code, "brief_stale");
+  f = failBrief(s); u = uiHarness(f.state); u.ctx.__r = f; u.run("finish(__r)");
+  assert.equal(u.ctx.notice, "The brief was not created. Your work is kept.");
+  u.run("renderBrief(C.active(state))");
+  assert.equal(u.$("#ia-print-btn").disabled, true); assert.equal(u.$("#ia-brief-status").textContent, C.printStatus(f.state).message);
+
+  // 4. Normal success wording.
+  const b = C.beginBrief(prior, {}, ids), done = C.applyResponse(b.state, reply(b.request));
+  u = uiHarness(b.state); u.ctx.__r = done; u.run("finish(__r)");
+  assert.equal(u.ctx.notice, "Brief created for the current results.");
+  u.run("renderBrief(C.active(state))");
+  assert.equal(u.$("#ia-brief-status").textContent, C.printStatus(done.state).message);
+});
+
+test("typed-request fields show plan wording: inherited steps as the plan cards word them, no raw ids", () => {
+  const s = run(C.createState(RUNTIME, ids)), u = uiHarness(s);
+  const steps = C.active(s).plan.steps;
+  u.ctx.__steps = steps;
+  const text = u.run("valueText('steps', __steps)");
+  assert.doesNotMatch(text, /operation|args|HI-STATE|metric_ids|step_id/i);
+  steps.forEach((st, i) => assert.ok(text.includes((i + 1) + ". " + u.run("OP_LABEL")[st.operation] + " — " + u.run("stepScope(__steps[" + i + "])")), st.step_id));
+  assert.match(text, /comparison: State of Hawaiʻi/);
+  assert.match(u.run("valueText('removed_step_id', 's3')"), /^Step 3 · Program reference \(typed-request name s3\)$/);
+  assert.equal(u.run("valueText('metric_ids', null)"), "All 20 measures");
+  assert.equal(u.run("fieldLabel('removed_step_id')"), "Remove step");
+});
+
+
+// Presentation regression (R6): the reopen preview names each staff group by its own context, using the
+// actual parser output (preview rows carry branch_id and items only) joined to the parsed file's branches.
+test("reopen preview groups staff notes under each context's own district, from real parser output", () => {
+  const vm = require("node:vm");
+  let s = run(C.createState(RUNTIME, ids));
+  s = ok(C.setStaffText(s, "title", "NOTE-A"));
+  const toDistrict = (st, code, chamber) => { const p = clone(C.active(st).plan); p.district = { state_fips: "15", chamber, code, boundary_session: 2024 }; return change(st, { plan: p }).state; };
+  s = toDistrict(s, "013", "house"); s = ok(C.setStaffText(s, "note", "NOTE-B"));
+  s = toDistrict(s, "025", "senate"); s = ok(C.setStaffText(s, "next_steps", "NOTE-C"));
+  const parsed = C.parseCaseFile(JSON.stringify(C.exportCase(s, { include_staff_work: true })), RUNTIME);
+  assert.ok(parsed.ok && parsed.preview.runtime_match);
+  assert.ok(parsed.preview.staff_preview.every((r) => Object.keys(r).sort().join() === "branch_id,items"), "actual preview shape has no district");
+  const u = uiHarness(C.createState(RUNTIME, ids));
+  u.ctx.importing = parsed;
+  u.run("renderCase(C.active(state), false)");
+  const groups = (u.$("#ia-import-preview").children.find((n) => n && n.tag === "div" && n.kids && JSON.stringify(n.kids).includes("ia-staff-list")) || {}).kids;
+  const list = groups.find((k) => k && k.tag === "ul");
+  const heads = list.kids[0].map((li) => li.kids[0].attrs.text);
+  assert.deepEqual(heads, ["Context 1: House 028 · Older-adult support at home · compared with State of Hawaiʻi", "Context 2: House 013 · Older-adult support at home · compared with State of Hawaiʻi", "Context 3: Senate 025 · Older-adult support at home · compared with State of Hawaiʻi"]);
+  const own = list.kids[0].map((li) => JSON.stringify(li.kids[1]));
+  assert.match(own[0], /NOTE-A/); assert.doesNotMatch(own[0], /NOTE-B|NOTE-C/);
+  assert.match(own[1], /NOTE-B/); assert.doesNotMatch(own[1], /NOTE-A|NOTE-C/);
+  assert.match(own[2], /NOTE-C/); assert.doesNotMatch(own[2], /NOTE-A|NOTE-B/);
+});
+
+
+// Presentation regression (R7): the staff-note review chip follows the current review checks (parked items,
+// active staff notes, the review token), not the historical branch flag. Real export/parse/import replay.
+test("review chip agrees with the current staff review after an imported case is reviewed, edited, parked or blocked", () => {
+  const chip = (st) => { const u = uiHarness(st); assert.equal(typeof u.ctx.reviewChip, "function", "reviewChip derives the chip"); const n = u.run("reviewChip(C.active(state))"); return n ? n.attrs.text : null; };
+  // Actual staff import replay.
+  const parsed = C.parseCaseFile(JSON.stringify(C.exportCase(worked(), { include_staff_work: true })), RUNTIME);
+  const imp = C.beginImport(run(C.createState(RUNTIME, ids)), parsed, { accept_staff_work: true }, ids);
+  const done = C.applyResponse(imp.state, reply(imp.request), meta(imp.request));
+  assert.equal(done.outcome, "imported");
+  let s = done.state;
+  assert.equal(C.active(s).review_state, "staff_review_required");
+  assert.equal(C.reviewCurrent(s), false);
+  assert.equal(chip(s), "Staff review required");
+  // Review: the gate passes and the chip agrees, although the historical branch flag is unchanged.
+  s = ok(C.markReviewed(s));
+  assert.equal(C.reviewCurrent(s), true); assert.equal(C.active(s).review_state, "staff_review_required");
+  assert.equal(chip(s), "Staff notes reviewed");
+  // An edit invalidates the review.
+  s = ok(C.setStaffText(s, "note", "changed after review"));
+  assert.equal(C.reviewCurrent(s), false); assert.equal(chip(s), "Staff review required");
+  // No staff notes: no chip.
+  assert.equal(chip(run(C.createState(RUNTIME, ids))), null);
+  // Parked contributions from an earlier context still require review.
+  const p = clone(C.active(worked()).plan); p.district = Object.assign({}, p.district, { code: "013" });
+  const moved = change(worked(), { plan: p }).state;
+  assert.ok(C.pendingReview(moved).length > 0); assert.equal(chip(moved), "Staff review required");
+  // Replay blocked (actual reducer path: a run against another evidence version) keeps priority.
+  const other = Object.assign({}, s, { runtime: Object.assign({}, s.runtime, { snapshot_id: sha("another release") }) });
+  const blocked = C.beginRun(other, ids);
+  assert.ok(blocked.error && blocked.state); assert.equal(C.active(blocked.state).review_state, "replay_blocked");
+  assert.equal(chip(blocked.state), "Replay blocked");
+});
+
+// Recovery and replay presentation (real reducer and actual investigation.js functions, inert DOM).
+function recoveryHarness(state) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // ------------------------------------------------------------------ labels", "  // ------------------------------------------------------------------ state plumbing") +
+    part("  function finish(result) {", "  function runActive() {") + part("  function renderError() {", "  // A saved finding named") +
+    part("  // A saved finding named", "  function claimTitle(ref) {");
+  const nodes = new Map(), buttons = [], sent = [], focused = [];
+  const $ = (sel) => { if (!nodes.has(sel)) nodes.set(sel, { sel, textContent: "", hidden: false, disabled: false, children: [], focus() { focused.push(sel); } }); return nodes.get(sel); };
+  const ctx = { C, ids, state, notice: "", interp: null, importing: null, preview: null, bootRun: false, $, catalog: { metrics: [{ metric_id: "population_65_plus", label: "Population age 65 and over" }], geographies: [{ geography_id: "HI-STATE-2024", label: "State of Hawaiʻi" }, { geography_id: "HI-COUNTY-009-2024", label: "Maui County" }], unavailable_geographies: [], programs: [] },
+    h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), btn: (label, fn, attrs) => { buttons.push({ label, fn, attrs }); return { button: label }; }, fill: (n, c) => { n.children = c; },
+    render() {}, flushActive() {}, syncMap() {}, replayHelp: () => null, briefFits: () => true, measureBrief: () => ({ ok: true }), alertUser(m) { throw new Error(m); }, clearAlert() {},
+    send: (r) => { sent.push(r); }, document: { activeElement: null, body: {} } };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, buttons, sent, focused, run: (x) => vm.runInContext(x, ctx) };
+}
+
+test("a failed restore names the context, keeps the current one, and its retry restores the same target", () => {
+  const s0 = run(C.createState(RUNTIME, ids)), p = clone(C.active(s0).plan); p.district = Object.assign({}, p.district, { code: "013" });
+  const s1 = change(s0, { plan: p }).state, target = s1.case.branches[0].branch_id;
+  assert.equal(C.active(s1).plan.district.code, "013");
+  const u = recoveryHarness(s1);
+  u.ctx.__t = target; u.run("restoreContext(__t)");
+  assert.equal(u.sent.length, 1); assert.equal(u.sent[0].branch_id, target);
+  const f = C.applyTransportFailure(u.ctx.state, u.sent[0].request_id, "network");
+  u.ctx.__r = f; u.run("finish(__r)");
+  assert.match(u.ctx.notice, /^Context 1 \(House 028 · Older-adult support at home · compared with State of Hawaiʻi\) was not restored\. You are still on Context 2 \(House 013 · Older-adult support at home · compared with State of Hawaiʻi\)\./);
+  assert.equal(C.active(u.ctx.state).plan.district.code, "013", "current context unchanged");
+  u.run("renderError()");
+  const retry = u.buttons.find((b) => /^Restore Context 1 again$/.test(b.label));
+  assert.ok(retry, "retry names the same restore target"); assert.ok(!u.buttons.some((b) => b.label === "Run the plan again"));
+  retry.fn();
+  assert.equal(u.sent.length, 2); assert.equal(u.sent[1].branch_id, target, "retry restores the same context"); assert.equal(u.sent[1].plan.district.code, "028");
+});
+
+test("a replayed selection whose saved wording no longer matches is named, explained and counted", () => {
+  let s = run(C.createState(RUNTIME, ids));
+  s = ok(C.toggleClaim(s, claim(s, "stat:house028:population_65_plus"), true)); s = ok(C.toggleClaim(s, claim(s, "stat:house028:poverty_rate_65_plus"), true));
+  const file = C.exportCase(s, { include_staff_work: false });
+  const changed = file.branches[0].selected_claim_refs.find((r) => r.finding_id === "stat:house028:population_65_plus");
+  changed.semantic_hash = sha("not the replayed wording");
+  const imp = C.beginImport(run(C.createState(RUNTIME, ids)), C.parseCaseFile(JSON.stringify(file), RUNTIME), {}, ids);
+  const done = C.applyResponse(imp.state, reply(imp.request), meta(imp.request));
+  assert.equal(done.outcome, "imported"); assert.equal(C.active(done.state).selected_claim_refs.length, 1);
+  const u = recoveryHarness(done.state); u.ctx.__r = done; u.run("finish(__r)");
+  assert.match(u.ctx.notice, /1 saved selection was not reselected/);
+  const r = done.state.retired[C.active(done.state).branch_id].find((x) => x.claim_ref);
+  u.ctx.__ref = r.claim_ref; u.ctx.__r2 = r;
+  assert.match(u.run("savedFindingName(__ref)"), /^Population age 65 and over/);
+  assert.match(u.run("droppedReason(__r2, C.currentResults(state))"), /saved wording no longer matches the replayed evidence, so it was not reselected/);
+  assert.doesNotMatch(u.run("droppedReason(__r2, C.currentResults(state))"), /another|original context/);
+});
+
+test("the automatic first run keeps the page's starting focus; later runs move focus to the findings", () => {
+  const b = C.beginRun(C.createState(RUNTIME, ids), ids), r = C.applyResponse(b.state, reply(b.request), meta(b.request));
+  const u = recoveryHarness(b.state); u.ctx.bootRun = true; u.ctx.__r = r;
+  u.run("finish(__r)"); assert.deepEqual(u.focused, [], "no focus move after the automatic first run"); assert.equal(u.ctx.bootRun, false);
+  const b2 = C.beginRun(r.state, ids), r2 = C.applyResponse(b2.state, reply(b2.request), meta(b2.request));
+  u.ctx.state = b2.state; u.ctx.__r = r2; u.run("finish(__r)");
+  assert.deepEqual(u.focused, ["#ia-evidence-h"]);
+});
+
+// Source dialog: only the reply for the latest open request, while the dialog is still open, fills it or
+// moves focus; closing returns focus to the opener. Actual app.js functions with deferred replies.
+function sourceHarness() {
+  const vm = require("node:vm");
+  const app = fs.readFileSync(path.join(__dirname, "../static/app.js"), "utf8");
+  const part = (a, b) => { const i = app.indexOf(a); assert.ok(i >= 0, a); return app.slice(i, app.indexOf(b, i)); };
+  const code = part("  let sourceOpener = null;", "  // ------------------------------------------------------------ tabs") +
+    (app.includes("  function sourceDialogClosed() {") ? part("  function sourceDialogClosed() {", "  // ------------------------------------------------------------ boot")
+      : "function sourceDialogClosed() { const back = sourceOpener; sourceOpener = null; if (back && back.isConnected && typeof back.focus === 'function') back.focus(); }");
+  const focus = [], pending = [];
+  const el = (name) => ({ name, isConnected: true, focus() { focus.push(name); } });
+  const body = { innerHTML: "" }, close = el("close");
+  const dlg = { open: false, showModal() { this.open = true; }, close() { this.open = false; ctx.sourceDialogClosed(); } };
+  const nodes = { "#source-body": body, "#source-dialog": dlg, "#close-source": close };
+  const ctx = { $: (s) => nodes[s], document: { activeElement: null }, logEvent() {}, escapeText: (x) => String(x),
+    api: () => new Promise((resolve) => pending.push(resolve)) };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, body, dlg, focus, pending, el };
+}
+
+test("an older source reply never replaces the newer source or moves focus after close", async () => {
+  // Close A while loading, open B, B replies first, then A replies late.
+  let h = sourceHarness();
+  const openerA = h.el("openerA"), openerB = h.el("openerB");
+  const a = h.ctx.openSource("srcA", "f1", openerA);
+  h.dlg.close();
+  assert.deepEqual(h.focus, ["openerA"], "closing returns focus to the opener");
+  const b = h.ctx.openSource("srcB", "f2", openerB);
+  h.pending[1]({ html: "<p>SOURCE B</p>" }); await b;
+  assert.equal(h.body.innerHTML, "<p>SOURCE B</p>"); assert.deepEqual(h.focus, ["openerA", "close"]);
+  h.pending[0]({ html: "<p>SOURCE A</p>" }); await a;
+  assert.equal(h.body.innerHTML, "<p>SOURCE B</p>", "late reply for A is ignored"); assert.deepEqual(h.focus, ["openerA", "close"], "no focus move for the stale reply");
+  // A late error after a newer open is ignored too.
+  h = sourceHarness();
+  const a2 = h.ctx.openSource("srcA", "f1", h.el("x")); const b2 = h.ctx.openSource("srcB", "f2", h.el("y"));
+  h.pending[1]({ html: "<p>B</p>" }); await b2;
+  h.pending[0]({ status: "error", reason: "late failure" }); await a2;
+  assert.equal(h.body.innerHTML, "<p>B</p>");
+  // A reply for a dialog closed while loading changes nothing and moves no focus.
+  h = sourceHarness();
+  const c = h.ctx.openSource("srcA", "f1", h.el("opener")); h.dlg.close();
+  const before = h.body.innerHTML; h.pending[0]({ html: "<p>A</p>" }); await c;
+  assert.equal(h.body.innerHTML, before); assert.deepEqual(h.focus, ["opener"]);
+});
+
+test("saved contexts that differ only in comparison scope have distinct names", () => {
+  const s0 = run(C.createState(RUNTIME, ids)), p = clone(C.active(s0).plan);
+  const cmp = p.steps.find((s) => s.operation === "compare"); cmp.args.comparison_geography = "HI-COUNTY-009-2024";
+  const s1 = change(s0, { plan: p }).state;
+  const [b1, b2] = s1.case.branches.map((b) => b.branch_id);
+  const u = recoveryHarness(s1);
+  u.ctx.__a = b1; u.ctx.__b = b2;
+  const n1 = u.run("contextName(__a)"), n2 = u.run("contextName(__b)");
+  assert.equal(n1, "Context 1 (House 028 · Older-adult support at home · compared with State of Hawaiʻi)");
+  assert.equal(n2, "Context 2 (House 028 · Older-adult support at home · compared with Maui County)");
+  const unknown = clone(p); unknown.steps.find((s) => s.operation === "compare").args.comparison_geography = "HI-COUNTY-999-2024";
+  u.ctx.__p = unknown; assert.match(u.run("planLabel(__p)"), /compared with an unlisted geography$/);
+});

@@ -1,0 +1,1047 @@
+[
+  {
+    "id": "create-01",
+    "family": "new_plan",
+    "utterance": "Compare senior poverty in House1 with the State.",
+    "prior": null,
+    "target": {
+      "code": "001",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-02",
+    "family": "new_plan",
+    "utterance": "Compare senior poverty in House13 with the State.",
+    "prior": null,
+    "target": {
+      "code": "013",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-03",
+    "family": "new_plan",
+    "utterance": "Compare senior poverty in House28 with the State.",
+    "prior": null,
+    "target": {
+      "code": "028",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-04",
+    "family": "new_plan",
+    "utterance": "Compare senior poverty in House51 with the State.",
+    "prior": null,
+    "target": {
+      "code": "051",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-05",
+    "family": "new_plan",
+    "utterance": "Compare senior poverty in House9 with the State.",
+    "prior": null,
+    "target": {
+      "code": "009",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-06",
+    "family": "new_plan",
+    "utterance": "Compare median age in House1 with the State.",
+    "prior": null,
+    "target": {
+      "code": "001",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-07",
+    "family": "new_plan",
+    "utterance": "Compare median age in House13 with the State.",
+    "prior": null,
+    "target": {
+      "code": "013",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-08",
+    "family": "new_plan",
+    "utterance": "Compare median age in House28 with the State.",
+    "prior": null,
+    "target": {
+      "code": "028",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-09",
+    "family": "new_plan",
+    "utterance": "Compare median age in House51 with the State.",
+    "prior": null,
+    "target": {
+      "code": "051",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-10",
+    "family": "new_plan",
+    "utterance": "Compare median age in House9 with the State.",
+    "prior": null,
+    "target": {
+      "code": "009",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-11",
+    "family": "new_plan",
+    "utterance": "Compare median household income in House1 with the State.",
+    "prior": null,
+    "target": {
+      "code": "001",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-12",
+    "family": "new_plan",
+    "utterance": "Compare median household income in House13 with the State.",
+    "prior": null,
+    "target": {
+      "code": "013",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-13",
+    "family": "new_plan",
+    "utterance": "Compare median household income in House28 with the State.",
+    "prior": null,
+    "target": {
+      "code": "028",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-14",
+    "family": "new_plan",
+    "utterance": "Compare median household income in House51 with the State.",
+    "prior": null,
+    "target": {
+      "code": "051",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "create-15",
+    "family": "new_plan",
+    "utterance": "Compare median household income in House9 with the State.",
+    "prior": null,
+    "target": {
+      "code": "009",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "edit-01",
+    "family": "followup",
+    "utterance": "Same for Senate1.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "001",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-02",
+    "family": "followup",
+    "utterance": "Same for Senate13.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "013",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-03",
+    "family": "followup",
+    "utterance": "Same for Senate25.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "025",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-04",
+    "family": "followup",
+    "utterance": "Same for Senate1.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "001",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-05",
+    "family": "followup",
+    "utterance": "Same for Senate13.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "013",
+      "metric": "poverty_rate_65_plus"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-06",
+    "family": "followup",
+    "utterance": "Same for Senate25.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "025",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-07",
+    "family": "followup",
+    "utterance": "Same for Senate1.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "001",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-08",
+    "family": "followup",
+    "utterance": "Same for Senate13.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "013",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-09",
+    "family": "followup",
+    "utterance": "Same for Senate25.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "025",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-10",
+    "family": "followup",
+    "utterance": "Same for Senate1.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "001",
+      "metric": "median_age"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-11",
+    "family": "followup",
+    "utterance": "Same for Senate13.",
+    "prior": {
+      "metric": "median_household_income"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "013",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-12",
+    "family": "followup",
+    "utterance": "Same for Senate25.",
+    "prior": {
+      "metric": "median_household_income"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "025",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-13",
+    "family": "followup",
+    "utterance": "Same for Senate1.",
+    "prior": {
+      "metric": "median_household_income"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "001",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-14",
+    "family": "followup",
+    "utterance": "Same for Senate13.",
+    "prior": {
+      "metric": "median_household_income"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "013",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "edit-15",
+    "family": "followup",
+    "utterance": "Same for Senate25.",
+    "prior": {
+      "metric": "median_household_income"
+    },
+    "target": {
+      "chamber": "senate",
+      "code": "025",
+      "metric": "median_household_income"
+    },
+    "status": "propose",
+    "intent": "replace_plan",
+    "inherited_fields": [
+      "map_session",
+      "issue_id",
+      "service_area_id",
+      "steps"
+    ]
+  },
+  {
+    "id": "direction-01",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House1 minus Senate1.",
+    "prior": null,
+    "target": {
+      "code": "001",
+      "comparator": "HI-SENATE-001-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-02",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House13 minus Senate13.",
+    "prior": null,
+    "target": {
+      "code": "013",
+      "comparator": "HI-SENATE-013-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-03",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House28 minus Senate25.",
+    "prior": null,
+    "target": {
+      "code": "028",
+      "comparator": "HI-SENATE-025-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-04",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House51 minus Senate9.",
+    "prior": null,
+    "target": {
+      "code": "051",
+      "comparator": "HI-SENATE-009-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-05",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House9 minus Senate20.",
+    "prior": null,
+    "target": {
+      "code": "009",
+      "comparator": "HI-SENATE-020-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-06",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House1 minus Senate1.",
+    "prior": null,
+    "target": {
+      "code": "001",
+      "comparator": "HI-SENATE-001-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-07",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House13 minus Senate13.",
+    "prior": null,
+    "target": {
+      "code": "013",
+      "comparator": "HI-SENATE-013-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-08",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House28 minus Senate25.",
+    "prior": null,
+    "target": {
+      "code": "028",
+      "comparator": "HI-SENATE-025-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-09",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House51 minus Senate9.",
+    "prior": null,
+    "target": {
+      "code": "051",
+      "comparator": "HI-SENATE-009-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "direction-10",
+    "family": "directed_compare",
+    "utterance": "Compare senior poverty: House9 minus Senate20.",
+    "prior": null,
+    "target": {
+      "code": "009",
+      "comparator": "HI-SENATE-020-2024"
+    },
+    "status": "propose",
+    "intent": "create_plan"
+  },
+  {
+    "id": "source-01",
+    "family": "source",
+    "utterance": "Why that figure?",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-02",
+    "family": "source",
+    "utterance": "Show its source.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-03",
+    "family": "source",
+    "utterance": "What is the definition?",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-04",
+    "family": "source",
+    "utterance": "Open the selected source.",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-05",
+    "family": "source",
+    "utterance": "Where did this number come from?",
+    "prior": {
+      "metric": "poverty_rate_65_plus"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-06",
+    "family": "source",
+    "utterance": "Why that figure?",
+    "prior": {
+      "metric": "median_age"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-07",
+    "family": "source",
+    "utterance": "Show its source.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-08",
+    "family": "source",
+    "utterance": "What is the definition?",
+    "prior": {
+      "metric": "median_age"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-09",
+    "family": "source",
+    "utterance": "Open the selected source.",
+    "prior": {
+      "metric": "median_age"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "source-10",
+    "family": "source",
+    "utterance": "Where did this number come from?",
+    "prior": {
+      "metric": "median_age"
+    },
+    "selection_count": 1,
+    "status": "propose",
+    "intent": "inspect_source",
+    "focus_alias": "selected_1"
+  },
+  {
+    "id": "clarify-01",
+    "family": "clarification",
+    "utterance": "Food assistance for House28.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "program",
+    "clarify_choices": [
+      "p_snap_hi",
+      "p_wic_hi"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-02",
+    "family": "clarification",
+    "utterance": "Food assistance for House28.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "program",
+    "clarify_choices": [
+      "p_snap_hi",
+      "p_wic_hi"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-03",
+    "family": "clarification",
+    "utterance": "Food assistance for House28.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "program",
+    "clarify_choices": [
+      "p_snap_hi",
+      "p_wic_hi"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-04",
+    "family": "clarification",
+    "utterance": "Food assistance for House28.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "program",
+    "clarify_choices": [
+      "p_snap_hi",
+      "p_wic_hi"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-05",
+    "family": "clarification",
+    "utterance": "Food assistance for House28.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "program",
+    "clarify_choices": [
+      "p_snap_hi",
+      "p_wic_hi"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-06",
+    "family": "clarification",
+    "utterance": "Compare poverty in House28 with the State.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "metric",
+    "clarify_choices": [
+      "m_poverty_rate_all_people",
+      "m_poverty_rate_65_plus"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-07",
+    "family": "clarification",
+    "utterance": "Compare poverty in House28 with the State.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "metric",
+    "clarify_choices": [
+      "m_poverty_rate_all_people",
+      "m_poverty_rate_65_plus"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-08",
+    "family": "clarification",
+    "utterance": "Compare poverty in House28 with the State.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "metric",
+    "clarify_choices": [
+      "m_poverty_rate_all_people",
+      "m_poverty_rate_65_plus"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-09",
+    "family": "clarification",
+    "utterance": "Compare poverty in House28 with the State.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "metric",
+    "clarify_choices": [
+      "m_poverty_rate_all_people",
+      "m_poverty_rate_65_plus"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "clarify-10",
+    "family": "clarification",
+    "utterance": "Compare poverty in House28 with the State.",
+    "prior": null,
+    "status": "clarify",
+    "intent": "none",
+    "clarify_field": "metric",
+    "clarify_choices": [
+      "m_poverty_rate_all_people",
+      "m_poverty_rate_65_plus"
+    ],
+    "reason_code": "missing_context"
+  },
+  {
+    "id": "unsupported-01",
+    "family": "unsupported",
+    "utterance": "Which residents qualify?",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-02",
+    "family": "unsupported",
+    "utterance": "Predict next year.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-03",
+    "family": "unsupported",
+    "utterance": "Find participation gap.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-04",
+    "family": "unsupported",
+    "utterance": "Show unmet need.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-05",
+    "family": "unsupported",
+    "utterance": "What caused poverty?",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-06",
+    "family": "unsupported",
+    "utterance": "Are vouchers currently available?",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-07",
+    "family": "unsupported",
+    "utterance": "Resident lookup for House28.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-08",
+    "family": "unsupported",
+    "utterance": "Calculate arbitrary formula.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-09",
+    "family": "unsupported",
+    "utterance": "Compare poverty against median income.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "unsupported-10",
+    "family": "unsupported",
+    "utterance": "Find a live appointment.",
+    "prior": null,
+    "status": "unsupported",
+    "intent": "none",
+    "reason_code": "unsupported_operation"
+  },
+  {
+    "id": "state-01",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "unknown_field"
+  },
+  {
+    "id": "state-02",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "stale_snapshot"
+  },
+  {
+    "id": "state-03",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "invalid_uuid"
+  },
+  {
+    "id": "state-04",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "oversize"
+  },
+  {
+    "id": "state-05",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "unknown_field"
+  },
+  {
+    "id": "state-06",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "unknown_field"
+  },
+  {
+    "id": "state-07",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "stale_snapshot"
+  },
+  {
+    "id": "state-08",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "invalid_uuid"
+  },
+  {
+    "id": "state-09",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "oversize"
+  },
+  {
+    "id": "state-10",
+    "family": "state_privacy",
+    "utterance": "Profile House28.",
+    "prior": null,
+    "status": "error",
+    "failure": "unknown_field"
+  }
+]

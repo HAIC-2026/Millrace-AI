@@ -8,6 +8,7 @@ COPY --chown=root:root static ./static
 COPY --chown=root:root runtime-packet ./runtime-packet
 COPY --chown=root:root candidate-metadata ./candidate-metadata
 COPY --chown=root:root RELEASE-MANIFEST.json ./
+COPY --chown=root:root tools/ia_language_operator.py ./tools/ia_language_operator.py
 COPY --chown=root:root public_app.py wsgi.py gunicorn.conf.py ./
 RUN chmod -R a+rX /app && chmod -R go-w /app
 USER 10001:10001

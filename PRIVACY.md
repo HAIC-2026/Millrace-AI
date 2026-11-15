@@ -1,13 +1,15 @@
 # Privacy and security
 
-District Brief Builder uses public aggregate evidence and deterministic operations. It makes no application model calls and sends no requests to a model provider.
+District Brief Builder uses public aggregate evidence and deterministic operations. Guided controls and Typed request make no model calls. Optional Language questions are disabled by default.
 
-The browser holds cases, selections, staff edits and checklist progress in memory. Reloading discards unsaved work. The application uses no implicit case storage or case-bearing URLs. Typed interpretation requests reach the server. A reviewed brief request also transmits active staff edits and checklist progress. The application does not persist those texts.
+When admitted and enabled, Question sends its bounded text and value-free plan/catalog context to OpenAI. It excludes staff notes, claim values, source bodies, case files and transcript history. Omit confidential or resident details. The application does not promise automatic removal of sensitive text. Language proposals require review and Apply. Run remains separate.
 
-Default case downloads exclude staff-origin text, owners, dates, completion and tracking. Including staff work requires an explicit preview. The resulting JSON is unencrypted. Users control where downloads are saved and shared. Imports replay typed operations against the exact evidence snapshot and versions. They do not trust saved factual text or HTML.
+The browser holds cases, selections, staff edits and checklist progress in memory. Reloading discards unsaved work. The application uses no implicit case storage or case-bearing URLs. Typed interpretation reaches the server. Creating a reviewed brief sends active staff edits and checklist progress. The server does not persist those texts.
 
-Anonymous session cookies separate in-process requests and result references. They do not authenticate users. Production cookies use Secure, HttpOnly and SameSite=Strict. Request checks reject cross-origin submissions, duplicate keys, invalid Unicode and nonfinite numbers. JSON bodies are limited to 65,536 bytes. Static files use a fixed allowlist.
+Default case downloads exclude staff text, owners, dates, completion and tracking. Including staff work requires a preview. Downloads are unencrypted JSON. Users control saving and sharing. Imports replay typed operations against matching evidence and versions. Saved factual text and HTML are not trusted.
 
-The server records bounded operational timing, status and operation metadata in rotated local metrics. Those records exclude typed requests, staff work, cookies, session identifiers and IP addresses. Gunicorn access logging is disabled. Hosting infrastructure may maintain separate logs. Operators must review those settings separately.
+Anonymous session cookies separate requests without authenticating users. Production cookies use Secure, HttpOnly and SameSite=Strict. Checks reject cross-origin submissions, duplicate keys, invalid Unicode and nonfinite numbers. JSON bodies have a 65,536-byte limit. Static files use a fixed allowlist.
 
-Do not enter confidential constituent information. This prototype provides evidence and agency verification questions. Agencies determine eligibility and current service availability. The actual spoken VoiceOver journey remains unverified.
+Rotated server metrics record bounded timing, status and operation metadata. Language accounting retains configuration, usage, reservations and settlements. Records exclude prompts, provider bodies, staff work, cookies, session identifiers and IP addresses. Gunicorn access logging is disabled. Hosting infrastructure may maintain separate logs.
+
+Agencies determine eligibility and current availability. The prototype provides evidence and agency verification questions.

@@ -35,6 +35,9 @@ class CandidateMetadata:
         self.metadata_snapshot_id = manifest['metadata_snapshot_id']
         self._paths = {r['path'] for r in records}
 
+    def has_path(self, relative):
+        return relative in self._paths
+
     def read_json(self, relative):
         if relative not in self._paths:
             raise ValueError('metadata path not admitted')

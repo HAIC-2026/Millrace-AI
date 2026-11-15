@@ -14,11 +14,11 @@
   const SCHEMA_VERSION = "haic-investigation/1";
   const OPERATION_VERSION = "ia-core/1";
   const CASE_SCHEMA = "haic-case/1";
-  const RECIPES = ["aging_at_home/1", "custom/1"];
-  const ISSUES = ["aging_at_home", "custom"];
+  const RECIPES = ["aging_at_home/1", "custom/1", "food_assistance_outreach/1"];
+  const ISSUES = ["aging_at_home", "custom", "food_assistance_outreach"];
   const OPERATIONS = ["profile", "compare", "program_evidence", "outreach_lead", "administrative_evidence"];
   const SERVICE_AREAS = ["statewide", "oahu", "hawaii_island", "maui", "molokai", "lanai", "kauai", "kalawao"];
-  const ACTION_IDS = ["kupuna_verify/1", "snap_verify/1", "medquest_verify/1", "hcv_verify/1"];
+  const ACTION_IDS = ["kupuna_verify/1", "snap_verify/1", "medquest_verify/1", "hcv_verify/1", "snap_food_outreach_verify/1"];
   const CHECK_IDS = ["agency_route", "partner_plan", "next_check", "custom1", "custom2", "custom3"];
   const TEMPLATE_CHECK_IDS = CHECK_IDS.slice(0, 3);
   const TOKEN_KEYS = ["request_id", "case_id", "branch_id", "revision", "snapshot_id", "schema_version", "operation_version", "recipe_version"];
@@ -117,7 +117,7 @@
         (d.chamber !== "house" && d.chamber !== "senate") || typeof d.code !== "string" || !/^[0-9]{3}$/.test(d.code) ||
         Number(d.code) < 1 || Number(d.code) > (d.chamber === "house" ? 51 : 25) || d.boundary_session !== 2024) return bad(p + ".district", "Only an admitted 2024 Hawaiʻi House or Senate district is supported.");
     if (plan.map_session !== 2024 && plan.map_session !== 2026) return bad(p + ".map_session", "Map session must be 2024 or 2026.");
-    if (!ISSUES.includes(plan.issue_id)) return bad(p + ".issue_id", "Issue must be aging_at_home or custom.");
+    if (!ISSUES.includes(plan.issue_id)) return bad(p + ".issue_id", "Choose an available issue.");
     if (plan.service_area_id !== null && !SERVICE_AREAS.includes(plan.service_area_id)) return bad(p + ".service_area_id", "Unknown service-area choice.");
     if (!Array.isArray(plan.steps) || plan.steps.length > LIMITS.steps) return bad(p + ".steps", "A plan holds at most eight steps.");
     const seen = new Set();
@@ -206,6 +206,11 @@
       out.issue_id = patch.issue_id;
       // A new issue brings its recipe; Custom keeps the visible steps for staff to edit.
       if (patch.issue_id === "aging_at_home") out.steps = defaultPlan(out.district).steps;
+      if (patch.issue_id === "food_assistance_outreach") out.steps = [
+        { step_id: "s1", operation: "profile", args: { metric_ids: ["poverty_rate_all_people", "median_household_income"] } },
+        { step_id: "s2", operation: "program_evidence", args: { program_ids: ["snap_hi"] } },
+        { step_id: "s3", operation: "outreach_lead", args: { program_id: "snap_hi" } },
+      ];
     }
     const issues = [];
     if (!validPlan(out, "plan", issues)) return err("invalid_context", issues[0].message);

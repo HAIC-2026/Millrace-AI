@@ -1,0 +1,40 @@
+{
+  "version": "food_assistance_outreach/1",
+  "program_id": "snap_hi",
+  "metrics": [
+    "poverty_rate_all_people",
+    "median_household_income"
+  ],
+  "default_steps": [
+    {
+      "step_id": "s1",
+      "operation": "profile",
+      "args": {
+        "metric_ids": [
+          "poverty_rate_all_people",
+          "median_household_income"
+        ]
+      }
+    },
+    {
+      "step_id": "s2",
+      "operation": "program_evidence",
+      "args": {
+        "program_ids": [
+          "snap_hi"
+        ]
+      }
+    },
+    {
+      "step_id": "s3",
+      "operation": "outreach_lead",
+      "args": {
+        "program_id": "snap_hi"
+      }
+    }
+  ],
+  "comparison": "Optional, explicitly chosen compatible geography; never infer district containment.",
+  "interpretation": "ACS survey context is not evidence of individual SNAP eligibility, participation gap, need, or program impact.",
+  "verification": "Current BESSD conditions unverified; retained registry checked 2026-10-30.",
+  "response_metadata": "responses/food_assistance_outreach.v1.json"
+}

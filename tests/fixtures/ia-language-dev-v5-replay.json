@@ -1,0 +1,605 @@
+{
+ "cases": [
+  {
+   "case_id": "qualification-minimal",
+   "expected": {
+    "bound_tokens": {
+     "branch_id": "cbd9f1f8-3524-4216-a54c-009421372b16",
+     "case_id": "7baccf0c-d905-49ff-88cc-e1d59296352c",
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "release_id": "sha256:bf34cf9f3f2194c14c5478e4869c49b26fd7dc144bef9f5f4f083cd334f1fa62",
+     "revision": 2,
+     "schema_version": "ia-language/1",
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "context_digest_format": "sha256:64-lowercase-hex; session-bound",
+    "intent": "create_plan",
+    "normalized_plan": {
+     "district": {
+      "boundary_session": 2024,
+      "chamber": "senate",
+      "code": "016",
+      "state_fips": "15"
+     },
+     "issue_id": "custom",
+     "map_session": 2026,
+     "service_area_id": null,
+     "steps": [
+      {
+       "args": {
+        "metric_ids": [
+         "total_housing_units"
+        ]
+       },
+       "operation": "profile",
+       "step_id": "s1"
+      }
+     ]
+    },
+    "status": "propose"
+   },
+   "function_arguments": "{\"clarify_choices\":[],\"clarify_field\":\"\",\"focus_alias\":\"\",\"inherited_fields\":[],\"intent\":\"create_plan\",\"plan\":{\"district\":{\"chamber\":\"senate\",\"code\":\"016\"},\"issue_id\":\"custom\",\"map_session\":0,\"service_area_id\":\"\",\"steps\":[{\"comparison_geography\":\"\",\"metric_ids\":[\"total_housing_units\"],\"observation_ids\":[],\"operation\":\"profile\",\"program_ids\":[],\"step_id\":\"s1\"}]},\"reason_code\":\"\",\"status\":\"propose\"}",
+   "request": {
+    "context": {
+     "branch_id": "cbd9f1f8-3524-4216-a54c-009421372b16",
+     "case_id": "7baccf0c-d905-49ff-88cc-e1d59296352c",
+     "confirmed_plan": null,
+     "draft_plan": null,
+     "focused_step_id": null,
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "revision": 2,
+     "selected_claim_refs": [],
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "request_id": "971578cd-52d9-4030-8e4b-8ce1696652b4",
+    "schema_version": "ia-language/1",
+    "utterance": "Make one total-housing-units profile for Senate district 16."
+   },
+   "settled_entry": {
+    "bucket": "test",
+    "config_hash": "sha256:c0d16d5887152871c7b2a40781c24133bdf82c22ecbdf6169d49e55ba24cbcd1",
+    "count_requests": 1,
+    "counted_input_tokens": 7974,
+    "created_at": 1794604616.0436902,
+    "entry_id": "473e236a-3117-44e5-aead-78895b7d79f2",
+    "model_calls": 1,
+    "payload_hash": "sha256:b193e19456155bb499617adec22f956b61e4b116559f724dfc48d2d7de458141",
+    "reserved_nano_usd": 21856800,
+    "sequence": 16,
+    "settled_at": 1794604619.625916,
+    "settled_estimate_nano_usd": 8539000,
+    "state": "settled",
+    "terminal_code": "completed",
+    "usage": {
+     "cache_write_tokens": 0,
+     "cached_input_tokens": 0,
+     "input_tokens": 7974,
+     "output_tokens": 113,
+     "reasoning_tokens_within_output": 0,
+     "total_tokens": 8087,
+     "uncached_input_tokens": 7974
+    }
+   },
+   "usage": {
+    "cache_write_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 7974,
+    "output_tokens": 113,
+    "reasoning_tokens_within_output": 0,
+    "total_tokens": 8087,
+    "uncached_input_tokens": 7974
+   }
+  },
+  {
+   "case_id": "qualification-combined-eight",
+   "expected": {
+    "bound_tokens": {
+     "branch_id": "f90ec19e-4325-494a-8d31-a7512e2a6c55",
+     "case_id": "a1e749c3-c46e-457d-a671-467019fe9892",
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "release_id": "sha256:bf34cf9f3f2194c14c5478e4869c49b26fd7dc144bef9f5f4f083cd334f1fa62",
+     "revision": 2,
+     "schema_version": "ia-language/1",
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "context_digest_format": "sha256:64-lowercase-hex; session-bound",
+    "intent": "inspect_source",
+    "normalized_plan": null,
+    "source_inspection_refs": [
+     {
+      "finding_id": "stat:HI-HOUSE-036-2024:households_with_social_security",
+      "source_id": "dbedt_2024_house"
+     }
+    ],
+    "status": "propose"
+   },
+   "function_arguments": "{\"clarify_choices\":[],\"clarify_field\":\"\",\"focus_alias\":\"selected_4\",\"inherited_fields\":[],\"intent\":\"inspect_source\",\"plan\":{\"district\":{\"chamber\":\"\",\"code\":\"\"},\"issue_id\":\"\",\"map_session\":0,\"service_area_id\":\"\",\"steps\":[]},\"reason_code\":\"\",\"status\":\"propose\"}",
+   "request": {
+    "context": {
+     "branch_id": "f90ec19e-4325-494a-8d31-a7512e2a6c55",
+     "case_id": "a1e749c3-c46e-457d-a671-467019fe9892",
+     "confirmed_plan": {
+      "district": {
+       "boundary_session": 2024,
+       "chamber": "house",
+       "code": "036",
+       "state_fips": "15"
+      },
+      "issue_id": "custom",
+      "map_session": 2026,
+      "service_area_id": null,
+      "steps": [
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s1"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s2"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s3"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s4"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s5"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s6"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s7"
+       },
+       {
+        "args": {
+         "metric_ids": [
+          "total_households",
+          "male_householder_65_plus_living_alone",
+          "female_householder_65_plus_living_alone",
+          "households_with_social_security",
+          "total_population",
+          "population_65_plus",
+          "median_age",
+          "median_household_income",
+          "poverty_rate_all_people",
+          "poverty_rate_65_plus",
+          "civilian_labor_force",
+          "unemployed",
+          "unemployment_rate",
+          "education_health_social_assistance_industry",
+          "total_housing_units",
+          "occupied_housing_units",
+          "renter_occupied_units",
+          "median_gross_rent",
+          "rent_burden_denominator",
+          "rent_35_plus_percent_income"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s8"
+       }
+      ]
+     },
+     "draft_plan": null,
+     "focused_step_id": null,
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "revision": 2,
+     "selected_claim_refs": [
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:total_households",
+       "semantic_hash": "sha256:c8f34d55a1a18589f34fcf50b09801f38aad6438b298e40b6743196d873edfa6",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:male_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:bfbe337ab21bb837b22148951bb832c98984ec325e77835cacab958ab1d91a87",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:female_householder_65_plus_living_alone",
+       "semantic_hash": "sha256:f50561dd1e2b49ba9de4925604148878ac794ad32d750c3e690c4718f7eed867",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:households_with_social_security",
+       "semantic_hash": "sha256:d95a6db3c2ad8ec05a9c1bafed10e136ca5db54ac445936aaaacef9b6050dec7",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:total_population",
+       "semantic_hash": "sha256:cff26d35c3960b763b2ac5168efcb1278bd8021b7e150a8542d9aa76cd92af8a",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:population_65_plus",
+       "semantic_hash": "sha256:e4e7cc58ce04cea560ed54d018b468c2cb2a0e77477bf2cd74327cbc5a2fc5da",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:median_age",
+       "semantic_hash": "sha256:31d4da29c4f4753ab25456df8f6896d1c0b3cfdb75422dfe18c69a36a2863e0b",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      },
+      {
+       "finding_id": "stat:HI-HOUSE-036-2024:median_household_income",
+       "semantic_hash": "sha256:b588f23b14b7debc61544b457da318a8a4b8d78b882c27d63cb9ac374d5844ee",
+       "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+      }
+     ],
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "request_id": "74c0c789-aeba-4c37-acfa-3e16d062ad55",
+    "schema_version": "ia-language/1",
+    "utterance": "Inspect only the fourth selected finding source. Keep the investigation unchanged."
+   },
+   "settled_entry": {
+    "bucket": "test",
+    "config_hash": "sha256:c0d16d5887152871c7b2a40781c24133bdf82c22ecbdf6169d49e55ba24cbcd1",
+    "count_requests": 1,
+    "counted_input_tokens": 9721,
+    "created_at": 1794604619.6644382,
+    "entry_id": "0319c0cf-bab8-4a00-b4d4-6b18ea9df5f8",
+    "model_calls": 1,
+    "payload_hash": "sha256:6910f599b278db81ce464a68909d9e48fd0ee135f45158da843ff32786ad3c58",
+    "reserved_nano_usd": 23953200,
+    "sequence": 21,
+    "settled_at": 1794604622.4677067,
+    "settled_estimate_nano_usd": 10111000,
+    "state": "settled",
+    "terminal_code": "completed",
+    "usage": {
+     "cache_write_tokens": 0,
+     "cached_input_tokens": 0,
+     "input_tokens": 9721,
+     "output_tokens": 78,
+     "reasoning_tokens_within_output": 0,
+     "total_tokens": 9799,
+     "uncached_input_tokens": 9721
+    }
+   },
+   "usage": {
+    "cache_write_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 9721,
+    "output_tokens": 78,
+    "reasoning_tokens_within_output": 0,
+    "total_tokens": 9799,
+    "uncached_input_tokens": 9721
+   }
+  },
+  {
+   "case_id": "qualification-context-edit",
+   "expected": {
+    "bound_tokens": {
+     "branch_id": "074cc493-55e9-4d4d-874e-3cfe638437dc",
+     "case_id": "d3d867de-f4a0-4607-9af3-52b9be8fec4a",
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "release_id": "sha256:bf34cf9f3f2194c14c5478e4869c49b26fd7dc144bef9f5f4f083cd334f1fa62",
+     "revision": 2,
+     "schema_version": "ia-language/1",
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "context_digest_format": "sha256:64-lowercase-hex; session-bound",
+    "intent": "replace_plan",
+    "normalized_plan": {
+     "district": {
+      "boundary_session": 2024,
+      "chamber": "senate",
+      "code": "018",
+      "state_fips": "15"
+     },
+     "issue_id": "custom",
+     "map_session": 2024,
+     "service_area_id": null,
+     "steps": [
+      {
+       "args": {
+        "metric_ids": [
+         "unemployment_rate"
+        ]
+       },
+       "operation": "profile",
+       "step_id": "s1"
+      },
+      {
+       "args": {
+        "program_ids": [
+         "snap_hi"
+        ]
+       },
+       "operation": "program_evidence",
+       "step_id": "s2"
+      }
+     ]
+    },
+    "status": "propose"
+   },
+   "function_arguments": "{\"clarify_choices\":[],\"clarify_field\":\"\",\"focus_alias\":\"\",\"inherited_fields\":[\"map_session\",\"issue_id\",\"service_area_id\",\"steps\"],\"intent\":\"replace_plan\",\"plan\":{\"district\":{\"chamber\":\"senate\",\"code\":\"018\"},\"issue_id\":\"custom\",\"map_session\":2024,\"service_area_id\":\"\",\"steps\":[{\"comparison_geography\":\"\",\"metric_ids\":[\"unemployment_rate\"],\"observation_ids\":[],\"operation\":\"profile\",\"program_ids\":[],\"step_id\":\"s1\"},{\"comparison_geography\":\"\",\"metric_ids\":[],\"observation_ids\":[],\"operation\":\"program_evidence\",\"program_ids\":[\"snap_hi\"],\"step_id\":\"s2\"}]},\"reason_code\":\"\",\"status\":\"propose\"}",
+   "request": {
+    "context": {
+     "branch_id": "074cc493-55e9-4d4d-874e-3cfe638437dc",
+     "case_id": "d3d867de-f4a0-4607-9af3-52b9be8fec4a",
+     "confirmed_plan": {
+      "district": {
+       "boundary_session": 2024,
+       "chamber": "house",
+       "code": "035",
+       "state_fips": "15"
+      },
+      "issue_id": "custom",
+      "map_session": 2024,
+      "service_area_id": null,
+      "steps": [
+       {
+        "args": {
+         "metric_ids": [
+          "unemployment_rate"
+         ]
+        },
+        "operation": "profile",
+        "step_id": "s1"
+       },
+       {
+        "args": {
+         "program_ids": [
+          "snap_hi"
+         ]
+        },
+        "operation": "program_evidence",
+        "step_id": "s2"
+       }
+      ]
+     },
+     "draft_plan": null,
+     "focused_step_id": null,
+     "operation_version": "ia-core/1",
+     "recipe_version": "custom/1",
+     "revision": 2,
+     "selected_claim_refs": [],
+     "snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    },
+    "request_id": "18981166-7d8c-4c26-838e-454c0bed2a77",
+    "schema_version": "ia-language/1",
+    "utterance": "Retain both current steps and the 2024 map, but replace House 35 with Senate 18."
+   },
+   "settled_entry": {
+    "bucket": "test",
+    "config_hash": "sha256:c0d16d5887152871c7b2a40781c24133bdf82c22ecbdf6169d49e55ba24cbcd1",
+    "count_requests": 1,
+    "counted_input_tokens": 8104,
+    "created_at": 1794604622.5001512,
+    "entry_id": "93980064-800d-47ff-bc61-7ec293a922b1",
+    "model_calls": 1,
+    "payload_hash": "sha256:4ed2b03dc2d7b5f3bd6f4eea10ab7ab18f68ddcd7f5e233391af585ccbd07a66",
+    "reserved_nano_usd": 22012800,
+    "sequence": 26,
+    "settled_at": 1794604626.3021808,
+    "settled_estimate_nano_usd": 8889000,
+    "state": "settled",
+    "terminal_code": "completed",
+    "usage": {
+     "cache_write_tokens": 0,
+     "cached_input_tokens": 0,
+     "input_tokens": 8104,
+     "output_tokens": 157,
+     "reasoning_tokens_within_output": 0,
+     "total_tokens": 8261,
+     "uncached_input_tokens": 8104
+    }
+   },
+   "usage": {
+    "cache_write_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 8104,
+    "output_tokens": 157,
+    "reasoning_tokens_within_output": 0,
+    "total_tokens": 8261,
+    "uncached_input_tokens": 8104
+   }
+  }
+ ],
+ "first_adoption_record": {
+  "active_config_hash": "sha256:c0d16d5887152871c7b2a40781c24133bdf82c22ecbdf6169d49e55ba24cbcd1",
+  "catalog_digest": "sha256:cc6467496100f8aff2f54096b4f4daf798f296fe6e1e75403200d66df4cb00eb",
+  "checkpoint": {
+   "budget_sha256": "sha256:5ce3613d5f0d137d9ce16110c99af71e1e537f311b6a9e79022f4226f899e81a",
+   "count_requests": 3,
+   "held_nano_usd": 0,
+   "sequence": 15,
+   "settled_nano_usd": 27539000,
+   "unresolved": false
+  },
+  "image_digest": "sha256:0b6921f7e3f9516b3dbf904382cfde40487f4b4c1b78cad098054b6391a2aa39",
+  "ledger_id": "7483357b-58a8-482c-8d17-b7b6a68fc3ba",
+  "origin_config_hash": "sha256:83d2b631088c95239a2eccee151e6bab33432e4c699c29c9de2545689f87113b",
+  "original_approval_reference": "chat:01a18ced-b8d4-78f0-b823-bfb225cbc1ff:2026-11-13:new25-IA1-language",
+  "policy_hash": "sha256:14ec7c8f8dede96f5ad543dfce02c7a3eb57e74edb40391a3aefeff897375ac5",
+  "review_receipt_sha256": "sha256:5db3e8d3ae8808aa84b314257d2e3c4f12b60274176ce673b1d269a7d7a5009b",
+  "schema_version": "ia-language-config-adoption/1",
+  "source_component_sha256": "sha256:b87c2fa4d54adf5d98db2e1caa2920640683af76d4a0434e484bb3795724bedc",
+  "transition_reference": "chat:01a18ced-b8d4-78f0-b823-bfb225cbc1ff:adopt-origin83-to-v5-count6"
+ },
+ "note": "Synthetic DEV qualification smokes only; settled diagnostics; no heldout/gold/credential. Offline replay is carry evidence, not live credit.",
+ "schema": "ia-language-dev-v5-replay/1",
+ "source_packet_sha256": "sha256:855d9e90fe4204f39fcd02a03cae796eb7dd38573e9dae827e2fe927fc1bf7cd"
+}

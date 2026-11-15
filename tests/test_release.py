@@ -259,12 +259,12 @@ class StatewideChecks(AdapterChecks):
         cat=self.call('GET','/api/catalog')[2]
         with_stats={(d['chamber'],d['code']) for d in cat['districts'] if d['boundary_session']==2024 and d['has_statistics']}
         self.assertEqual(with_stats,{(c,f'{n:03}') for c,n in self.DISTRICTS})
-        self.assertEqual(cat['coverage']['statistics_observations'],1560)
-        self.assertEqual(cat['coverage']['statistics_geographies'],78)
+        self.assertEqual(cat['coverage']['statistics_observations'],1640)
+        self.assertEqual(cat['coverage']['statistics_geographies'],82)
         self.assertEqual({g['observation_count'] for g in cat['geographies']},{20})
         self.assertEqual([g['geography_id'] for g in cat['geographies'][:2]],['HI-STATE-2024','HI-COUNTY-009-2024'])
         self.assertTrue(all(d['approx_county'] is None for d in cat['districts']))
-        self.assertIn('1,560 observations',' '.join(cat['limitations']))
+        self.assertIn('normalized district and county profiles',' '.join(cat['limitations']))
         self.assertNotIn('Only five geographies',json.dumps(cat))
 
     def test_every_district_full_profile(self):
@@ -328,8 +328,7 @@ class StatewideChecks(AdapterChecks):
         req=dict(request_id='kauai',snapshot_id=RELEASE_SNAPSHOT_ID,input_mode='guided',task='compare',district=self.district('house',16),metric_ids=['median_age'],comparison_geography='HI-COUNTY-007-2024')
         self.assertEqual(self.call('POST','/api/resolve',req,cookie)[2]['status'],'resolved')
         out=self.call('POST','/api/execute',{'request_id':'kauai','snapshot_id':RELEASE_SNAPSHOT_ID},cookie)[2]
-        self.assertEqual(out['status'],'unsupported'); self.assertIn('not normalized',out['reason'])
-        self.assertEqual([a['request']['comparison_geography'] for a in out['next_actions']],['HI-STATE-2024','HI-COUNTY-009-2024'])
+        self.assertEqual(out['status'],'ok'); self.assertEqual(out['findings'][0]['right']['geography']['label'],'Kauai County')
         # Program relevance and outreach keep regional and eligibility limits for new districts.
         prog=self.run_task(cookie,'prog','senate',25,task='program_relevance',program_ids=['snap_hi'])['findings'][0]
         self.assertTrue(prog['informational_only']); self.assertTrue(all(e.get('verification_kind') == 'authored_reference' and e['verified_against_extract'] is None for e in prog['evidence']))

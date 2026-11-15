@@ -1,6 +1,6 @@
 {
   "schema": "ia1-projection-inputs/1",
-  "description": "Actual bundle bytes; origin catalog hashes are historical only. Integration will produce its own manifest and identity.",
+  "description": "Bundled normalized facts and authored metadata. Historical capture references do not verify omitted origin bytes.",
   "files": [
     {
       "path": "candidate-metadata/geography/relations.v1.json",
@@ -11,6 +11,16 @@
       "path": "candidate-metadata/recipes/aging_at_home.v1.json",
       "bytes": 1227,
       "sha256": "f090b4dfacb9da101b5293639e454a3c4e6d533d505e1b8643548fea4cae9e63"
+    },
+    {
+      "path": "candidate-metadata/recipes/food_assistance_outreach.v1.json",
+      "bytes": 1060,
+      "sha256": "ef3574494730fb5f1090bda03eab63d19bad4a0182046cf3e1c3248f9d347dec"
+    },
+    {
+      "path": "candidate-metadata/responses/food_assistance_outreach.v1.json",
+      "bytes": 1328,
+      "sha256": "566821005ea08bbaefbeb59002601a3a9c29541eb67502f86d0ee68a43c6de46"
     },
     {
       "path": "candidate-metadata/responses/verification.v1.json",
@@ -59,8 +69,8 @@
     },
     {
       "path": "runtime-packet/data/statistics/observations.json",
-      "bytes": 2688908,
-      "sha256": "45e38e4e5c8e11a487174e660e40a059206e68ae76ee5670e0f81dd363def23d"
+      "bytes": 2828706,
+      "sha256": "e97c14be79e77b503b8645631346b0e2d19a53102afdbb1b681230dc05e7a9c0"
     },
     {
       "path": "runtime-packet/data/statistics/raw/DP03_metadata.json",

@@ -261,7 +261,7 @@ def resolve_fields(core, fields: dict, *, input_source: str, notes=None) -> Outc
                             f"Comparison district {parts[0].group(2)} exists only as "
                             f"{geography_label(core, cand['comparison_geography'][0])}. Use it?")
             elif all(p and p.group(1) == "COUNTY" for p in parts):
-                question = "Which county? Only Maui County has normalized statistics in this fixture."
+                question = "Which county? Availability depends on this snapshot."
             else:
                 question = "Which comparison geography did you mean?"
             return clarify("comparison_geography", question,

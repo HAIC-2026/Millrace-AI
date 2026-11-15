@@ -18,13 +18,14 @@ from districtbrief.packet import Packet, PacketError, ACCEPTED_MANIFEST_SHA256, 
 from districtbrief.service import Service
 from districtbrief.investigation import Investigation
 from districtbrief.case_contract import InvestigationError
-from districtbrief.geography import geometry_payload
+from districtbrief.geography import geometry_payload, indicator_payload
+from districtbrief.ia_language_jobs import LanguageService
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 65536
 COOKIE_NAME = '__Host-haic_session'
 COOKIE_AGE = 43200
-STATIC = {'app.css', 'app.js', 'request.js', 'investigation.js', 'case_state.js', 'map.js'}
+STATIC = {'app.css', 'app.js', 'request.js', 'investigation.js', 'case_state.js', 'map.js', 'language_state.js'}
 HEADERS = [
     ('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
     ('X-Content-Type-Options', 'nosniff'), ('Referrer-Policy', 'no-referrer'),
@@ -133,6 +134,7 @@ class Application:
         state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.service = PrivateMetricsService(load_core(input_profile, r2_input_dir), state_dir)
         self.investigation = Investigation(self.service.core)
+        self.language = LanguageService(self.investigation, enabled=os.environ.get('HAIC_LANGUAGE_ENABLED') == '1')
         self.investigation_sessions = {}
         self.secret = secrets.token_bytes(32)
         self.secure_cookie = secure_cookie
@@ -188,7 +190,7 @@ class Application:
             code, content_type, body = 500, 'application/json; charset=utf-8', self.route_error(path, 'The request failed. Previous results remain in this browser. Please run again.')
         if not isinstance(body, bytes):
             body = json.dumps(body, ensure_ascii=False, separators=(',',':'), allow_nan=False).encode('utf-8')
-        status = {200:'OK',204:'No Content',400:'Bad Request',403:'Forbidden',404:'Not Found',405:'Method Not Allowed',409:'Conflict',411:'Length Required',413:'Content Too Large',415:'Unsupported Media Type',500:'Internal Server Error'}[code]
+        status = {200:'OK',202:'Accepted',204:'No Content',400:'Bad Request',403:'Forbidden',404:'Not Found',405:'Method Not Allowed',409:'Conflict',411:'Length Required',413:'Content Too Large',415:'Unsupported Media Type',429:'Too Many Requests',503:'Service Unavailable',500:'Internal Server Error'}[code]
         start_response(f'{code} {status}', [('Content-Type',content_type),('Content-Length',str(len(body))), *HEADERS, *extra])
         return [b'' if method == 'HEAD' else body]
 
@@ -202,7 +204,7 @@ class Application:
             return 400, ct, self.route_error(path, 'Request target is too long.')
         if method in ('GET', 'HEAD'):
             if path in ('/api/health', '/healthz'):
-                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'model_calls':0}
+                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'language':self.language.bootstrap(), 'model_calls':0}
             if path in ('/', '/index.html'):
                 _, cookie = self.session(environ)
                 if cookie: extra.append(('Set-Cookie',cookie))
@@ -216,6 +218,7 @@ class Application:
                 if cookie: extra.append(('Set-Cookie',cookie))
                 out = dict(self.service.catalog())
                 out['investigation'] = self.investigation.bootstrap()
+                out['language'] = self.language.bootstrap()
                 return 200, ct, out
             if path == '/api/geometry':
                 try:
@@ -227,6 +230,7 @@ class Application:
                         return 409, ct, InvestigationError(409,'snapshot_unavailable','The geometry snapshot is not admitted.').envelope()
                     if q['session'][0] not in ('2024','2026'):raise ValueError('invalid session')
                     out=geometry_payload(self.service.core.packet,self.investigation.snapshot_id,q['chamber'][0],q['code'][0],int(q['session'][0]))
+                    out['indicator'] = indicator_payload(self.service.core, self.investigation.snapshot_id, q['chamber'][0], q['code'][0], int(q['session'][0]))
                     return 200, ct, out
                 except ValueError:
                     return 400, ct, self.route_error(path, 'Geometry requires exactly snapshot_id, chamber, code and session with admitted values.')
@@ -240,7 +244,7 @@ class Application:
                 out = self.service.source((q.get('source_id') or [None])[0], (q.get('finding_id') or [None])[0])
                 return 200 if out['status']=='ok' else 404 if out['status']=='unsupported' else 400, ct, out
             return 404, ct, self.route_error(path, 'Not found.')
-        if path not in ('/api/resolve','/api/execute','/api/event','/api/investigation'):
+        if path not in ('/api/resolve','/api/execute','/api/event','/api/investigation','/api/language/start','/api/language/status','/api/language/cancel'):
             return 404, ct, self.route_error(path, 'Not found.')
         session, cookie = self.session(environ)
         if cookie:
@@ -268,10 +272,13 @@ class Application:
                     out[key] = value
                 return out
             body = json.loads(raw.decode('utf-8'), object_pairs_hook=pairs, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite')))
-            json.dumps(body,ensure_ascii=False).encode('utf-8')
+            json.dumps(body,ensure_ascii=False,allow_nan=False).encode('utf-8')
         except (ValueError, RecursionError):
             return 400, ct, self.route_error(path, 'Body is not valid UTF-8 JSON.')
         if not isinstance(body,dict): return 400, ct, self.route_error(path, 'Body must be a JSON object.')
+        if path.startswith('/api/language/'):
+            code, out = self.language.handle(path.rsplit('/', 1)[1], body, session)
+            return code, ct, out
         if path == '/api/event':
             body['session_id'] = session
             out = self.service.event(body)

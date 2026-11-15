@@ -71,13 +71,23 @@ def claim_ref(value,path):
     text(value['finding_id'],500,path+'.finding_id',1)
     if not RE_FINDING_ID.fullmatch(value['finding_id']):fail(path+'.finding_id','A canonical finding ID is required.')
 
+def admitted_recipes(core):
+    # Worker validation uses only the immutable versions copied from the verified catalog.
+    versions = getattr(core, 'admitted_recipe_versions', None)
+    if versions is not None:
+        return list(versions)
+    recipes = ['aging_at_home/1', 'custom/1']
+    if core.metadata.has_path('recipes/food_assistance_outreach.v1.json'):
+        recipes.append('food_assistance_outreach/1')
+    return recipes
+
 def validate_plan(plan,core):
     obj(plan,('district','map_session','issue_id','service_area_id','steps'),path='plan')
     d=plan['district'];obj(d,('state_fips','chamber','code','boundary_session'),path='plan.district')
     if d['state_fips']!='15' or d['chamber'] not in ('house','senate') or type(d['code']) is not str or not re.fullmatch(r'[0-9]{3}',d['code'],re.ASCII): fail('plan.district','An admitted Hawaiʻi district is required.')
     if not 1<=int(d['code'])<=(51 if d['chamber']=='house' else 25) or type(d['boundary_session']) is not int or d['boundary_session']!=2024: fail('plan.district','Only the admitted 2024 statistical districts are supported.')
     if type(plan['map_session']) is not int or plan['map_session'] not in (2024,2026): fail('plan.map_session','Map session must be 2024 or 2026.')
-    if plan['issue_id'] not in ('aging_at_home','custom'): fail('plan.issue_id','Choose aging_at_home or custom.')
+    if type(plan['issue_id']) is not str or plan['issue_id']+'/1' not in admitted_recipes(core): fail('plan.issue_id','Choose an issue admitted in this evidence snapshot.')
     if plan['service_area_id'] is not None and (type(plan['service_area_id']) is not str or plan['service_area_id'] not in SERVICES): fail('plan.service_area_id','Unknown staff service-area choice.')
     steps=plan['steps']
     if type(steps) is not list or len(steps)>8: fail('plan.steps','A plan holds at most eight steps.')
@@ -126,7 +136,7 @@ def validate_request(raw,core,snapshot_id):
     if plan is not None: validate_plan(plan,core)
     elif mode!='interpret':fail('plan','A plan is required.')
     expected=(plan['issue_id']+'/1') if plan else raw['recipe_version']
-    if raw['recipe_version'] not in ('aging_at_home/1','custom/1') or raw['recipe_version']!=expected:fail('recipe_version','The recipe version is unavailable or conflicts with the issue.','version_mismatch',409)
+    if raw['recipe_version'] not in admitted_recipes(core) or raw['recipe_version']!=expected:fail('recipe_version','The recipe version is unavailable or conflicts with the issue.','version_mismatch',409)
     if mode=='interpret':text(raw['utterance'],500,'utterance',1);return
     refs=raw['selected_claim_refs']
     if type(refs) is not list or len(refs)>8:fail('selected_claim_refs','Select at most eight findings.')
@@ -138,7 +148,7 @@ def validate_request(raw,core,snapshot_id):
     action=raw['selected_action_ref']
     if action is not None:
         obj(action,('action_id','semantic_hash'),path='selected_action_ref')
-        if action['action_id'] not in ('kupuna_verify/1','snap_verify/1','medquest_verify/1','hcv_verify/1') or type(action['semantic_hash']) is not str or not HASH.fullmatch(action['semantic_hash']):fail('selected_action_ref','Invalid action identity.')
+        if action['action_id'] not in ('kupuna_verify/1','snap_verify/1','medquest_verify/1','hcv_verify/1', *(['snap_food_outreach_verify/1'] if 'food_assistance_outreach/1' in admitted_recipes(core) else [])) or type(action['semantic_hash']) is not str or not HASH.fullmatch(action['semantic_hash']):fail('selected_action_ref','Invalid action identity.')
     if mode!='brief':return
     if not refs:fail('selected_claim_refs','A printable brief requires at least one finding.')
     edits=raw['staff_edits'];obj(edits,(),('title','note','next_steps','finding_notes'),'staff_edits')

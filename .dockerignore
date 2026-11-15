@@ -13,3 +13,5 @@
 !candidate-metadata/
 !candidate-metadata/**
 !RELEASE-MANIFEST.json
+!tools/
+!tools/ia_language_operator.py

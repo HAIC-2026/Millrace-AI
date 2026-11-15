@@ -1,0 +1,29 @@
+{
+  "version": "food_assistance_outreach_response/1",
+  "action_id": "snap_food_outreach_verify/1",
+  "questions": [
+    "Check with DHS BESSD whether application instructions, referral contact, accessibility and required documentation remain current.",
+    "Household circumstances and agency eligibility determination are unknown.",
+    "Ask what changes in the intake route or information would change this outreach hypothesis."
+  ],
+  "checklist": [
+    "Check BESSD application, contact, accessibility and documentation information.",
+    "Record agency answers and missing household facts; do not determine eligibility.",
+    "Record staff role and a review date for the outreach hypothesis."
+  ],
+  "tracking": {
+    "label": "Office requests for SNAP information",
+    "baseline": null,
+    "baseline_display": "not recorded",
+    "as_of": null,
+    "description": "Count office requests from the date tracking begins. Not eligible or unserved residents, participation, a population rate, or program impact."
+  },
+  "historical_source": {
+    "agency": "Hawaiʻi DHS BESSD",
+    "checked_at": "2026-10-30",
+    "current_status": "unverified",
+    "program_url": "https://humanservices.hawaii.gov/bessd/snap/",
+    "application_url": "https://pais.dhs.hawaii.gov/PAIS/#!/",
+    "information_line": "1-855-643-1643"
+  }
+}

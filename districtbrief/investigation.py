@@ -3,10 +3,11 @@ from __future__ import annotations
 import copy
 import json
 from . import render
-from .case_contract import InvestigationError, OPERATION_VERSION, SCHEMA_VERSION, TOKEN_KEYS, validate_request
+from .case_contract import InvestigationError, OPERATION_VERSION, SCHEMA_VERSION, TOKEN_KEYS, validate_request, admitted_recipes
 from .claim_binding import ClaimBindings, digest, plan_hash
 from .core import Unsupported, BRIEF_PRINT_BUDGET, print_units, L_ACS, L_COMPARE, L_NO_GAP, L_NO_ELIG, L_HYPOTHESIS, SMALL_TEXT_WEIGHT
 from .interpret import interpret, recipe
+from .geography import indicator_payload
 from .rationale import PROGRAM_RATIONALE
 
 # Staff inquiry prompts, not newly sourced eligibility or availability facts.
@@ -58,8 +59,10 @@ class Investigation:
         self.metadata_snapshot_id=self.metadata.metadata_snapshot_id
         self.snapshot_id=self.metadata.combined_snapshot_id(self.data_snapshot_id)
         self.templates=self.metadata.read_json('responses/verification.v1.json')
+        self.food_recipe = self.metadata.read_json('recipes/food_assistance_outreach.v1.json') if self.metadata.has_path('recipes/food_assistance_outreach.v1.json') else None
+        self.food_response = self.metadata.read_json('responses/food_assistance_outreach.v1.json') if self.food_recipe else None
     def bootstrap(self):
-        return {'schema_version':SCHEMA_VERSION,'operation_version':OPERATION_VERSION,'recipe_versions':['aging_at_home/1','custom/1'],
+        return {'schema_version':SCHEMA_VERSION,'operation_version':OPERATION_VERSION,'recipe_versions':admitted_recipes(self.core),
                 'snapshot_id':self.snapshot_id,'data_snapshot_id':self.data_snapshot_id,'metadata_snapshot_id':self.metadata_snapshot_id,
                 'release_id':self.release_id(),'input_profile':getattr(self.core.packet,'profile','r2'),
                 'verification':self.core.packet.verification,'default_plan':recipe({'state_fips':'15','chamber':'house','code':'028','boundary_session':2024})}
@@ -90,8 +93,9 @@ class Investigation:
             program=bindings.bind(self.core.prog_finding(program_id,pid));hyp=hypotheses.get(program_id)
             scope=self.core.service_scope.resolve(plan['district'],program_id,plan['service_area_id'])
             # Scope selected for this inquiry is bound to the action, separately from the general reference.
-            template_id=self.templates['actions'].get(program_id)
-            content=VERIFICATION_CONTENT.get(program_id,{'questions':[],'checklist':self.templates['checklist']})
+            food = self.food_response if plan['issue_id']=='food_assistance_outreach' and program_id=='snap_hi' else None
+            template_id=food['action_id'] if food else self.templates['actions'].get(program_id)
+            content=food or VERIFICATION_CONTENT.get(program_id,{'questions':[],'checklist':self.templates['checklist']})
             checklist=[{'item_id':item_id,'text':text,'owner_role':'','due_date':None,'completed':False,'staff_edited':False} for item_id,text in zip(('agency_route','partner_plan','next_check'),content['checklist'])] if template_id else []
             facts=list(dict.fromkeys([*program['unknowns'],*scope['access']['questions'],*content['questions']]))
             support=hyp['dependencies'] if hyp else []
@@ -100,6 +104,8 @@ class Investigation:
                 action_binding={'binding_version':'ia-action/1','operation_version':OPERATION_VERSION,'snapshot_id':self.snapshot_id,
                     'action_id':template_id,'program_claim_ref':program['claim_ref'],'hypothesis_claim_ref':hyp['claim_ref'] if hyp else None,
                     'support_claim_refs':support,'service_scope':scope,'template':self.templates}
+                if food:
+                    action_binding.update(recipe_version=self.food_recipe['version'],template=food)
                 if program_id in VERIFICATION_CONTENT:
                     action_binding.update(verification_questions=facts,template_checklist=checklist)
                 # Kūpuna's unchanged prompts remain bound by its existing metadata,
@@ -137,11 +143,33 @@ class Investigation:
         after=sum(print_units(f"{c['publisher']} {c['source_id']} {c['url']} "+"; ".join(c['locators']))+80 for c in brief['citations'])
         brief['print_units']+=int(SMALL_TEXT_WEIGHT*(after-before))
 
+    def _cite_indicator(self, brief, plan, bindings):
+        district = plan['district']
+        indicator = indicator_payload(self.core, self.snapshot_id, district['chamber'], district['code'], plan['map_session'])
+        indicator['geometry_compatible'] = (plan['map_session'] == 2024 or self.core.geo.geometry_equal_across_sessions(district['chamber'], district['code']) is True)
+        pid = self.core.profile_id_for(district['chamber'], district['code'], 2024)
+        claim = bindings.bind(self.core.stat_finding(pid + ':poverty_rate_all_people'))
+        indicator['claim_ref'] = claim['claim_ref']
+        brief['district_indicator'] = indicator
+        source = claim['binding']['source_records'][0]
+        sid = source['source_id']; locator = source['locator']; src = self.core.packet.sources[sid]
+        before = sum(print_units(f"{c['publisher']} {c['source_id']} {c['url']} " + '; '.join(c['locators'])) + 80 for c in brief['citations'])
+        row = next((c for c in brief['citations'] if c['source_id'] == sid), None)
+        if row is None:
+            row = {'n':len(brief['citations'])+1, 'source_id':sid, 'publisher':src.get('publisher'), 'url':src.get('url'),
+                   'sha256':src.get('sha256'), 'retrieved_at_utc':src.get('retrieved_at_utc'), 'locators':[]}
+            brief['citations'].append(row)
+        text = f"{locator['sheet']}!{locator['estimate_cell']} (MOE {locator['moe_cell']})"
+        if text not in row['locators']:row['locators'].append(text)
+        brief['indicator_citations'] = [row['n']]
+        after = sum(print_units(f"{c['publisher']} {c['source_id']} {c['url']} " + '; '.join(c['locators'])) + 80 for c in brief['citations'])
+        brief['print_units'] += int(SMALL_TEXT_WEIGHT * (after-before))
+
     def handle(self,r):
         validate_request(r,self.core,self.snapshot_id)
         out=self._envelope(r)
         if r['mode']=='interpret':
-            status,plan,reading=interpret(r['utterance'],r['plan']);out.update(status=status,normalized_plan=plan,interpretation=reading)
+            status,plan,reading=interpret(r['utterance'],r['plan'],allow_food=self.food_recipe is not None);out.update(status=status,normalized_plan=plan,interpretation=reading)
             return out
         plan=r['plan'];pid=self.core.profile_id_for(plan['district']['chamber'],plan['district']['code'],2024)
         bindings=ClaimBindings(self.core,self.snapshot_id,plan['map_session']);programs=[];hypotheses={}
@@ -193,10 +221,12 @@ class Investigation:
                     err.issues.append({'path':'brief','code':'brief_overflow','message':f"print_units={e.data['print_units']}; print_budget={e.data['print_budget']}"})
                 raise err from None
             brief['snapshot_id']=self.snapshot_id
+            brief['recipe_version']=r['recipe_version']
             brief['map_session']=plan['map_session'];brief['statistical_session']=2024
             brief['action']=selected_response
             brief['action_program']=copy.deepcopy(self.core.programs[selected_response['program_id']]) if selected_response else None
             self._cite_action(brief,selected_response,bindings)
+            self._cite_indicator(brief,plan,bindings)
             brief['checklist']=copy.deepcopy(selected_response['template_checklist']) if selected_response else []
             by_id={x['item_id']:x for x in brief['checklist']}
             for item in r['checklist_edits']:
@@ -213,7 +243,7 @@ class Investigation:
                 brief['limitations']=list(dict.fromkeys(brief['limitations']+extra))
             # All action and checklist content contributes to the established conservative print budget.
             # Count actual printed words, not hashes/internal dependency payloads.
-            printed=render.action_checklist_text(brief)
+            printed=render.action_checklist_text(brief) + " " + render.indicator_context_text(brief)
             brief['print_units']+=int(print_units(printed)+sum(print_units(x) for x in brief['limitations'] if x not in self.core.brief(pid,ids,legacy)['data']['brief']['limitations']))
             if brief['print_units']>BRIEF_PRINT_BUDGET:
                 err=InvestigationError(409,'brief_overflow',f"This brief is too long for one printed page (estimated {brief['print_units']} of {BRIEF_PRINT_BUDGET} print units). Remove a finding, shorten staff notes or shorten checklist text; all edits remain recoverable.",'staff_edits','shorten_brief')

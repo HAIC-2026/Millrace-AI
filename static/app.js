@@ -41,12 +41,17 @@
     api("POST", "/api/event", Object.assign({ kind, session_id: SESSION_ID }, extra || {}));
   }
 
-  function text(el, value) { el.textContent = value; }
+  function text(el, value) { if (el) el.textContent = value; }
 
   function option(value, label, disabled) {
     const o = document.createElement("option");
     o.value = value; o.textContent = label; if (disabled) o.disabled = true;
     return o;
+  }
+
+  function catalogTabLabel(catalogData) {
+    const n = catalogData && catalogData.coverage && catalogData.coverage.statistics_observations;
+    return Number.isSafeInteger(n) && n >= 0 ? "Data catalog (all " + n.toLocaleString("en-US") + " observations)" : "Data catalog";
   }
 
   // ------------------------------------------------------------ controls
@@ -80,7 +85,7 @@
     catalog.programs.forEach((p) => prog.appendChild(option(p.program_id, p.name)));
     (catalog.administrative_rows || catalog.participation || []).forEach((r) => {
       const geography = typeof r.geography === "object" ? (r.geography.label || r.geography.name) : r.geography;
-      const label = [r.series_label || r.label || r.program_id, geography, r.period, r.unit, r.status || r.publication_status || r.revision_status, r.observation_id].filter(Boolean).join(" · ");
+      const label = [r.series_label || r.label || r.program_id, geography, r.period, r.unit, r.status || r.publication_status || r.revision_status].filter(Boolean).join(" · ");
       const rowOption = option(r.observation_id, label);
       rowOption.title = label;
       $("#ctl-admin").appendChild(rowOption);
@@ -134,10 +139,10 @@
       text(note, "No district is required for administrative evidence. Any district choice is retained as brief context only.");
       return;
     }
-    if (!chamber || !code) { text(note, "Chamber and district are both required; a GEOID alone is ambiguous."); return; }
+    if (!chamber || !code) { text(note, "Choose both the chamber and the district number."); return; }
     const d = catalog.districts.find((x) => x.chamber === chamber && x.code === code && x.boundary_session === session);
     const has = catalog.districts.some((x) => x.chamber === chamber && x.code === code && x.boundary_session === 2024 && x.has_statistics);
-    let msg = (d ? d.name + " · GEOID " + d.geoid + " · service coverage requires agency confirmation" : "") + ". ";
+    let msg = (d ? d.name + " · service coverage requires agency confirmation" : "") + ". ";
     msg += has ? "Normalized statistics are available (2024 session)." : "No normalized statistics for this district in the fixture.";
     if (session !== 2024) msg += " Statistics are tabulated on the 2024 session; Run will ask before using them.";
     text(note, msg);
@@ -427,12 +432,32 @@
     const editor = $("#brief-editor");
     if (editor) {
       editor.addEventListener("submit", (ev) => { ev.preventDefault(); collectEdits(); logEvent("apply_edits"); run("run", { task: "brief", district: env.resolution.district, use_selection: true }); });
-      $("#print-brief").addEventListener("click", () => { logEvent("print"); preparePrint(); window.print(); });
+      // Same one-page check as the investigation view: measured at printed width, refused rather than shrunk.
+      const fits = briefFitsOnePage($("#brief-doc"));
+      if (!fits) {
+        $("#print-brief").disabled = true;
+        const note = document.createElement("p");
+        note.className = "reason"; note.setAttribute("role", "status");
+        note.textContent = "Not ready to print: this brief is longer than one printed page. Remove a finding or shorten a staff note, then apply edits again.";
+        $("#print-brief").parentNode.after(note);
+      }
+      $("#print-brief").addEventListener("click", () => { if (!fits) return; logEvent("print"); window.print(); });
     }
     if (env.status === "clarification" || env.status === "unsupported" || env.status === "error") {
       const first = $(".notice button, .notice", result);
       if (first && first.focus) { if (!first.hasAttribute("tabindex") && first.tagName !== "BUTTON") first.setAttribute("tabindex", "-1"); first.focus(); }
     }
+  }
+
+  function briefFitsOnePage(doc) {
+    if (!doc) return true;
+    const probe = document.createElement("div");
+    probe.className = "fit-probe"; probe.setAttribute("aria-hidden", "true");
+    const copy = doc.cloneNode(true); copy.removeAttribute("id"); $$("[id]", copy).forEach((n) => n.removeAttribute("id"));
+    probe.appendChild(copy); document.body.appendChild(probe);
+    const height = copy.getBoundingClientRect().height;
+    document.body.removeChild(probe);
+    return !height || height <= 10.1 * 96 * 0.985;
   }
 
   function collectEdits() {
@@ -446,12 +471,27 @@
     };
   }
 
+  // Every print entry point (the Print button, Ctrl/Cmd-P, the browser menu) arrives here through
+  // "beforeprint". The investigation view prints through its own guarded handler, so this one leaves the
+  // print copy to it. Otherwise the brief is copied only when the Single lookup view is open and its
+  // brief passes the same checks as the Print button (enabled, one-page fit); else a refusal prints.
+  function singleLookupPrintable() {
+    const doc = $("#brief-doc"), btn = $("#print-brief");
+    if ($("#tab-workflow").hidden) return { ok: false, reason: "Nothing was printed. Open the view that shows the brief, then print from there." };
+    if (!doc || !btn) return { ok: false, reason: "No brief has been built yet. Select findings and run “Build a brief from these findings”." };
+    if (btn.disabled || !briefFitsOnePage(doc)) return { ok: false, reason: "This brief was not printed because it is longer than one printed page. Remove a finding or shorten a staff note, then choose Apply edits. Your edits and selections are kept." };
+    return { ok: true, doc: doc };
+  }
   function preparePrint() {
-    const doc = $("#brief-doc");
     const root = $("#print-root");
-    root.innerHTML = "";
-    if (doc) root.appendChild(doc.cloneNode(true));
-    else root.innerHTML = "<p>No brief has been built yet. Select findings and run “Build a brief from these findings”.</p>";
+    // Never leave an earlier print copy behind. The investigation handler (registered later, so it runs
+    // after this one) replaces this refusal with its own guarded content when that view is open.
+    const st = $("#tab-investigation").hidden ? singleLookupPrintable() : { ok: false, reason: "No verified one-page brief is ready to print." };
+    root.replaceChildren();
+    if (st.ok) { root.appendChild(st.doc.cloneNode(true)); return; }
+    const p = document.createElement("p");
+    p.className = "print-refusal"; p.textContent = st.reason;
+    root.appendChild(p);
   }
   window.addEventListener("beforeprint", preparePrint);
 
@@ -488,16 +528,23 @@
   }
 
   // ------------------------------------------------------------ source dialog
-  async function openSource(sourceId, findingId) {
+  let sourceOpener = null;
+  // Each open gets a new number; closing the dialog (Close or Escape) also moves it on. Only the reply for
+  // the latest open request, while the dialog is still open, may fill the dialog or move focus.
+  let sourceRequest = 0;
+  async function openSource(sourceId, findingId, opener) {
     logEvent("view_source", { detail: sourceId, finding_id: findingId || undefined });
+    const token = ++sourceRequest;
+    sourceOpener = opener || document.activeElement;
     let url = "/api/source?source_id=" + encodeURIComponent(sourceId);
     if (findingId) url += "&finding_id=" + encodeURIComponent(findingId);
     const body = $("#source-body");
-    body.innerHTML = '<p class="loading">Loading retained source…</p>';
+    body.innerHTML = '<p class="loading">Loading the source…</p>';
     const dlg = $("#source-dialog");
     if (!dlg.open) dlg.showModal();
     const out = await api("GET", url);
-    body.innerHTML = out.html || ('<p class="alert">' + escapeText(out.reason || "Source unavailable.") + "</p>");
+    if (token !== sourceRequest || !dlg.open) return;
+    body.innerHTML = out.html || ('<p class="alert">' + escapeText(out.reason || "This source cannot be shown right now.") + " Close this window and try again; your work is unchanged.</p>");
     $("#close-source").focus();
   }
 
@@ -545,7 +592,7 @@
   function renderCommands() {
     const body = $("#commands-body");
     const intro = document.createElement("p");
-    intro.textContent = catalog.runtime && catalog.runtime.execution_kind === "hosted" ? "Prototype C uses bounded hosted interpretation for supported typed requests. Guided controls use the shared deterministic resolver with zero model calls. All facts and printable content come from the checked fixture. Inference attempts and estimated usage costs appear after each request." : catalog.runtime && catalog.runtime.variant === "C" ? "Prototype C uses an optional local model for typed requests. Its package and browser runtime must be ready before inference. Guided controls use the shared deterministic resolver. No remote or model API calls are made. Browser mechanics do not establish learned accuracy." : (catalog.runtime && catalog.runtime.variant === "B") ? "Prototype B uses bounded model routing for typed requests. The same supported tasks, fixture, clarification rules and factual renderer apply. Guided controls use deterministic routing with zero model calls. These literal forms also describe supported tasks." : "Prototype A recognizes only these literal command forms for the supported tasks. Anything else returns “Not supported” with supported choices; incomplete commands ask a clarification question. No model interprets text.";
+    intro.textContent = "Typed requests in the single lookup view use only these literal forms for the supported tasks. Anything else returns “Not supported” with supported choices; an incomplete request asks a clarification question. The guided controls do the same tasks without typing.";
     body.appendChild(intro);
     const dl = document.createElement("dl");
     dl.className = "kv";
@@ -574,7 +621,7 @@
         return;
       }
       const src = ev.target.closest(".source-btn");
-      if (src) { ev.preventDefault(); openSource(src.dataset.sourceId, src.dataset.findingId); return; }
+      if (src) { ev.preventDefault(); openSource(src.dataset.sourceId, src.dataset.findingId, src); return; }
       const rm = ev.target.closest(".tray-remove");
       if (rm) { toggleSelection(rm.dataset.findingId, "", false); return; }
     });
@@ -592,6 +639,14 @@
     });
     $("#clear-tray").addEventListener("click", () => { Array.from(selection.keys()).forEach((f) => selection.delete(f)); edits = {}; renderTray(); syncCheckboxes(); });
     $("#close-source").addEventListener("click", () => $("#source-dialog").close());
+    // Escape or Close returns keyboard focus to the control that opened the source.
+    $("#source-dialog").addEventListener("close", sourceDialogClosed);
+  }
+
+  function sourceDialogClosed() {
+    sourceRequest += 1;   // any reply still pending for this dialog is now stale
+    const back = sourceOpener; sourceOpener = null;
+    if (back && back.isConnected && typeof back.focus === "function") back.focus();
   }
 
   // ------------------------------------------------------------ boot
@@ -599,26 +654,14 @@
     wireTabs();
     const health = await api("GET", "/api/health");
     if (health.status !== "ok") {
-      text($("#packet-status"), "packet check failed");
+      text($("#packet-status"), "The data check did not pass; results cannot be shown.");
       $("#result").innerHTML = '<section class="notice notice-error" role="alert"><h3>Error</h3><p>The local server is not ready.</p></section>';
       return;
     }
     SNAPSHOT = health.snapshot_id;
-    text($("#snapshot-id"), SNAPSHOT.slice(0, 19) + "…");
-    $("#snapshot-id").title = SNAPSHOT;
-    text($("#packet-status"), "packet verified (" + health.packet.file_count + " files)");
     const runtime = health.runtime || {};
-    if (runtime.label) {
-      text($(".variant"), runtime.label);
-      document.title = "District Brief Builder — " + runtime.label;
-      text($("#utterance-help"), runtime.language_help);
-    }
     catalog = await api("GET", "/api/catalog");
-    if (catalog.runtime && catalog.runtime.label) {
-      text($(".variant"), catalog.runtime.label);
-      document.title = "District Brief Builder — " + catalog.runtime.label;
-      if (catalog.runtime.language_help) text($("#utterance-help"), catalog.runtime.language_help);
-    }
+    text($("#tab-btn-catalog"), catalogTabLabel(catalog));
     if (catalog.runtime && catalog.runtime.variant === "C") {
       $("#c-runtime-panel").hidden = false;
       $("#cancel-run").addEventListener("click", cancelRun);

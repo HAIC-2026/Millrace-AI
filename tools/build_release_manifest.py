@@ -17,12 +17,20 @@ TOP_LEVEL=('README.md','DATA-PROVENANCE.json','Dockerfile','.dockerignore','.git
            'LICENSE','LICENSE-SCOPE.md','PRIVACY.md','DATA-NOTICES.md')
 MODULES=('__init__','admin_labels','case_contract','candidate_metadata','claim_binding','contract',
          'core','geography','interpret','investigation','packet','rationale','render','resolve',
-         'route_a','router_contract','service','service_scope','xlsx','public_packet')
-STATIC=('app.css','app.js','case_state.js','index.html','investigation.js','map.js','request.js')
+         'route_a','router_contract','service','service_scope','xlsx','public_packet',
+         'ia_language','ia_language_provider','ia_language_accounting','ia_language_jobs')
+STATIC=('app.css','app.js','case_state.js','index.html','investigation.js','map.js','request.js','language_state.js')
 TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','test_geometry.py',
-       'test_investigation.py','test_release.py','test_scope.py','test_public_profile.py')
-FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md')
-TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py')
+       'test_investigation.py','test_release.py','test_scope.py','test_public_profile.py','test_completion.py',
+       'test_ia_language_contract.py','test_ia_language_provider.py','test_ia_language_accounting.py','test_ia_language_jobs.py','test_ia_language_processes.py','test_ia_language_proposals.py',
+       'test_ia_language_diagnostics.py','test_ia_language_adoption.py',
+       'test_ia_language_map_default.py','test_ia_language_adoption_2.py',
+       'test_ia_language_district_provenance.py','test_ia_language_adoption_3.py','test_ia_language_repair.py',
+       'test_ia_language_source_review.py','test_ia_language_adoption_4.py','test_ia_language_integrated_review.py',
+       'test_ia_language_contract_fixes.py','test_ia_language_ox3_review.py','test_ia_language_v5_review.py','test_ia_language_fh_r1.py','test_ia_language_v6_review.py',
+       'test_ia_language_comparator_choices.py')
+FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md','ia-language-dev.json','ia-language-dev-v5-replay.json','ia-language-adoption3-synthetic.json','ia-language-prompt-v8.txt','ia-language-adoption4-synthetic.json')
+TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py','build_completion_projection.py','ia_language_operator.py','ia_language_config_adoption.py','ia_language_config_adoption_2.py','ia_language_config_adoption_3.py','ia_language_config_adoption_4.py')
 EXCLUDED_PARTS=frozenset(('.venv','__pycache__','.git'))
 MANIFEST='RELEASE-MANIFEST.json'
 BASELINE_MANIFEST='686b23b6b7623d77f084ed4518e6d5adec620fbe713e17ee220caa63bce2e46d'
@@ -37,7 +45,7 @@ def admitted_files():
     allowed.update('tests/'+name for name in TESTS)
     allowed.update('tests/fixtures/'+name for name in FIXTURES)
     allowed.update('tools/'+name for name in TOOLS)
-    allowed.update('docs/'+name for name in ('R2-INPUTS.json','R2-REPLAY.md','PROJECTION-INPUTS.json'))
+    allowed.update('docs/'+name for name in ('R2-INPUTS.json','R2-REPLAY.md','PROJECTION-INPUTS.json','PUBLIC33AF-REPLAY.md'))
     allowed.update('tools/sources/'+name for name in ('README.md','acquire.py','normalize.py','allowlist.json'))
     allowed.update('runtime-packet/'+row['path'] for row in packet.manifest['files'])
     allowed.add('runtime-packet/PACKET-MANIFEST.json')
@@ -60,7 +68,7 @@ def build_manifest():
     for name in names:
         raw=(ROOT/name).read_bytes();files.append({'path':name,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
     records=''.join(f"{f['sha256']}  {f['bytes']}  {f['path']}\n" for f in files)
-    manifest={'schema':'haic-ia1-release-manifest/1','operation_version':'ia-core/1','model_calls':0,
+    manifest={'schema':'haic-ia1-release-manifest/1','operation_version':'ia-core/1','model_calls_default':0,'language_default':'disabled',
         'source_identity':'sha256:'+hashlib.sha256(records.encode()).hexdigest(),
         'hash_rule':'SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded',
         'file_policy':'Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected',

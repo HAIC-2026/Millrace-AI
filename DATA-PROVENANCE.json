@@ -8,11 +8,13 @@
   "original_capture_hashes_are_historical": true,
   "omitted_origin_bytes_verified": false,
   "statistics": {
-    "observations": 1560,
+    "observations": 1640,
     "metrics": 20,
-    "geographies": 78,
+    "geographies": 82,
     "districts": 76,
-    "unchanged_normalized_statistics_from_r2": true
+    "unchanged_normalized_statistics_from_r2": false,
+    "original_r2_observations_preserved": 1560,
+    "added_county_observations": 80
   },
   "participation": {
     "rows": 24,
@@ -22,5 +24,11 @@
     "captures": 4,
     "unchanged_origin_bytes": true
   },
-  "program_evidence": "Project-authored references replace copied passages. Original locators are historical references, not verified excerpts."
+  "program_evidence": "Project-authored references replace copied passages. Original locators are historical references, not verified excerpts.",
+  "coverage_lineage": {
+    "parent_combined_snapshot_id": "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3",
+    "county_artifact_sha256": "e97c14be79e77b503b8645631346b0e2d19a53102afdbb1b681230dc05e7a9c0",
+    "recipe_version": "food_assistance_outreach/1",
+    "current_agency_conditions": "unverified; retained reference checked 2026-10-30"
+  }
 }

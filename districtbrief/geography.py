@@ -403,3 +403,19 @@ def geometry_payload(packet, combined_snapshot_id, chamber, code, session):
     if len(json.dumps(result, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > 1048576:
         raise ValueError('geometry response exceeds 1 MiB')
     return result
+
+
+def indicator_payload(core, snapshot_id, chamber, code, session):
+    """Bind the existing poverty fact to the requested district map identity."""
+    if _valid_key(chamber, code, session) is None:
+        raise ValueError('invalid indicator geography')
+    pid = core.profile_id_for(chamber, code, 2024)
+    finding = core.stat_finding(pid + ':poverty_rate_all_people')
+    source = finding['source']
+    return {'version': 'district-indicator/1', 'snapshot_id': snapshot_id, 'chamber': chamber, 'code': code, 'session': session,
+            'metric_id': 'poverty_rate_all_people',
+            **{k: copy.deepcopy(finding[k]) for k in ('estimate', 'margin_of_error', 'annotation',
+                'moe_annotation', 'moe_confidence_level', 'unit', 'universe', 'period')},
+            'source_id': source['source_id'], 'source_url': source['url'],
+            'publisher': source['publisher'], 'source_title': '2020–2024 ACS five-year DP03 — poverty, all people',
+            'retrieved_at': source.get('retrieved_at_utc')}

@@ -146,7 +146,12 @@ p.fine {
 .url {
   font-family: var(--mono);
   font-size: 0.85em;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.url .url-host {
+  white-space: nowrap;
 }
 
 code.hash {
@@ -190,7 +195,7 @@ code.hash {
 /* --------------------------------------------------------- app header */
 
 .app-header {
-  padding: 0.85rem 1.1rem;
+  padding: 0.7rem 1.1rem 0.75rem;
   color: #ffffff;
   background: var(--navy);
 }
@@ -207,9 +212,20 @@ code.hash {
 }
 
 .app-meta {
-  margin: 0.35rem 0 0;
+  max-width: 75ch;
+  margin: 0.2rem 0 0;
   font-size: 0.9rem;
   color: #e6ebf1;
+}
+
+.app-status:not(:empty) {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0 0.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--red-line);
+  border-radius: 3px;
 }
 
 .app-meta code {
@@ -527,11 +543,38 @@ input[type="checkbox"] {
   font-size: 1.05rem;
 }
 
+/* Inactive controls stay readable: dark grey text on a pale fill with a dashed border, and the
+   reason they are inactive is written next to them. Primary buttons lose their blue fill. */
 .btn:disabled,
+.btn-primary:disabled,
+.btn:disabled:hover,
+.btn-primary:disabled:hover,
 .choice-btn:disabled {
-  color: #4a4a4a;
-  border-style: dashed;
+  color: #3f4550;
+  background: #eceef2;
+  border: 2px dashed #7a808b;
   cursor: not-allowed;
+}
+
+.btn-link:disabled {
+  color: #5d636e;
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+.btn-small {
+  min-height: 2.2rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+/* Destructive links: red text and a distinct label, never placed first. */
+.btn-link.btn-danger {
+  color: var(--red-line);
+}
+
+.btn-link.btn-danger:hover {
+  color: #6f1010;
 }
 
 .btn-link {
@@ -952,6 +995,12 @@ ul.choices > li {
   border-color: var(--blue);
 }
 
+.badge-ok {
+  color: #0f3d1e;
+  background: var(--green-bg);
+  border-color: var(--green-line);
+}
+
 /* Outreach hypothesis label: amber fill, heavy dashed border, capitals. */
 .badge-warn {
   color: #1a1a1a;
@@ -1216,6 +1265,35 @@ dialog#source-dialog::backdrop {
   margin-top: 0;
 }
 
+#source-body h3.source-title {
+  margin: 0 0 0.15rem;
+  font-size: 1.15rem;
+}
+
+#source-body h4 {
+  margin: 1.1rem 0 0.35rem;
+  font-size: 1rem;
+}
+
+.kv .kv-wide {
+  grid-column: 1 / -1;
+}
+
+blockquote.support {
+  margin: 0.3rem 0 0.6rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.92rem;
+  color: var(--ink-2);
+  background: var(--panel);
+  border-left: 4px solid var(--line);
+  white-space: pre-wrap;
+}
+
+ul.support-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
 /* ------------------------------------------------- brief screen layout */
 
 .brief-layout {
@@ -1262,21 +1340,26 @@ dialog#source-dialog::backdrop {
 
 /* ------------------------------------------------- brief paper (screen) */
 
-/* Sizes are in points so the screen preview matches the printed page. */
+/* Sizes are in points and shared with print, so the screen preview matches the printed page.
+   One page is kept by explicit selection and the server's overflow refusal, not by shrinking text.
+   Body --brief-body; source and limit lists --brief-small (both set once, below). */
 .brief-doc {
+  --brief-body: 9.5pt;
+  --brief-small: 8.5pt;
   position: relative;
   width: 100%;
   max-width: 8.5in;
   margin: 0 auto;
-  padding: 0.6in 0.65in 0.55in;
+  padding: 0.5in 0.55in 0.5in;
   overflow-wrap: break-word;
   color: #000000;
   background: #ffffff;
   border: 1px solid #7d848e;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  font-family: var(--sans);
-  font-size: 8.75pt;
-  line-height: 1.22;
+  /* Named embeddable fonts (not the system UI font) so saved PDFs keep a real text layer. */
+  font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+  font-size: var(--brief-body);
+  line-height: 1.2;
 }
 
 .brief-doc a {
@@ -1289,20 +1372,20 @@ dialog#source-dialog::backdrop {
 }
 
 .brief-doc h2 {
-  margin: 0 0 2pt;
-  font-size: 13pt;
+  margin: 0 0 1pt;
+  font-size: 13.5pt;
   line-height: 1.15;
   font-weight: 700;
   color: #000000;
 }
 
 .brief-doc h3 {
-  margin: 6pt 0 2pt;
+  margin: 4pt 0 1.5pt;
   padding-bottom: 1pt;
-  font-size: 8pt;
+  font-size: 8.5pt;
   line-height: 1.2;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #000000;
   border-bottom: 0.75pt solid #000000;
@@ -1322,8 +1405,13 @@ dialog#source-dialog::backdrop {
 
 .brief-meta {
   margin: 0;
-  font-size: 7.5pt;
+  font-size: var(--brief-small);
   color: #222222;
+}
+
+/* Secondary context prints at the small size used for limits and sources. */
+.brief-doc .brief-map-context p {
+  font-size: var(--brief-small);
 }
 
 .brief-doc .brief-findings {
@@ -1341,7 +1429,7 @@ dialog#source-dialog::backdrop {
 }
 
 .brief-doc .kind {
-  font-size: 6.8pt;
+  font-size: 7.5pt;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1349,20 +1437,10 @@ dialog#source-dialog::backdrop {
 }
 
 .brief-doc a.cite {
-  font-size: 7.5pt;
+  font-size: 8pt;
   font-weight: 700;
   color: #000000;
   text-decoration: none;
-}
-
-/* Finding ID: visible for traceability but tiny. */
-.brief-doc .fid {
-  margin-left: 3pt;
-  font-family: var(--mono);
-  font-size: 6pt;
-  letter-spacing: 0;
-  white-space: nowrap;
-  color: #333333;
 }
 
 /* Staff edits: dashed left rule, italic, and a small-caps label. The label
@@ -1377,9 +1455,19 @@ dialog#source-dialog::backdrop {
   border-left: 1.5pt dashed #000000;
 }
 
+/* The paper, the fit probe and the print copy share these spacings, so the probe measures what prints. */
 .brief-doc section.staff-edit {
-  margin: 4pt 0 3pt;
-  padding: 1pt 4pt;
+  margin: 2pt 0;
+  padding: 0 0 0 5pt;
+}
+
+.brief-doc section.staff-edit p {
+  margin: 0;
+}
+
+.brief-doc .brief-finding .staff-edit {
+  margin: 1pt 0 0;
+  padding: 0 0 0 4pt;
 }
 
 .brief-doc section.staff-edit h3 {
@@ -1391,21 +1479,62 @@ dialog#source-dialog::backdrop {
 .brief-doc .staff-label {
   font-style: normal;
   font-weight: 700;
-  font-variant: small-caps;
-  letter-spacing: 0.03em;
+  font-size: 0.82em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.brief-doc .brief-next {
+  margin: 1pt 0 2pt;
+}
+
+.brief-doc .brief-sub {
+  margin: 2pt 0 0;
+  font-weight: 700;
+}
+
+.brief-doc .brief-group {
+  margin: 2pt 0 0;
+  font-weight: 700;
+}
+
+.brief-doc .brief-part {
+  display: block;
+  margin: 1pt 0 0;
+}
+
+.brief-doc .brief-part-item {
+  display: block;
+  padding-left: 8pt;
+}
+
+.brief-doc .brief-elig {
+  margin: 2pt 0;
+}
+
+/* Agency questions print as one full-width list. */
+.brief-doc ul.brief-questions {
+  margin: 1pt 0 2pt;
+  padding-left: 12pt;
+  column-count: 1;
+}
+
+.brief-doc ul.brief-questions > li {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .brief-doc ul.brief-limits {
   margin: 0;
-  padding-left: 10pt;
-  font-size: 7.5pt;
-  line-height: 1.2;
+  padding-left: 1.5em;
+  font-size: var(--brief-small);
+  line-height: 1.15;
   column-count: 2;
-  column-gap: 14pt;
+  column-gap: 16pt;
 }
 
 .brief-doc ul.brief-limits > li {
-  margin: 0 0 1.5pt;
+  margin: 0 0 1pt;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -1414,59 +1543,141 @@ dialog#source-dialog::backdrop {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 7pt;
-  line-height: 1.2;
+  font-size: var(--brief-small);
+  line-height: 1.15;
   column-count: 2;
-  column-gap: 14pt;
+  column-gap: 16pt;
 }
 
 .brief-doc ol.brief-cites > li {
-  margin: 0 0 2pt;
+  margin: 0 0 1pt;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
-.brief-doc .brief-cites .srcid {
-  font-family: var(--mono);
-  font-size: 6.5pt;
+.brief-doc .brief-cites .cite-n {
+  font-weight: 700;
+}
+
+.brief-doc .brief-cites .cite-label {
+  font-style: italic;
 }
 
 .brief-doc .brief-cites .url {
   display: inline;
-  font-size: 6.2pt;
+  font-family: inherit;
+  font-size: inherit;
+  /* No ligatures: saved PDF text keeps "fi" and "ff" as plain letters, so the address copies exactly. */
+  font-variant-ligatures: none;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .brief-foot {
   margin-top: 5pt;
   padding-top: 2pt;
-  font-size: 7pt;
+  font-size: var(--brief-small);
   color: #000000;
   border-top: 0.75pt solid #000000;
 }
 
+/* Narrow screens reflow only the on-screen preview. The off-screen fit probe and the print copy are not
+   inside .brief-preview, so they always use the printed page's width and columns. */
 @media screen and (max-width: 600px) {
   .brief-preview {
     padding: 0.5rem;
   }
 
-  .brief-doc {
+  .brief-preview .brief-doc {
     padding: 0.6rem 0.7rem;
   }
 
-  .brief-doc ul.brief-limits,
-  .brief-doc ol.brief-cites {
+  .brief-preview .brief-doc ul.brief-limits,
+  .brief-preview .brief-doc ul.brief-questions,
+  .brief-preview .brief-doc ol.brief-cites {
     column-count: 1;
   }
 }
 
 /* ------------------------------------------------ investigation (IA-1) */
 
-/* One staff workspace. Narrow: context, plan, map, evidence and responses, brief tray.
-   From 760px: plan beside results. From 1200px: plan | results | brief tray. */
+/* One staff workspace, in the order of the work: district and issue (with a compact boundary map),
+   then plan | findings and agency verification | brief. Narrow screens stack the same order.
+   Type scale: section titles 1.25rem/700, group titles 1.02rem/650, labels 0.95rem/600, hints 0.875rem. */
 .ia {
   padding: 0.75rem;
-  /* Hashes, URLs and identifiers wrap instead of widening the page. */
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+
+.ia-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ia-group-title {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.hint {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.optional {
+  margin-left: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.count {
+  margin-left: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* The reason a primary action is (not) available, written beside it. */
+.reason {
+  margin: 0.35rem 0 0;
+  padding-left: 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--ink);
+  border-left: 3px solid var(--line);
+}
+
+.reason:empty {
+  display: none;
+}
+
+.reason.is-ready {
+  border-left-color: var(--green-line);
+}
+
+.field-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.field-head > label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field-head .limit {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .ia-context-fields > .field,
@@ -1479,9 +1690,13 @@ dialog#source-dialog::backdrop {
   margin-left: 0;
 }
 
+/* --- district and issue */
 .ia-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem 1.2rem;
   margin: 0 0 0.9rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.8rem 0.95rem;
   background: #ffffff;
   border: 1px solid var(--rule);
   border-top: 4px solid var(--navy);
@@ -1490,30 +1705,184 @@ dialog#source-dialog::backdrop {
 
 .ia-context-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.2rem 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: 0.1rem 0.9rem;
 }
 
 .ia-context-fields .field {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.35rem;
+}
+
+.ia-context-fields .hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.ia-context-apply {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+  align-items: center;
+  margin: 0.4rem 0 0.2rem;
+}
+
+.ia-context-apply .hint {
+  margin: 0;
 }
 
 .ia-context-summary {
-  margin: 0.3rem 0 0.2rem;
-  font-size: 0.95rem;
+  margin: 0.45rem 0 0.15rem;
+  font-size: 1rem;
 }
 
 .ia-context-summary .badge {
-  margin-left: 0.4rem;
+  margin-left: 0.2rem;
+}
+
+.ia-draft-note {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  color: var(--amber-ink);
 }
 
 .ia-statusline {
-  min-height: 1.5rem;
-  margin: 0.3rem 0 0;
+  min-height: 1.4rem;
+  margin: 0.2rem 0 0;
   font-size: 0.9rem;
   color: var(--ink);
 }
 
+/* --- compact, secondary boundary map */
+.ia-mapbox {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.ia-mapbox > summary {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  align-items: baseline;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.ia-mapbox > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ia-mapbox > summary::before {
+  content: "▸";
+  flex: none;
+  width: 1rem;
+  color: var(--blue-ink);
+}
+
+.ia-mapbox[open] > summary::before {
+  content: "▾";
+}
+
+.ia-mapbox > summary .ia-map-summary {
+  flex-basis: 100%;
+  margin: 0 0 0 1rem;
+}
+
+.ia-mapbox > summary .ia-map-summary-title {
+  font-weight: 650;
+  color: var(--blue-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ia-mapbox[open] > summary {
+  border-bottom: 1px solid var(--rule);
+}
+
+.ia-map {
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.ia-map .map-title {
+  margin: 0 0 0.1rem;
+  font-size: 1rem;
+}
+
+.ia-map .map-subtitle {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.ia-map svg {
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+}
+
+.ia-map .field {
+  margin: 0.5rem 0 0;
+}
+
+.ia-map .field select {
+  max-width: 14rem;
+}
+
+.map-fact,
+.map-limit {
+  margin: 0.35rem 0;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.8rem;
+  margin: 0.4rem 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.map-legend li {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.map-legend li.is-current {
+  font-weight: 700;
+}
+
+.map-legend .swatch {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 1px solid #174e46;
+}
+
+.map-legend li.is-current .swatch {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.kv.kv-compact {
+  margin: 0;
+  padding: 0.3rem 0.75rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.kv.kv-compact > div {
+  padding-bottom: 0.2rem;
+}
+
+/* --- three working columns */
 .ia-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1531,18 +1900,34 @@ dialog#source-dialog::backdrop {
 }
 
 .ia-main > section {
-  margin: 0 0 1.2rem;
+  margin: 0 0 1.4rem;
 }
 
-.ia-main > section > h2,
-.ia-plan > h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
+.ia-main > section.ia-results + section.ia-results {
+  padding-top: 1rem;
+  border-top: 2px solid var(--rule);
+}
+
+.ia h4.ia-sub {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.ia-outreach ul {
+  margin: 0.2rem 0 0.4rem;
+  padding-left: 1.1rem;
+}
+
+.ia-full-text {
+  font-size: 0.9rem;
+  color: var(--ink-2);
 }
 
 .ia h5 {
   margin: 0.6rem 0 0.2rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--ink);
 }
 
@@ -1551,6 +1936,10 @@ dialog#source-dialog::backdrop {
   padding: 0.5rem 0.7rem;
   background: var(--panel);
   border-left: 4px solid var(--line);
+}
+
+.ia-interpretation:empty {
+  display: none;
 }
 
 .ia-interpretation h4 {
@@ -1568,6 +1957,16 @@ dialog#source-dialog::backdrop {
   color: var(--ink);
   background: var(--amber-bg);
   border-bottom: 2px solid var(--amber-line);
+}
+
+.ia-typed {
+  margin: 1rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+}
+
+.ia-typed form {
+  margin-top: 0.3rem;
 }
 
 .ia-fields,
@@ -1593,8 +1992,8 @@ dialog#source-dialog::backdrop {
 .ia-check-item,
 .ia-parked > li,
 .ia-branches > li {
-  margin: 0 0 0.5rem;
-  padding: 0.5rem 0.65rem;
+  margin: 0 0 0.55rem;
+  padding: 0.6rem 0.7rem;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1604,31 +2003,56 @@ dialog#source-dialog::backdrop {
 .ia-claim-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 0.6rem;
-  align-items: baseline;
+  gap: 0.25rem 0.55rem;
+  align-items: center;
+}
+
+.ia-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--navy);
+  border-radius: 50%;
+}
+
+.ia-step-name {
+  font-size: 0.98rem;
+}
+
+.ia-step-title {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.ia-step-title .ia-step-num {
+  flex: none;
 }
 
 .ia-step-id {
-  min-width: 1.9rem;
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--blue-deep);
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .ia-step-tools {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.1rem 0.7rem;
+  gap: 0.1rem 0.9rem;
   margin-left: auto;
 }
 
 .ia-step-tools .btn-link,
 .ia-tray .btn-link {
-  min-height: 1.75rem;
+  min-height: 1.9rem;
 }
 
-/* In the brief tray the finding reads as body text with its controls on their own line. */
 .ia-selected .tray-label {
   display: block;
   font-size: 0.92rem;
@@ -1643,24 +2067,43 @@ dialog#source-dialog::backdrop {
 
 .ia-step-scope,
 .ia-claim-text {
-  margin: 0.25rem 0;
-  overflow-wrap: anywhere;
+  margin: 0.3rem 0;
+  overflow-wrap: break-word;
 }
 
 .ia-step-scope {
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--ink-2);
 }
 
 .ia details > summary {
-  padding: 0.15rem 0;
-  font-size: 0.9rem;
+  padding: 0.2rem 0;
+  font-size: 0.92rem;
+  font-weight: 600;
   color: var(--blue-ink);
   cursor: pointer;
 }
 
-.ia select[multiple] {
-  width: 100%;
+/* Checkbox groups replace multi-selects: every label visible and wrapped. */
+.ia-multi {
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.6rem 0.5rem;
+}
+
+.ia-multi > legend {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ia-multi-list {
+  max-height: 17rem;
+  overflow-y: auto;
+  padding: 0.1rem 0.2rem;
+}
+
+.ia-multi-list .ia-check {
+  margin: 0.15rem 0;
+  padding: 0.15rem 0;
 }
 
 .ia-add {
@@ -1668,7 +2111,7 @@ dialog#source-dialog::backdrop {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
-  margin: 0.4rem 0 0.8rem;
+  margin: 0.5rem 0 0.8rem;
   padding-top: 0.6rem;
   border-top: 1px solid var(--rule);
 }
@@ -1678,12 +2121,17 @@ dialog#source-dialog::backdrop {
   margin: 0;
 }
 
+.ia-apply-block .btn-row {
+  margin-top: 0.4rem;
+}
+
 .ia-check {
   display: flex;
-  gap: 0.45rem;
+  gap: 0.5rem;
   align-items: flex-start;
   margin: 0.3rem 0;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  cursor: pointer;
 }
 
 .ia-check input {
@@ -1691,14 +2139,63 @@ dialog#source-dialog::backdrop {
   margin-top: 0.2rem;
 }
 
-.ia-step-result {
-  margin: 0 0 0.9rem;
+.ia-check-strong {
+  font-weight: 600;
 }
 
-.ia-step-result > h4 {
-  margin: 0 0 0.35rem;
-  padding-bottom: 0.2rem;
+/* --- findings and evidence */
+.ia-step-result {
+  margin: 0 0 1rem;
+}
+
+.ia-step-result > h3 {
+  margin: 0.4rem 0 0.45rem;
+  padding-bottom: 0.25rem;
   border-bottom: 1px solid var(--rule);
+}
+
+.ia-claim .ia-select {
+  margin: 0 0 0 auto;
+  font-weight: 600;
+}
+
+.ia-claim-text {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.ia-claim-meta {
+  margin: 0.15rem 0;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+/* Concise limit beside the result: amber rule plus the word "Limit", not colour alone. */
+.ia-limit {
+  margin: 0.4rem 0;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.88rem;
+  color: var(--amber-ink);
+  background: #fffaeb;
+  border-left: 4px solid var(--amber-line);
+}
+
+.ia-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  align-items: baseline;
+  margin: 0.35rem 0;
+  font-size: 0.9rem;
+}
+
+.ia-sources-label {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ia-sources .btn-link {
+  font-size: 0.9rem;
 }
 
 /* Selection is shown by a heavier left rule and a text label, not by colour alone. */
@@ -1709,26 +2206,44 @@ dialog#source-dialog::backdrop {
   background: #f3f7fc;
 }
 
-.ia-claim .kv {
+.ia-claim .kv,
+.ia-response .kv {
   font-size: 0.9rem;
 }
 
-.ia-map {
-  min-height: 4rem;
-  padding: 0.5rem;
-  background: var(--panel);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
+.ia-results > details.limitations > summary {
+  font-size: 0.95rem;
 }
 
-.ia-map h3 {
+.ia-response > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.5rem;
+  align-items: center;
+}
+
+.ia-response > header h3 {
+  margin: 0;
+}
+
+.ia-response .ia-questions {
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.6rem;
+  background: #eef4fc;
+  border-left: 4px solid var(--blue);
+}
+
+.ia-response .ia-questions h5 {
   margin-top: 0;
 }
 
-.ia-map svg {
-  max-width: 100%;
+.ia-choose {
+  margin: 0.6rem 0 0.2rem;
+  padding: 0.45rem 0.6rem;
+  font-weight: 600;
   background: #ffffff;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
+  border-radius: 4px;
 }
 
 .ia-template {
@@ -1742,16 +2257,42 @@ dialog#source-dialog::backdrop {
   gap: 0 0.6rem;
 }
 
-/* The brief tray scrolls with the page; the guided view's sticky tray rule does not apply here. */
+.ia-inline-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.ia-inline-row input {
+  flex: 1 1 auto;
+}
+
+/* --- brief tray: the primary action and its reason come first */
 .ia-tray {
   position: static;
   max-height: none;
   overflow: visible;
 }
 
-.ia-tray h3 {
-  margin: 0.9rem 0 0.3rem;
-  font-size: 1rem;
+.ia-cta {
+  margin: 0 0 0.6rem;
+  padding: 0.65rem 0.7rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.ia-cta-status {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+}
+
+.ia-cta .btn-row {
+  margin: 0.3rem 0 0;
+}
+
+.ia-cta .btn-primary {
+  flex: 1 1 auto;
 }
 
 .ia-tray input[type="text"],
@@ -1761,7 +2302,7 @@ dialog#source-dialog::backdrop {
 .ia-case input[type="file"] {
   width: 100%;
   max-width: 100%;
-  min-height: 2.25rem;
+  min-height: 2.4rem;
   padding: 0.3rem 0.45rem;
   font: inherit;
   font-size: 0.95rem;
@@ -1771,8 +2312,27 @@ dialog#source-dialog::backdrop {
   border-radius: 3px;
 }
 
-.ia-review {
+.ia-case input[type="file"]::file-selector-button {
+  margin-right: 0.7rem;
+  padding: 0.3rem 0.8rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: #ffffff;
+  border: 2px solid var(--navy);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ia-tracking {
   margin: 0.8rem 0 0;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.ia-review {
+  margin: 0.4rem 0 0;
 }
 
 .ia-review:not(:empty) {
@@ -1788,9 +2348,25 @@ dialog#source-dialog::backdrop {
   margin-top: 0;
 }
 
+.ia-review .hint {
+  color: var(--amber-ink);
+}
+
+/* --- brief and case */
 .ia-brief,
 .ia-case {
   margin: 0.9rem 0 0;
+}
+
+.ia-brief-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  align-items: center;
+}
+
+.ia-brief-bar .reason {
+  margin: 0;
 }
 
 .ia-brief .brief-preview {
@@ -1817,18 +2393,66 @@ dialog#source-dialog::backdrop {
   background: var(--amber-bg);
 }
 
+.ia-branches > li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ia-branch-text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.ia-branch-text .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.ia-branch-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  align-items: center;
+}
+
+.ia-branch-tools .hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+
 .ia-case-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
-  gap: 0.6rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 0.6rem 2rem;
   margin: 0.6rem 0;
 }
 
+.ia-case-col > .ia-group-title {
+  margin-top: 0.4rem;
+}
+
+.ia-case-col .btn {
+  margin-top: 0.5rem;
+}
+
 .ia-staff-preview {
+  margin: 0.4rem 0;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 4px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+
+.ia-staff-list,
+.ia-staff-list ul {
+  padding-left: 1.1rem;
 }
 
 .ia .notice[tabindex="-1"]:focus,
@@ -1837,7 +2461,58 @@ dialog#source-dialog::backdrop {
 .ia-claim:focus,
 .ia-main:focus {
   outline: 3px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: -3px;
+  box-shadow: none;
+}
+
+.ia h2[tabindex="-1"]:focus,
+.ia h3[tabindex="-1"]:focus,
+.ia p[tabindex="-1"]:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+p.page-foot {
+  margin: 0.5rem 1rem 1rem;
+}
+
+/* Off-screen copy of the brief at printed width (letter, 0.45in margins) used to check one-page fit. */
+.fit-probe {
+  position: absolute;
+  top: 0;
+  left: -10000px;
+  width: 7.6in;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fit-probe .brief-doc {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.ia-brief-fit .ia-choices {
+  margin-top: 0.4rem;
+}
+
+.ia-choice-list .btn {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 2.4rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Empty status/hint nodes take no space. */
+.ia .hint:empty,
+.ia .reason:empty {
+  display: none;
 }
 
 @media (min-width: 760px) {
@@ -1846,7 +2521,7 @@ dialog#source-dialog::backdrop {
   }
 
   .ia-grid {
-    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
     gap: 1rem;
   }
 
@@ -1855,9 +2530,16 @@ dialog#source-dialog::backdrop {
   }
 }
 
+@media (min-width: 900px) {
+  .ia-context-fields {
+    grid-template-columns: minmax(9rem, 1fr) minmax(15rem, 1.6fr) minmax(9rem, 1fr) minmax(11rem, 1.2fr);
+    align-items: start;
+  }
+}
+
 @media (min-width: 1200px) {
   .ia-grid {
-    grid-template-columns: 320px minmax(0, 1fr) 340px;
+    grid-template-columns: 300px minmax(0, 1fr) 340px;
   }
 
   .ia-tray {
@@ -1908,8 +2590,6 @@ dialog#source-dialog::backdrop {
     border: 0;
     background: #ffffff;
     color: #000000;
-    font-size: 8.75pt;
-    line-height: 1.22;
   }
 
   #print-root .brief-doc a,
@@ -1939,74 +2619,7 @@ dialog#source-dialog::backdrop {
     page-break-inside: avoid;
   }
 
-  /* Tighter one-page fit (checked by tools/print_fit_check.py). */
-  #print-root .brief-doc {
-    font-size: 8pt;
-    line-height: 1.17;
-  }
-
-  #print-root .brief-doc h2 {
-    font-size: 11pt;
-    margin: 0 0 1pt;
-  }
-
-  #print-root .brief-doc h3 {
-    font-size: 7.5pt;
-    margin: 4pt 0 1.5pt;
-  }
-
-  #print-root .brief-doc .brief-meta,
-  #print-root .brief-doc .brief-foot {
-    font-size: 6.5pt;
-    margin: 0;
-  }
-
-  #print-root .brief-doc .brief-findings {
-    margin: 0;
-    padding-left: 1.3em;
-  }
-
-  #print-root .brief-doc .brief-finding {
-    margin: 0 0 2pt;
-  }
-
-  #print-root .brief-doc .brief-finding .staff-edit {
-    margin: 1pt 0 0;
-    padding: 0 0 0 4pt;
-    font-size: 7.2pt;
-  }
-
-  #print-root .brief-doc section.staff-edit {
-    margin: 2pt 0;
-    padding: 0 0 0 5pt;
-    font-size: 7.5pt;
-  }
-
-  #print-root .brief-doc section.staff-edit p {
-    margin: 0;
-  }
-
-  #print-root .brief-doc .brief-limits,
-  #print-root .brief-doc .brief-cites {
-    font-size: 6.5pt;
-    line-height: 1.12;
-    margin: 0;
-    padding-left: 1.1em;
-    column-gap: 10pt;
-  }
-
-  #print-root .brief-doc .brief-limits {
-    padding-left: 1.5em;
-  }
-
-  #print-root .brief-doc .brief-cites {
-    list-style: none;
-    padding-left: 0;
-  }
-
-  #print-root .brief-doc .fid {
-    font-size: 5.5pt;
-  }
+  /* Print uses the same point sizes and spacings as the screen paper (no extra shrinking). */
 }
 
 /* Long unbroken staff text or URLs wrap inside the page instead of overflowing (screen and print). */
