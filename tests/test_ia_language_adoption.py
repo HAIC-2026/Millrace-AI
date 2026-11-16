@@ -315,42 +315,32 @@ class AdoptedProviderAndOperatorTests(unittest.TestCase):
         if path.endswith('input_tokens'):return 200,{'object':'response.input_tokens','input_tokens':1000}
         return 200,{'status':'completed','model':MODEL,'service_tier':'default','reasoning':{'effort':'low'},'usage':self.usage,'output':[]}
     def secret(self):self.secrets+=1;return 'fake-secret-never-network'
-    def test_three_fake_calls_then_no_secret_or_transport_both_buckets(self):
+    def test_retired_adopted_ledger_is_refused_before_secret_or_transport(self):
+        # The legacy adopted ledger is retired: it has no selected profile, so no API caller can spend through it.
         from districtbrief.ia_language_provider import OpenAIProvider
-        provider=OpenAIProvider(transport=self.transport,secret_reader=self.secret)
-        for _ in range(3):
-            with self.assertRaises(LanguageError):  # semantic/output failure still consumes the attempt
-                provider.interpret(self.prepared,active(self.root),'test',threading.Event(),time.monotonic()+25,lambda:None)
-        self.assertEqual(len(self.calls),6);self.assertEqual(self.secrets,3)
-        s=active(self.root).summary();self.assertEqual((s['count_requests'],s['count_capacity_remaining'],s['unresolved']),(6,0,False))
-        self.assertEqual(s['buckets']['test']['settled_usage_estimate_nano_usd'],27539000+3*1500000)
+        before=active(self.root).summary()
         for bucket in ('test','demo'):
-            with self.assertRaises(LanguageError):
+            with self.assertRaises(LanguageError) as failure:
                 OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(self.prepared,active(self.root),bucket,threading.Event(),time.monotonic()+25,lambda:None)
-        self.assertEqual(len(self.calls),6);self.assertEqual(self.secrets,3)
+            self.assertEqual(failure.exception.code,'profile_unavailable')
+        self.assertEqual((self.calls,self.secrets),([],0));self.assertEqual(active(self.root).summary(),before)
     def test_forged_record_blocks_before_secret_and_transport(self):
         from districtbrief.ia_language_provider import OpenAIProvider
         rec=self.root/'config-adoption.json';put(rec,rec.read_bytes().replace(b'root-go',b'rootxgo'))
         with self.assertRaises(LanguageError):
             OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(self.prepared,active(self.root),'test',threading.Event(),time.monotonic()+25,lambda:None)
         self.assertEqual((self.calls,self.secrets),([],0))
-    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
-    def test_operator_evaluate_refuses_before_question_input_under_cap6(self):
-        from tools import ia_language_operator as operator
-        opened=[]
-        def ledger(config_hash,**kw):
-            self.assertEqual(kw['catalog_digest'][:7],'sha256:');return active(self.root)
-        with patch.object(operator,'BudgetLedger',ledger),patch.object(operator,'questions',side_effect=lambda *a,**k:opened.append(a)),\
-                patch.object(operator,'protected_path',side_effect=lambda *a,**k:opened.append(a)):
-            out=io.StringIO()
-            with redirect_stdout(out):code=operator.main(['evaluate','--questions','/run/ia1-eval/sealed.jsonl','--output','/run/ia1-eval/results/x.jsonl'])
-        self.assertEqual(code,2);self.assertEqual(json.loads(out.getvalue())['code'],'count_capacity_insufficient');self.assertEqual(opened,[])
-    def test_operator_identity_reports_computed_hash_without_control_access(self):
+    def test_operator_never_constructs_the_retired_ledger_and_identity_needs_no_control(self):
         from tools import ia_language_operator as operator
         from districtbrief.ia_language_provider import configuration_hash
+        from districtbrief.ia_language_funding import FundingLedger
+        from language_funding_fixture import PROFILE
+        self.assertFalse(hasattr(operator,'BudgetLedger'))
         out=io.StringIO()
-        with patch.object(BudgetLedger,'approval',side_effect=AssertionError('no control access')),redirect_stdout(out):
-            self.assertEqual(operator.main(['identity']),0)
-        r=json.loads(out.getvalue());self.assertEqual(r['active_config_hash'],configuration_hash(r['catalog_digest']));self.assertEqual(r['policy_hash'],POLICY_HASH)
+        with patch.object(BudgetLedger,'approval',side_effect=AssertionError('no legacy control access')),\
+                patch.object(FundingLedger,'approval',side_effect=AssertionError('no control access')),redirect_stdout(out):
+            self.assertEqual(operator.main(['identity','--profile','terra-medium']),0)
+        r=json.loads(out.getvalue());self.assertEqual(r['active_config_hash'],configuration_hash(r['catalog_digest'],PROFILE))
+        self.assertEqual((r['profile_id'],r['profile_hash'],r['control_access']),('terra-medium',PROFILE.profile_hash,False))
 
 if __name__=='__main__':unittest.main()

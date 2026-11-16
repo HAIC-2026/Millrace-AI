@@ -9,7 +9,7 @@ from public_app import load_core
 from districtbrief.investigation import Investigation
 from districtbrief.ia_language import LanguageError
 from districtbrief.ia_language_jobs import ATTRIBUTION_VALUES, LanguageService
-from test_ia_language_accounting import ledger_fixture
+from language_funding_fixture import PROFILE,ledger_fixture
 import test_ia_language_repair as repair  # module import: its TestCases are not re-collected here
 from test_ia_language_repair import H,plan,compare,profile,wire,decision
 

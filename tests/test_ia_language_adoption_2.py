@@ -275,27 +275,14 @@ class SecondAdoptionProviderTests(unittest.TestCase):
     def interpret(self,bucket):
         from districtbrief.ia_language_provider import OpenAIProvider
         return OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(self.prepared,ledger(self.root),bucket,threading.Event(),time.monotonic()+25,lambda:None)
-    def test_one_fake_call_then_no_secret_or_transport_both_buckets(self):
-        with self.assertRaises(LanguageError):self.interpret('test')  # semantic/output failure still consumes the attempt
-        self.assertEqual((len(self.calls),self.secrets),(2,1))
+    def test_retired_record2_ledger_is_refused_before_secret_or_transport(self):
+        before=ledger(self.root).summary()
         for bucket in ('test','demo'):
-            with self.assertRaises(LanguageError):self.interpret(bucket)
-        self.assertEqual((len(self.calls),self.secrets),(2,1))
-        s=ledger(self.root).summary();self.assertEqual((s['count_requests'],s['count_capacity_remaining'],s['unresolved']),(7,0,False))
-        self.assertEqual(s['buckets']['test']['settled_usage_estimate_nano_usd'],55078000+1500000)
+            with self.assertRaises(LanguageError) as failure:self.interpret(bucket)
+            self.assertEqual(failure.exception.code,'profile_unavailable')
+        self.assertEqual((self.calls,self.secrets),([],0));self.assertEqual(ledger(self.root).summary(),before)
     def test_forged_record2_blocks_before_secret_and_transport(self):
         rec=self.root/'config-adoption-2.json';put(rec,rec.read_bytes().replace(b'root-go',b'rootxgo'))
         with self.assertRaises(LanguageError):self.interpret('test')
         self.assertEqual((self.calls,self.secrets),([],0))
-    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
-    def test_operator_evaluate_refuses_before_question_input_under_cap7(self):
-        from tools import ia_language_operator as operator
-        opened=[]
-        with patch.object(operator,'BudgetLedger',lambda config_hash,**kw:ledger(self.root)),\
-                patch.object(operator,'questions',side_effect=lambda *a,**k:opened.append(a)),\
-                patch.object(operator,'protected_path',side_effect=lambda *a,**k:opened.append(a)):
-            out=io.StringIO()
-            with redirect_stdout(out):code=operator.main(['evaluate','--questions','/run/ia1-eval/sealed.jsonl','--output','/run/ia1-eval/results/x.jsonl'])
-        self.assertEqual(code,2);self.assertEqual(json.loads(out.getvalue())['code'],'count_capacity_insufficient');self.assertEqual(opened,[])
-
 if __name__=='__main__':unittest.main()

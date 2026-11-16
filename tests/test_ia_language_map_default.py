@@ -15,7 +15,7 @@ from districtbrief.ia_language import (EMPTY_PLAN,LanguageError,NEW_PLAN_MAP_SES
     dumps,ordinary_plan,prepare_request,strict_json,wire_plan)
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import PROMPT,OpenAIProvider,provider_payload
-from test_ia_language_accounting import ledger_fixture,usage
+from language_funding_fixture import HISTORICAL_LOW,PROFILE,ledger_fixture,usage
 
 FIXTURE=json.loads((Path(__file__).parent/'fixtures'/'ia-language-dev-v5-replay.json').read_text())
 CASES={c['case_id']:c for c in FIXTURE['cases']}
@@ -71,7 +71,7 @@ class MapDefaultTests(unittest.TestCase):
             self.assertEqual(p['catalog_digest'],FIXTURE['first_adoption_record']['catalog_digest'])
             # Byte-identical outbound payload to the actually settled V5 request when only the V8 prompt and the
             # pre-v10 comparator-clarification universe are restored (v10 offers every admitted geography).
-            replay=copy.deepcopy(provider_payload(p)[0]);replay['instructions']=v8_prompt
+            replay=copy.deepcopy(provider_payload(p,HISTORICAL_LOW)[0]);replay['instructions']=v8_prompt
             enum=replay['tools'][0]['parameters']['properties']['clarify_choices']['items']['enum']
             self.assertTrue(all('g_'+g in enum for g in p['provider_context']['catalog']['geographies']))  # v10 full universe
             allowed=self.pre_v10_comparators(case['request'],p['provider_context']['catalog']['geographies'])
@@ -92,7 +92,7 @@ class MapDefaultTests(unittest.TestCase):
                 def transport(method,path,body,secret,deadline,case=case):
                     calls.append(path)
                     if path.endswith('input_tokens'):return 200,{'object':'response.input_tokens','input_tokens':case['usage']['input_tokens']}
-                    return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'low'},'status':'completed',
+                    return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'medium'},'status':'completed',
                         'usage':provider_usage(case['usage']),'output':[{'type':'function_call','name':'ia_language_decision','status':'completed','arguments':case['function_arguments']}]}
                 service=LanguageService(self.i,enabled=True,provider=OpenAIProvider(transport=transport,secret_reader=lambda:'fake-no-network'),ledger=ledger)
                 try:
@@ -116,7 +116,7 @@ class MapDefaultTests(unittest.TestCase):
             ledger=ledger_fixture(tmp)
             def transport(method,path,body,secret,deadline):
                 if path.endswith('input_tokens'):return 200,{'object':'response.input_tokens','input_tokens':8000}
-                return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'low'},'status':'completed',
+                return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'medium'},'status':'completed',
                     'usage':usage(8000,100),'output':[{'type':'function_call','name':'ia_language_decision','status':'completed','arguments':arguments}]}
             service=LanguageService(self.i,enabled=True,provider=OpenAIProvider(transport=transport,secret_reader=lambda:'fake-no-network'),ledger=ledger)
             try:

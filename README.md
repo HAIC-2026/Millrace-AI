@@ -8,7 +8,7 @@ Team **Millrace AI** built District Brief Builder for the HAIC 2026 Know Your Di
 
 You choose one of Hawaiʻi's 51 House or 25 Senate districts and an issue. The app runs a visible, editable plan on a bundled snapshot of public aggregate data. Each ACS figure shows its publisher, period, universe, margin of error and source location. Administrative figures show their publisher, period, coverage and sheet cell. Program references show their official page and checked date. You choose findings and an agency action, add labeled staff notes, and print a one-page brief. Agencies determine eligibility and current availability.
 
-**Status:** working prototype. The hosted app runs guided controls only. Language questions are off in this release. Every number comes from deterministic operations on the bundled snapshot. The hosted app makes no model call.
+**Status:** working prototype. The hosted app has guided controls and optional language questions. A language question asks an OpenAI model (`gpt-6.1-terra`, medium reasoning effort) to propose a plan. Staff review the proposal before it runs. Every number still comes from deterministic operations on the bundled snapshot. Guided controls and typed requests make no model call. See [optional language questions](#optional-language-questions).
 
 ## Try the House 028 Care example
 
@@ -72,7 +72,7 @@ The table maps the Know Your District brief to this release. "Partly" means part
 | Compare with county and State | Met | Same-definition point differences with both margins shown. No significance test. |
 | Every figure cites source, period and geography | Met | Each ACS finding and brief line links to publisher, period, universe, boundary session and cell location. Administrative figures show their source, period, coverage and cell. Program references show their official record and checked date. |
 | State uncertainty and missing data | Met | Margins of error stay with values. Values the source has not published carry an unpublished status instead of a number. |
-| Plain-language question interface | Not met | Language questions are off. Guided steps and a literal typed-request parser are available. See [optional language questions](#optional-language-questions). |
+| Plain-language question interface | Partly | **Ask a question** turns an ordinary question into a proposed plan, a clarifying choice or a refusal. Staff review and apply it. A developer qualification of the earlier guard rules met its gate on 34 fresh questions. This build's repaired guards await a new confirmation. No staff study has occurred. See [optional language questions](#optional-language-questions). |
 | Program information with official links; agency decides eligibility | Met | Five program references, two guided workflows and an agency action card with questions to confirm. |
 | Potentially eligible populations and uptake gaps | Partly | The app offers a labeled outreach hypothesis and an agency verification route. It does not estimate eligible-but-unenrolled residents. The data do not support that estimate at district level. |
 | District maps | Partly | Selected-district boundary and poverty shading with a text alternative. No statewide comparison map. |
@@ -84,7 +84,7 @@ The table maps the Know Your District brief to this release. "Partly" means part
 
 ## Task results
 
-These are developer checks, not a staff usability study or a measure of user accuracy. An AI browser agent operated the checks under developer direction. Each row is one observation on a named build. R12 is the guided release published November 14, 2026 (HST). This build adds a recommended brief and a Start here summary, and changes R12's language notice, agency cards, source links and printed wording. It keeps R12's data and calculations, and corrects the caveat shown with the all-people poverty rate. "Hosted" means [haic.millrace.ai](https://haic.millrace.ai). "Local" means the same R12 release manifest served from a developer computer. Evidence kinds:
+These are developer checks, not a staff usability study or a measure of user accuracy. An AI browser agent operated the checks under developer direction. Each row is one observation on a named build. R12 is the guided release published November 14, 2026 (HST). This build adds a recommended brief and a Start here summary, and changes R12's language notice, agency cards, source links and printed wording. It keeps R12's data and calculations, and corrects the caveat shown with the all-people poverty rate. It also enables language questions, which R12 had off. "Hosted" means [haic.millrace.ai](https://haic.millrace.ai). "Local" means the same R12 release manifest served from a developer computer. Evidence kinds:
 
 - **Reader check:** you can repeat it from [Try the House 028 Care example](#try-the-house-028-care-example) or [Check the checkout](#check-the-checkout).
 - **Attested summary:** a public-safe summary of a private developer record.
@@ -106,6 +106,8 @@ These are developer checks, not a staff usability study or a measure of user acc
 | Walkthrough by the team captain, README only (not a first-time user) | Reach the House 028 brief using only these directions | Not yet performed | Unverified | — | — |
 | Recommended brief, House 028 (this build) | **Use recommended brief** selects the comparison and agency action, and the brief reaches **Ready to print** | Not yet checked in a browser on the final build | Unverified | — | — |
 | Plain-language questions | Interpret ordinary questions into supported steps | Off in both builds. The question panel is hidden, a one-line notice says so, and guided steps remain available | Unsupported | R12, Nov 14, hosted Chrome | Reader check |
+| Language qualification, this model setting on the earlier guard rules | Preregistered gate on 34 fresh held-out questions: at least 16 of 18 actionable, 3 of 4 source, 5 of 6 clarify and 5 of 6 unsupported correct, no critical error, 95th-percentile time at most 15 s | 16 of 18 actionable, 4 of 4 source, 5 of 6 clarify and 6 of 6 unsupported correct. An AI-agent audit found no critical error. 95th-percentile time 8.2 s | Gate met | `gpt-6.1-terra` medium, Nov 15, private developer evaluation | Attested summary |
+| Hosted language questions | Ask a question, review the proposal and apply it on the hosted build | Not yet checked in a browser on this build | Unverified | — | — |
 
 Known limits from these checks:
 
@@ -170,9 +172,11 @@ Case state stays in browser memory until you download a file. Default downloads 
 
 ## Optional language questions
 
-Language questions are off in this release. The app hides the question panel, shows a one-line notice instead, and makes no model call. Guided steps, typed requests, sources, the brief and case files all work without language questions. **Typed request help** documents the literal request syntax. That parser runs on the server and calls no model.
+The hosted app enables **Ask a question**. It sends your question and limited public plan context to OpenAI's Responses API. The model is `gpt-6.1-terra` at medium reasoning effort, on standard processing. The model only proposes. It returns a plan for the admitted operations, a clarifying choice or a refusal. It never states a figure. Staff review each proposal and choose **Use this proposal in the draft**. **Apply plan** then runs the same deterministic operations as the guided controls. Read [what is sent](PRIVACY.md#optional-language-questions) before you ask. Do not enter confidential or resident details.
 
-The source includes an optional language proposal feature. It is disabled by default and is not enabled on the hosted app. An earlier quality qualification did not meet its gate. Enabling it requires an approved provider configuration, a secret mount, spending accounting and a new independent quality acceptance.
+A developer qualification of this model setting met its preregistered gate on 34 fresh held-out questions. An AI agent audited the results. This was not a staff usability study. That qualification used the earlier server guard rules. This build corrects several of those rules: a State comparison no longer blocks other named comparators, an unconfirmed draft's plan context is read the same way as a confirmed plan, the model's own inheritance labels no longer refuse an otherwise checked plan, and an unclear comparator gets typed choices. A new confirmation on this build is pending. Some correct questions may still end in a safe refusal or a clarifying choice. Guided steps, typed requests, sources, the brief and case files all work without language questions. **Typed request help** documents the literal request syntax. That parser runs on the server and calls no model.
+
+Language use has fixed limits: 500 characters per question, 5 questions per browser session per hour and 15 per hour across the site. One question runs at a time. A finite spending budget covers all model use. When a limit or the budget is reached, the panel reports that language is unavailable and the guided controls keep working. If the hosted app is rolled back to the earlier guided release, language questions are off again and it makes no model calls. The spending record is kept as is. In source checkouts, language questions are off unless an operator enables them and names a validated model profile in `districtbrief/ia_language_profiles.json`. Enabling them also needs a server secret file and a root-approved funding record.
 
 ## Cases from earlier public releases
 

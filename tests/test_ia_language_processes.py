@@ -15,13 +15,15 @@ from public_app import Application
 from districtbrief.ia_language import EMPTY_PLAN,SCHEMA_VERSION
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider
-from test_ia_language_accounting import ledger_fixture
+from language_funding_fixture import PROFILE,ledger_fixture
 import test_ia_language_contract as contract_fixtures
 
 CHILD='''import json,os,sys,time
-from districtbrief.ia_language_accounting import BudgetLedger
+from districtbrief.ia_language_funding import FundingLedger
+from districtbrief.ia_language_profiles import load_profile
 from districtbrief.ia_language import LanguageError
-b=BudgetLedger('sha256:'+'a'*64,sys.argv[1],protected=False)
+# The child is a separate process bound to the OTHER profile (the study); money and slots are still shared.
+b=FundingLedger(load_profile('sol-low'),sys.argv[1],config_hash='sha256:'+'a'*64,protected=False)
 mode=sys.argv[2]
 if mode=='hold':
  fd=b.acquire_job();print(json.dumps({'state':'locked','pid':os.getpid()}),flush=True);sys.stdin.read(1);b.release_job(fd)
@@ -32,7 +34,7 @@ elif mode=='try':
  except LanguageError as e:result=e.code
  print(json.dumps({'state':result,'elapsed':time.monotonic()-t,'pid':os.getpid()}))
 else:
- e=b.reserve('test','hash');b.counted(e,1000);b.dispatched(e);b.unknown(e,'injected_unknown')
+ e=b.reserve('test','hash');b.count_dispatched(e);b.counted(e,1000);b.dispatched(e);b.unknown(e,'injected_unknown')
  result={}
  for bucket in ('test','demo'):
   try:b.reserve(bucket,'hash');result[bucket]='admitted'

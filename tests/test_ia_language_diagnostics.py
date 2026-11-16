@@ -62,8 +62,8 @@ class LanguageDiagnosticTests(unittest.TestCase):
         question.write_text(json.dumps({'case_id':'synthetic-only','request':request})+'\n');question.chmod(0o600)
         output=results/'out.jsonl';diagnostics=results/'diagnostics.jsonl';f.decisions.append(f.decision(f.plan('custom')))
         captured=io.StringIO()
-        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'BudgetLedger',return_value=f.ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),redirect_stdout(captured):
-            code=operator.main(['smoke','--questions',str(question),'--output',str(output),'--diagnostics',str(diagnostics)])
+        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'FundingLedger',return_value=f.ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),redirect_stdout(captured):
+            code=operator.main(['smoke','--profile','terra-medium','--questions',str(question),'--output',str(output),'--diagnostics',str(diagnostics)])
         self.assertEqual(code,0);summary=json.loads(captured.getvalue());self.assertTrue(summary['diagnostics']['enabled']);self.assertEqual(summary['diagnostics']['write_failures'],0)
         self.assertEqual(stat.S_IMODE(diagnostics.stat().st_mode),0o600)
         events=[json.loads(line)for line in diagnostics.read_text().splitlines()];self.assertEqual(len(events),2)
@@ -72,8 +72,9 @@ class LanguageDiagnosticTests(unittest.TestCase):
     @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})  # evaluator-supplied future cutoff
     def test_actual_cli_diagnostic_write_failure_reports_failure_after_settlement(self):
         f=self.f;operator=self.operator();results=f.root/'results';results.mkdir(mode=0o700)
-        question=f.root/'synthetic.jsonl';question.write_text(json.dumps({'case_id':'synthetic-only','request':f.request('Profile median age in House28.')})+'\n');question.chmod(0o600)
-        f.decisions.append(f.decision(f.plan('custom')));real_fdopen=operator.os.fdopen;opened=[]
+        question=f.root/'synthetic.jsonl'
+        question.write_text(''.join(json.dumps({'case_id':'synthetic-%d'%k,'request':f.request('Profile median age in House28.')})+'\n' for k in range(2)));question.chmod(0o600)
+        f.decisions.append(f.decision(f.plan('custom')));f.decisions.append(f.decision(f.plan('custom')));real_fdopen=operator.os.fdopen;opened=[]
         class FailedWriter:
             def __init__(self,file):self.file=file
             def write(self,data):raise OSError('injected diagnostic file full')
@@ -84,16 +85,47 @@ class LanguageDiagnosticTests(unittest.TestCase):
             file=real_fdopen(fd,*args,**kwargs);opened.append(fd)
             return FailedWriter(file)if len(opened)==1 else file
         captured=io.StringIO()
-        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'BudgetLedger',return_value=f.ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),patch.object(operator.os,'fdopen',side_effect=fdopen),redirect_stdout(captured):
-            code=operator.main(['smoke','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(results/'diagnostics.jsonl')])
-        self.assertEqual(code,0);summary=json.loads(captured.getvalue());self.assertGreaterEqual(summary['diagnostics']['write_failures'],2)
-        self.assertEqual(json.loads((results/'out.jsonl').read_text())['status'],'propose')
+        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'FundingLedger',return_value=f.ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),patch.object(operator.os,'fdopen',side_effect=fdopen),redirect_stdout(captured):
+            code=operator.main(['smoke','--profile','terra-medium','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(results/'diagnostics.jsonl')])
+        # Fail closed: the row in flight still settles its known usage, but no later row starts and the run reports failure.
+        self.assertEqual(code,2);summary=json.loads(captured.getvalue());self.assertEqual(summary['status'],'diagnostics_failed')
+        self.assertGreaterEqual(summary['diagnostics']['write_failures'],2)
+        rows=[json.loads(x) for x in (results/'out.jsonl').read_text().splitlines()]
+        self.assertEqual([r['status'] for r in rows],['propose','not_started']);self.assertEqual(rows[1]['response']['code'],'diagnostics_write_failed')
+        self.assertEqual((rows[0]['ledger_delta']['count_requests'],rows[1]['ledger_delta']['count_requests'],rows[1]['model_calls']),(1,0,0))
         self.assertFalse(f.ledger.summary()['unresolved']);self.assertEqual(f.ledger.summary()['buckets']['test']['settled_usage_estimate_nano_usd'],1500000)
-    def test_diagnostics_forbidden_for_evaluate_and_outside_results(self):
+        self.assertEqual(f.ledger.summary()['new_starts'],1)
+    @patch.dict(os.environ,{'HAIC_LANGUAGE_OPERATOR_CUTOFF_EPOCH':str(int(time.time())+86400)})
+    def test_evaluate_diagnostics_capture_actual_identity_usage_and_raw_decision_per_case(self):
+        f=self.f;operator=self.operator();results=f.root/'results';results.mkdir(mode=0o700)
+        question=f.root/'synthetic.jsonl'
+        question.write_text(''.join(json.dumps({'case_id':'synthetic-%03d'%k,'request':f.request('Profile median age in House28.')})+'\n' for k in range(120)))
+        question.chmod(0o600)
+        for _ in range(120):f.decisions.append(f.decision(f.plan('custom')))
+        captured=io.StringIO()
+        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'FundingLedger',return_value=f.ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),redirect_stdout(captured):
+            code=operator.main(['evaluate','--profile','terra-medium','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(results/'out.diagnostics.jsonl')])
+        self.assertEqual(code,0);summary=json.loads(captured.getvalue());self.assertEqual((summary['records'],summary['diagnostics']['write_failures']),(120,0))
+        rows=[json.loads(x) for x in (results/'out.jsonl').read_text().splitlines()]
+        events=[json.loads(x) for x in (results/'out.diagnostics.jsonl').read_text().splitlines()]
+        self.assertEqual(stat.S_IMODE((results/'out.diagnostics.jsonl').stat().st_mode),0o600)
+        by={}
+        for e in events:by.setdefault(e['case_id'],[]).append(e)
+        self.assertEqual(sorted(by),[r['case_id'] for r in rows])
+        for r in rows:
+            self.assertEqual((r['diagnostic_events'],r['model_calls'],r['ledger_delta']['count_requests'],r['ledger_delta']['generation_calls']),(2,1,1,1))
+            pr,lr=by[r['case_id']]
+            self.assertEqual((pr['event'],lr['event']),('provider_result','local_result'))
+            self.assertEqual(pr['identity'],{'model':'gpt-6.1-terra','service_tier':'default','effort':'medium','profile_id':'terra-medium',
+                'expected_model':'gpt-6.1-terra','expected_service_tier':'default','expected_effort':'medium','verified':True})
+            self.assertEqual(pr['usage']['input_tokens'],r['ledger_delta']['usage']['input_tokens'])
+            self.assertEqual(json.loads(pr['function_arguments'])['status'],'propose');self.assertEqual(pr['settlement'],'known_usage_settled')
+            self.assertEqual((lr['phase'],lr['status'],lr['rejection_code']),('validation',r['status'],None))
+        encoded=(results/'out.diagnostics.jsonl').read_bytes()
+        for private in (b'injected-no-network',b'Authorization',b'Bearer',b'Profile median age'):self.assertNotIn(private,encoded)
+    def test_diagnostics_outside_results_refused(self):
         f=self.f;operator=self.operator();results=f.root/'results';results.mkdir(mode=0o700)
         question=f.root/'synthetic.jsonl';question.write_text(json.dumps({'case_id':'synthetic-only','request':f.request('Profile House28.')})+'\n');question.chmod(0o600)
-        with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):operator.main(['evaluate','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(results/'debug.jsonl')])
-        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'BudgetLedger',return_value=f.ledger),redirect_stdout(io.StringIO()):
-            code=operator.main(['smoke','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(f.root/'outside.jsonl')])
+        with patch.object(operator,'EVAL_ROOT',f.root),patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'FundingLedger',return_value=f.ledger),redirect_stdout(io.StringIO()):
+            code=operator.main(['smoke','--profile','terra-medium','--questions',str(question),'--output',str(results/'out.jsonl'),'--diagnostics',str(f.root/'outside.jsonl')])
         self.assertEqual(code,2);self.assertEqual(f.secret_reads,0);self.assertEqual(f.paths,[])

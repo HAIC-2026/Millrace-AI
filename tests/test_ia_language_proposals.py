@@ -19,7 +19,7 @@ from districtbrief.ia_language import EMPTY_PLAN,SCHEMA_VERSION,convert_decision
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider
 from districtbrief.interpret import recipe,food_assistance_recipe
-from test_ia_language_accounting import ledger_fixture,usage
+from language_funding_fixture import PROFILE,ledger_fixture,usage
 
 class LanguageProposalTests(unittest.TestCase):
     def setUp(self):
@@ -32,7 +32,7 @@ class LanguageProposalTests(unittest.TestCase):
             self.paths.append(path)
             if path.endswith('input_tokens'):return 200,{'object':'response.input_tokens','input_tokens':1000}
             decision=self.decisions.pop(0)
-            return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'low'},
+            return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'medium'},
                 'status':'completed','usage':usage(),'output':[{'type':'function_call','name':'ia_language_decision',
                 'status':'completed','arguments':json.dumps(decision)}]}
         def secret():self.secret_reads+=1;return 'injected-no-network'
@@ -160,11 +160,11 @@ class LanguageProposalTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('ia_operator_proposal_test',tool);operator=importlib.util.module_from_spec(spec);spec.loader.exec_module(operator)
         # Only mount/approval location seams are injected. The actual CLI parser, request
         # validator, adapter, job slot, converter and durable ledger run unchanged.
-        with patch.object(operator,'load_core',return_value=self.i.core),patch.object(operator,'BudgetLedger',return_value=self.ledger),\
+        with patch.object(operator,'load_core',return_value=self.i.core),patch.object(operator,'FundingLedger',return_value=self.ledger),\
              patch.object(operator,'protected_path',side_effect=lambda path,**kw:Path(path)),\
              patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=self.provider),\
              patch('districtbrief.ia_language_jobs.convert_decision',side_effect=self.checked_convert),self.guard_metadata(),redirect_stdout(io.StringIO()):
-            code=operator.main(['smoke','--questions',str(questions),'--output',str(output)])
+            code=operator.main(['smoke','--profile','terra-medium','--questions',str(questions),'--output',str(output)])
         self.assertEqual(code,0);rows=[json.loads(line)for line in output.read_text().splitlines()]
         self.assertEqual(len(rows),5);self.assertEqual([r['status']for r in rows],expected)
         for n,row in enumerate(rows):

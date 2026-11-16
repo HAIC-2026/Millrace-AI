@@ -10,9 +10,11 @@ import unittest
 from public_app import load_core
 from districtbrief.investigation import Investigation
 from districtbrief.ia_language import LanguageError,FUNCTION_NAME,EMPTY_PLAN,prepare_request
-from districtbrief.ia_language_provider import MODEL,OpenAIProvider,provider_payload
-from test_ia_language_accounting import ledger_fixture,usage
-from districtbrief.ia_language_accounting import BudgetLedger,MAX_INPUT,reservation
+from districtbrief.ia_language_provider import OpenAIProvider,provider_payload
+from language_funding_fixture import PROFILE,SOL,MODEL,ledger_fixture,usage,bound
+from districtbrief.ia_language_funding import FundingLedger,reservation as profile_reservation
+MAX_INPUT=PROFILE.max_input_tokens
+def reservation(tokens=None,profile=PROFILE):return profile_reservation(profile,tokens)
 import test_ia_language_contract as contract_fixtures
 
 class LanguageProviderTests(unittest.TestCase):
@@ -23,7 +25,7 @@ class LanguageProviderTests(unittest.TestCase):
         helper=contract_fixtures.LanguageContractTests();helper.i=self.i;self.prepared=prepare_request(helper.request(),self.i,'session')
         self.calls=[];self.secret_reads=0;self.dispatches=0
         self.decision={'status':'uncertain','intent':'none','plan':copy.deepcopy(EMPTY_PLAN),'focus_alias':'','clarify_field':'','clarify_choices':[],'reason_code':'uncertain_interpretation','inherited_fields':[]}
-        self.body={'status':'completed','model':MODEL,'service_tier':'default','reasoning':{'effort':'low'},'usage':usage(),
+        self.body={'status':'completed','model':MODEL,'service_tier':'default','reasoning':{'effort':'medium'},'usage':usage(),
             'output':[{'type':'function_call','name':FUNCTION_NAME,'status':'completed','arguments':json.dumps(self.decision)}]}
     def tearDown(self):self.tmp.cleanup()
     def transport(self,method,path,body,secret,deadline):
@@ -35,7 +37,7 @@ class LanguageProviderTests(unittest.TestCase):
     def run_provider(self,transport=None,cancel=None,bucket='test',ledger=None):
         return OpenAIProvider(transport=transport or self.transport,secret_reader=self.secret).interpret(self.prepared,ledger or self.ledger,bucket,cancel or threading.Event(),time.monotonic()+25,self.dispatch)
     def test_exact_count_and_generation_token_fields_match_no_proxy_or_retry(self):
-        payload,count,stats=provider_payload(self.prepared)
+        payload,count,stats=provider_payload(self.prepared,PROFILE)
         for k,v in count.items():self.assertEqual(payload[k],v)
         self.assertEqual(payload['max_output_tokens'],2048);self.assertEqual(payload['prompt_cache_options'],{'mode':'explicit'})
         self.assertFalse(payload['store']);self.assertFalse(payload['parallel_tool_calls'])
@@ -78,7 +80,7 @@ class LanguageProviderTests(unittest.TestCase):
                     self.assertEqual(entry['state'],'unknown');self.assertIsNone(entry['usage']);self.assertIsNone(entry['settled_estimate_nano_usd'])
                     self.assertEqual(entry['terminal_code'],'provider_identity_mismatch')
                     calls=list(self.calls);secrets=self.secret_reads;dispatches=self.dispatches
-                    restarted=BudgetLedger(self.ledger.config_hash,self.tmp.name,protected=False)
+                    restarted=FundingLedger(PROFILE,self.tmp.name,config_hash=self.ledger.config_hash,protected=False)
                     for bucket in ('test','demo'):
                         with self.assertRaises(LanguageError) as blocked:self.run_provider(bucket=bucket,ledger=restarted)
                         self.assertEqual(blocked.exception.code,'unresolved_liability')
@@ -141,3 +143,86 @@ class LanguageProviderTests(unittest.TestCase):
         self.assertFalse(self.ledger.summary()['unresolved'])
     def test_disallowed_network_route_rejects_before_connection(self):
         with self.assertRaises(LanguageError):OpenAIProvider._https('POST','https://evil.test',{},'fake',time.monotonic()+1)
+
+class ProfileConfigTests(unittest.TestCase):
+    """The selected profile reaches payload, count, verification, diagnostics, config hash and settlement."""
+    setUpClass=LanguageProviderTests.__dict__['setUpClass'];setUp=LanguageProviderTests.setUp;tearDown=LanguageProviderTests.tearDown
+    transport=LanguageProviderTests.transport;secret=LanguageProviderTests.secret;dispatch=LanguageProviderTests.dispatch
+    def test_profiles_differ_only_in_model_effort_and_rates(self):
+        from districtbrief.ia_language_provider import configuration_hash
+        terra,terra_count,_=provider_payload(self.prepared,PROFILE);sol,sol_count,_=provider_payload(self.prepared,SOL)
+        self.assertEqual((terra['model'],terra['reasoning']),('gpt-6.1-terra',{'effort':'medium'}))
+        self.assertEqual((sol['model'],sol['reasoning']),('gpt-6.1-sol',{'effort':'low'}))
+        for a,b in ((terra,sol),(terra_count,sol_count)):
+            self.assertEqual({k:v for k,v in a.items() if k not in ('model','reasoning')},{k:v for k,v in b.items() if k not in ('model','reasoning')})
+        for p in (terra,sol):
+            self.assertEqual((p['max_output_tokens'],p['service_tier'],p['store'],p['truncation']),(2048,'default',False,'disabled'))
+        self.assertEqual(terra_count['reasoning'],{'effort':'medium'});self.assertEqual(sol_count['reasoning'],{'effort':'low'})
+        self.assertNotEqual(configuration_hash('sha256:'+'c'*64,PROFILE),configuration_hash('sha256:'+'c'*64,SOL))
+        self.assertEqual((reservation(),reservation(profile=SOL)),(27033600,54067200))
+    def test_sol_request_and_identity_settle_at_sol_rates_with_reasoning_subset(self):
+        sent=[];events=[];self.body.update(model='gpt-6.1-sol',reasoning={'effort':'low'},usage=usage(1000,1500,reasoning=1400))
+        def transport(method,path,body,secret,deadline):sent.append((path,copy.deepcopy(body)));return self.transport(method,path,body,secret,deadline)
+        sol=bound(self.ledger,SOL)
+        decision,meta=OpenAIProvider(transport=transport,secret_reader=self.secret).interpret(
+            self.prepared,sol,'test',threading.Event(),time.monotonic()+25,self.dispatch,diagnostic_sink=events.append)
+        self.assertEqual(decision,self.decision);self.assertEqual([p for p,_ in sent],['/v1/responses/input_tokens','/v1/responses'])
+        self.assertTrue(all(b['model']=='gpt-6.1-sol' and b['reasoning']=={'effort':'low'} for _,b in sent))
+        self.assertEqual(meta['usage']['reasoning_tokens_within_output'],1400)
+        s=sol.summary();self.assertEqual(s['buckets']['test']['new_settled_nano_usd'],1000*2000+1500*10000)
+        self.assertEqual(s['admission']['test']['sol-low'],{'cap':10,'used':1,'remaining':9})
+        self.assertEqual(s['admission']['test']['terra-medium']['used'],0)
+        entry=json.loads(sol.path.read_text())['entries'][0]
+        self.assertEqual((entry['profile_id'],entry['profile_hash'],entry['reserved_nano_usd']),('sol-low',SOL.profile_hash,reservation(1000,SOL)))
+        self.assertEqual(events[0]['identity'],{'model':'gpt-6.1-sol','service_tier':'default','effort':'low','profile_id':'sol-low',
+            'expected_model':'gpt-6.1-sol','expected_service_tier':'default','expected_effort':'low','verified':True})
+    def test_returned_identity_must_match_selected_profile_and_retains_liability(self):
+        for mutation in ({'reasoning':{'effort':'low'}},{'model':'gpt-6.1-sol'},{'service_tier':'fast'}):
+            with self.subTest(mutation=mutation):
+                self.tearDown();self.setUp();self.body.update(mutation);events=[]
+                with self.assertRaises(LanguageError) as failure:
+                    OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(
+                        self.prepared,self.ledger,'test',threading.Event(),time.monotonic()+25,self.dispatch,diagnostic_sink=events.append)
+                self.assertEqual(failure.exception.code,'provider_identity_mismatch')
+                summary=self.ledger.summary();self.assertTrue(summary['unresolved'])
+                self.assertEqual(summary['buckets']['test']['held_liability_nano_usd'],reservation(1000))
+                self.assertFalse(events[0]['identity']['verified']);self.assertEqual(events[0]['settlement'],'unknown_liability_retained')
+                with self.assertRaises(LanguageError) as blocked:
+                    OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(
+                        self.prepared,bound(self.ledger,SOL),'demo',threading.Event(),time.monotonic()+25,self.dispatch)
+                self.assertEqual(blocked.exception.code,'unresolved_liability');self.assertEqual(len(self.calls),2)
+    def test_refusal_still_settles_known_usage_at_profile_rates(self):
+        self.body['output']=[{'type':'message','content':[{'type':'refusal','refusal':'hidden'}]}]
+        with self.assertRaises(LanguageError) as failure:
+            OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(
+                self.prepared,self.ledger,'test',threading.Event(),time.monotonic()+25,self.dispatch)
+        self.assertEqual(failure.exception.code,'provider_refusal')
+        self.assertFalse(self.ledger.summary()['unresolved']);self.assertEqual(self.ledger.summary()['buckets']['test']['new_settled_nano_usd'],1500000)
+    def test_missing_or_legacy_ledger_profile_fails_before_reservation_secret_or_network(self):
+        from districtbrief.ia_language_jobs import LanguageService
+        from districtbrief.ia_language_accounting import BudgetLedger
+        from test_ia_language_accounting import ledger_fixture as legacy_fixture
+        legacy_dir=tempfile.TemporaryDirectory();self.addCleanup(legacy_dir.cleanup);legacy=legacy_fixture(legacy_dir.name)
+        for ledger in (legacy,object(),None):
+            with self.subTest(ledger=type(ledger).__name__):
+                with self.assertRaises(LanguageError) as failure:
+                    OpenAIProvider(transport=self.transport,secret_reader=self.secret).interpret(
+                        self.prepared,ledger,'test',threading.Event(),time.monotonic()+25,self.dispatch)
+                self.assertEqual(failure.exception.code,'profile_unavailable')
+        self.assertEqual(legacy.summary()['buckets']['test']['entries'],0)
+        for bad in (None,'terra-medium',{'model':'gpt-6.1-terra'}):
+            with self.assertRaises(LanguageError):provider_payload(self.prepared,bad)
+        with self.assertRaises(LanguageError) as failure:LanguageService(self.i,enabled=True)
+        self.assertEqual(failure.exception.code,'profile_unavailable')
+        with self.assertRaises(LanguageError) as failure:LanguageService(self.i,enabled=True,profile=SOL,ledger=self.ledger)._resources()
+        self.assertEqual(failure.exception.code,'profile_ledger_mismatch')
+        self.assertEqual(self.calls,[]);self.assertEqual(self.secret_reads,0);self.assertEqual(self.dispatches,0)
+        self.assertEqual(self.ledger.summary()['buckets']['test']['entries'],0)
+    def test_probe_route_is_profile_model_only(self):
+        sent=[]
+        def transport(method,path,body,secret,deadline):sent.append((method,path));return 200,{'id':'gpt-6.1-sol'}
+        out=OpenAIProvider(transport=transport,secret_reader=self.secret).probe(bound(self.ledger,SOL),self.prepared)
+        self.assertEqual((out['model'],out['profile_id'],out['model_calls']),('gpt-6.1-sol','sol-low',0));self.assertEqual(sent,[('GET','/v1/models/gpt-6.1-sol')])
+        for path in ('/v1/models/gpt-6-astra','/v1/models/../responses','/v1/chat/completions'):
+            with self.assertRaises(LanguageError) as error:OpenAIProvider._https('GET',path,None,'fake',time.monotonic()+1)
+            self.assertEqual(error.exception.code,'provider_route_forbidden')

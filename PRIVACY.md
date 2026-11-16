@@ -1,6 +1,6 @@
 # Privacy and security
 
-District Brief Builder uses public aggregate evidence and deterministic operations. It holds no resident or individual records and offers no resident lookup. Guided controls and Typed request make no model calls. The hosted app at haic.millrace.ai has language questions off and makes no model call.
+District Brief Builder uses public aggregate evidence and deterministic operations. It holds no resident or individual records and offers no resident lookup. Guided controls and Typed request make no model calls. The hosted app at haic.millrace.ai enables optional language questions, which call an OpenAI model. See [optional language questions](#optional-language-questions).
 
 ## What stays in the browser
 
@@ -26,7 +26,11 @@ Rotated server metrics record bounded timing, status and operation metadata. Rec
 
 ## Optional language questions
 
-Language questions are disabled by default and off on the hosted app, which hides the question panel. If an operator admits and enables them, the **Ask a question** panel sends its bounded text and value-free plan/catalog context to OpenAI. It excludes staff notes, claim values, source bodies, case files and transcript history. Requests ask the provider not to store the response. The provider's own data policies still apply. Omit confidential or resident details. The application does not promise automatic removal of sensitive text. Staff review each proposal and choose **Use this proposal in the draft**. **Apply plan** runs it separately. Language accounting retains configuration, usage, reservations and settlements, and excludes prompts and provider bodies.
+Language questions are enabled on the hosted app while this release is live. After a rollback to the earlier guided release they are off, and nothing is sent to OpenAI. They are off in a source checkout unless an operator enables them. Each question you submit in the **Ask a question** panel is sent to OpenAI's Responses API, model `gpt-6.1-terra`, as raw text exactly as typed. With it goes selected public context: the current and draft plan, the admitted district, measure, program and source identifiers and labels, and the selected findings as references without their values. By design it does not send staff notes, finding values, source bodies, case files, cookies or earlier questions. The app cannot detect or remove sensitive text you type. Omit confidential or resident details.
+
+Requests ask OpenAI not to store the response. OpenAI's own data policies still apply, and this app makes no zero-data-retention claim. The model only proposes a plan, a clarifying choice or a refusal. Staff review each proposal and choose **Use this proposal in the draft**. **Apply plan** runs it separately.
+
+The app does not log question text, model responses or proposals. Server metrics keep only bounded timing and status metadata. Separate operator evaluation runs use authored test questions, never visitor questions, and can write private diagnostic files on the server. Language accounting keeps the model profile, token usage, a hash of each request, reservations and estimated costs. It excludes question text, prompts and provider bodies. Each start counts against a finite shared spending budget and fixed rate limits.
 
 ## Eligibility
 

@@ -13,7 +13,7 @@ from districtbrief.investigation import Investigation
 from districtbrief.ia_language import DISABLED_MESSAGE,EMPTY_PLAN,SCHEMA_VERSION
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider
-from test_ia_language_accounting import ledger_fixture,usage
+from language_funding_fixture import PROFILE,ledger_fixture,usage
 import test_ia_language_contract as contract_fixtures
 
 class LanguageJobTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class LanguageJobTests(unittest.TestCase):
             self.transports.append(path)
             if path.endswith('input_tokens'):return 200,{'object':'response.input_tokens','input_tokens':1000}
             self.entered.set();self.release.wait(3)
-            return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'low'},'status':'completed','usage':usage(),
+            return 200,{'model':'gpt-6.1-terra','service_tier':'default','reasoning':{'effort':'medium'},'status':'completed','usage':usage(),
                 'output':[{'type':'function_call','name':'ia_language_decision','status':'completed','arguments':json.dumps(decision)}]}
         self.provider=OpenAIProvider(transport=transport,secret_reader=lambda:'fake-no-network')
         self.service=LanguageService(self.i,enabled=True,provider=self.provider,ledger=self.ledger)

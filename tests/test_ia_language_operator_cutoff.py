@@ -30,13 +30,13 @@ class OperatorCutoffTests(unittest.TestCase):
     def run_cli(self,command,n,env,now=None,ledger=None):
         q=self.questions(n);out=io.StringIO();ledger=ledger or self.f.ledger
         patches=[patch.object(self.op,'EVAL_ROOT',self.f.root),patch.object(self.op,'load_core',return_value=self.f.i.core),
-                 patch.object(self.op,'BudgetLedger',return_value=ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=self.f.provider),
+                 patch.object(self.op,'FundingLedger',return_value=ledger),patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=self.f.provider),
                  patch.dict(os.environ,env,clear=False)]
         if now is not None:patches.append(patch.object(self.op,'_now',now))
         for p in patches:p.start()
         try:
             if ENV not in env:os.environ.pop(ENV,None)
-            with redirect_stdout(out):code=self.op.main([command,'--questions',str(q),'--output',str(self.results/(command+'.jsonl'))])
+            with redirect_stdout(out):code=self.op.main([command,'--profile','terra-medium','--questions',str(q),'--output',str(self.results/(command+'.jsonl'))])
         finally:
             for p in reversed(patches):p.stop()
         return code,json.loads(out.getvalue())
@@ -56,6 +56,39 @@ class OperatorCutoffTests(unittest.TestCase):
                     self.assertFalse((self.results/(command+'.jsonl')).exists())
         self.untouched()
 
+    def test_shared_slot_busy_waits_without_losing_or_double_starting_rows(self):
+        # The public app (another ledger object/process) holds the one-job slot; the study row waits, then runs once.
+        from language_funding_fixture import bound,SOL
+        other=bound(self.f.ledger,SOL);held=[other.acquire_job()];waits=[]
+        def sleep(seconds):
+            waits.append(seconds)
+            if held:other.release_job(held.pop())
+        with patch.object(self.op,'_sleep',sleep):
+            code,out=self.run_cli('smoke',1,{ENV:str(int(time.time())+3600)})
+        self.assertEqual(code,0);self.assertGreaterEqual(len(waits),1);self.assertEqual(held,[])
+        rows=[json.loads(x) for x in (self.results/'smoke.jsonl').read_text().splitlines()]
+        self.assertEqual(len(rows),1);self.assertNotEqual(rows[0]['status'],'busy');self.assertEqual(rows[0]['profile_id'],'terra-medium')
+        s=self.f.ledger.summary();self.assertEqual((s['new_starts'],s['admission']['test']['terra-medium']['used']),(1,1))
+    def capped(self,terra,sol):
+        import tempfile
+        from language_funding_fixture import funding_record,ledger_fixture
+        tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
+        return ledger_fixture(tmp.name,funding=funding_record(admission={'test':{'terra-medium':terra,'sol-low':sol},'demo':{'terra-medium':1}},max_starts=terra+sol+1))
+    def test_evaluate_needs_120_admitted_test_starts_for_its_own_profile_before_any_input(self):
+        env={ENV:str(int(time.time())+3600)}
+        for terra,sol in ((119,120),(119,0)):
+            with self.subTest(terra=terra,sol=sol):
+                ledger=self.capped(terra,sol);opened=[]
+                with patch.object(self.op,'questions',side_effect=lambda *a,**k:opened.append(a)),patch.object(self.op,'protected_path',side_effect=lambda *a,**k:opened.append(a)):
+                    code,out=self.run_cli('evaluate',120,env,ledger=ledger)
+                self.assertEqual((code,out['code']),(2,'count_capacity_insufficient'))
+                self.assertEqual((opened,self.f.paths,self.f.secret_reads),([],[],0))
+                self.assertEqual(ledger.summary()['new_starts'],0)
+        ledger=self.capped(120,0)
+        code,out=self.run_cli('evaluate',120,env,ledger=ledger)
+        self.assertEqual((code,out['status'],out['records']),(0,'completed',120))
+        s=ledger.summary();self.assertEqual((s['admission']['test']['terra-medium'],s['buckets']['demo']['new_starts']),({'cap':120,'used':120,'remaining':0},0))
+        self.assertEqual(self.f.secret_reads,120)
     def test_passed_cutoff_refuses_to_start(self):
         code,out=self.run_cli('smoke',2,{ENV:'1794753807'},now=lambda:1794753807.0)
         self.assertEqual((code,out['code']),(2,'recovery_cutoff_passed'));self.assertFalse((self.results/'smoke.jsonl').exists())

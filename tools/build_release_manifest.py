@@ -18,7 +18,9 @@ TOP_LEVEL=('README.md','DATA-PROVENANCE.json','Dockerfile','.dockerignore','.git
 MODULES=('__init__','admin_labels','case_contract','candidate_metadata','claim_binding','contract',
          'core','geography','interpret','investigation','packet','rationale','render','resolve',
          'route_a','router_contract','service','service_scope','xlsx','public_packet',
-         'ia_language','ia_language_provider','ia_language_accounting','ia_language_jobs')
+         'ia_language','ia_language_provider','ia_language_accounting','ia_language_jobs',
+         'ia_language_profiles','ia_language_funding')
+DATA=('districtbrief/ia_language_profiles.json',)
 STATIC=('app.css','app.js','case_state.js','index.html','investigation.js','map.js','request.js','language_state.js')
 TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','test_geometry.py',
        'test_investigation.py','test_release.py','test_scope.py','test_public_profile.py','test_completion.py',
@@ -30,7 +32,8 @@ TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','tes
        'test_ia_language_contract_fixes.py','test_ia_language_ox3_review.py','test_ia_language_v5_review.py','test_ia_language_fh_r1.py','test_ia_language_v6_review.py',
        'test_ia_language_comparator_choices.py','test_metric_caveats.py','test_brief_presentation.py',
        'test_ia_language_adoption_5.py','test_ia_language_county_guard.py','test_ia_language_operator_cutoff.py',
-       'test_recommended_brief.py','recommended_brief_fixture.py')
+       'test_recommended_brief.py','recommended_brief_fixture.py',
+       'language_funding_fixture.py','test_ia_language_funding.py','test_ia_language_profiles.py','test_ia_language_shared_repairs.py')
 FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md','ia-language-dev.json','ia-language-dev-v5-replay.json','ia-language-adoption3-synthetic.json','ia-language-prompt-v8.txt','ia-language-adoption4-synthetic.json','recommended-brief-results.json')
 TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py','build_completion_projection.py','ia_language_operator.py','ia_language_config_adoption.py','ia_language_config_adoption_2.py','ia_language_config_adoption_3.py','ia_language_config_adoption_4.py','ia_language_config_adoption_5.py')
 EXCLUDED_PARTS=frozenset(('.venv','__pycache__','.git'))
@@ -43,6 +46,7 @@ def admitted_files():
     metadata=public_metadata(ROOT/'candidate-metadata')
     allowed=set(TOP_LEVEL)
     allowed.update('districtbrief/'+name+'.py' for name in MODULES)
+    allowed.update(DATA)
     allowed.update('static/'+name for name in STATIC)
     allowed.update('tests/'+name for name in TESTS)
     allowed.update('tests/fixtures/'+name for name in FIXTURES)

@@ -166,7 +166,11 @@ class CountyComparatorGuardTests(unittest.TestCase):
         # Without a county word an island or the State of Hawaii is not a county; a plural needs two names.
         for text in ('Compare senior poverty in House 28 with other Hawaii counties.','Compare senior poverty in House 28 with the State of Hawaii.'):
             with self.subTest(text=text):self.rejected(text,self.new(HAW))
-        self.rejected('Compare senior poverty in House 28 with Maui.',self.new(MAUI))
+        # Intentional V3 delta: a bare island comparator is still never read as a county, but instead of an uncertain
+        # refusal it now gets the one relevant county comparator as a typed choice (no guessed acceptance).
+        for geos in ((MAUI,),(STATE,),()):
+            out=self.convert('Compare senior poverty in House 28 with Maui.',self.new(*geos))
+            self.assertEqual((out['status'],out['clarify_field'],[c['value'] for c in out['choices']]),('clarify','comparator',[MAUI]))
 
     def test_statewide_service_area_never_adds_a_state_comparator(self):
         for text,geo in (('Compare House 28 senior poverty with Maui County for the statewide service area.',MAUI),

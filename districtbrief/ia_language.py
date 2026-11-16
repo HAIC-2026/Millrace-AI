@@ -38,7 +38,8 @@ RECOVERY_CATEGORIES={'control_conflict':'control_conflict','ambiguous_reference'
     'explicit_district_missing':'missing_district','explicit_metric_ambiguous':'ambiguous_poverty_metric',
     'ungrounded_program':'generic_program_theme','nonlegislative_district':'nonlegislative_district',
     'unsupported_explicit_constraint':'unsupported_inference','unsupported_cross_measure':'cross_measure_comparison',
-    'explicit_comparator_chamber_missing':'ambiguous_comparator_chamber'}
+    'explicit_comparator_chamber_missing':'ambiguous_comparator_chamber',
+    'explicit_comparator_county_unstated':'ambiguous_comparator_county'}
 
 class Recovery(LanguageError):
     """A deterministic guard refusal with a fixed typed recovery (clarify/unsupported), never a proposal.
@@ -355,7 +356,7 @@ def ordinary_plan(wire,core,map_session=None):
     return plan
 
 # Small explicit-constraint checks supplement the model; they do not execute a Plan.
-PROGRAM_PATTERNS={'snap_hi':r'\bsnap\b','wic_hi':r'\bwic\b','medquest_hi':r'\b(?:med[ -]?quest|medicaid|quest integration)\b',
+PROGRAM_PATTERNS={'snap_hi':r'\b(?:snap|food stamps?)\b','wic_hi':r'\bwic\b','medquest_hi':r'\b(?:med[ -]?quest|medicaid|quest integration)\b',
                   'kupuna_care_hi':r'\b(?:k[ūu]puna care)\b','hcv_honolulu':r'\b(?:section 8|housing choice voucher|hcv)\b'}
 METRIC_PATTERNS={'poverty_rate_65_plus':r'\b(?:senior|elderly|older adult|65\+?|65 and over|65 years? and over)[\w\s,+-]{0,30}\bpoverty\b|\bpoverty[\w\s,+-]{0,30}\b(?:senior|65|older adult)',
  'poverty_rate_all_people':r'\b(?:all[- ]people|overall|all ages)[\w\s]{0,15}poverty\b|\bpoverty rate[\w\s]{0,15}\ball people\b',
@@ -475,9 +476,30 @@ def _is_comparator(utterance,m):
     return bool(_COMPARATOR_BEFORE.search(prefix[-60:]) or _COMPARE_CLAUSE.search(prefix) or _ROLE_GOVERNS_BEFORE.search(prefix[-50:])
                 or _COMPARATOR_AFTER.search(utterance[m.end():m.end()+50]))
 
+# Coordinated peer: a district joined ("and/or/plus") directly after a directed comparator (the State, a county or a
+# comparator district) is a further comparator, unless it opens its own comparison clause ("..., and House 12 with X").
+# Only an explicit conjunction joins peers; a bare comma may open the main clause ("Compare to Senate 25, House 28 ...").
+_PEER_JOIN=re.compile(r'(?:\s*,\s*(?:and|or|plus)\s+|\s+(?:and|or|plus|&)\s+)(?:also\s+)?(?:the\s+)?$')
+_OWN_CLAUSE_AFTER=re.compile(r"^\s*(?:[\w-]+\s+){0,3}?(?:with|against|versus|vs\.?|compared|relative|to|than)\b")
+def _peer_comparator(utterance,m,mentions,marked):
+    join=_PEER_JOIN.search(utterance[:m.start()][-30:])
+    if not join or _OWN_CLAUSE_AFTER.match(utterance[m.end():m.end()+40]):return False
+    end=m.start()-len(join.group(0))
+    for other,is_cmp in zip(mentions,marked):
+        if other.end()==end:return is_cmp
+    for s in _STATE_MENTION.finditer(utterance):
+        if s.end()==end:
+            before=utterance[max(0,s.start()-60):s.start()]
+            return bool((_STATE_CUE.search(before) or _is_comparator(utterance,s)) and not _REMOVAL_BEFORE.search(before) and not _is_negated(utterance,s))
+    for _gids,a,b in _county_groups(utterance):
+        if b==end:return _is_comparator(utterance,_Span(a,b)) and not _is_negated(utterance,_Span(a,b))
+    return False
+
 def _directed_districts(utterance,mentions,held):
     """(expected primary (chamber,code), comparator mentions)."""
     marked=[_is_comparator(utterance,m) for m in mentions]
+    for i,m in enumerate(mentions):
+        if not marked[i] and not _navigates(utterance,m):marked[i]=_peer_comparator(utterance,m,mentions[:i],marked[:i])
     unmarked={_key(m) for m,c in zip(mentions,marked) if not c}
     navigated={_key(m) for m in mentions if _navigates(utterance,m)}
     if navigated:
@@ -546,8 +568,29 @@ def _county_groups(plain):
         names=re.findall(_CN,m.group(1) or m.group(2) or m.group(3))
         out.append(([by_name[n] for n in names],m.start(),m.end()))
     return out
+# Hawaii County is coextensive with Hawaii Island, so "the Big Island" names it unambiguously, but only where a
+# comparator is being named or removed (elsewhere it may be a service area or orientation label).
+_COEXTENSIVE_ISLAND=re.compile(r'\b(?:big island|hawaii island|island of hawaii)\b')
+def _island_county_groups(plain):
+    out=[]
+    for m in _COEXTENSIVE_ISLAND.finditer(plain):
+        before=plain[max(0,m.start()-80):m.start()]
+        if _is_comparator(plain,m) or _is_negated(plain,m) or _REMOVAL_BEFORE.search(before[-60:]) or _LIST_JOIN_BEFORE.search(before):
+            out.append((['HI-COUNTY-001-2024'],m.start(),m.end()))
+    return out
+def _all_county_groups(plain):
+    groups=_county_groups(plain)
+    return groups+[g for g in _island_county_groups(plain) if not any(a<=g[1]<b for _x,a,b in groups)]
 def _named_counties(plain):
-    return {gid for gids,_a,_b in _county_groups(plain) for gid in gids}  # possessive: apostrophe stripped
+    return {gid for gids,_a,_b in _all_county_groups(plain) for gid in gids}  # possessive: apostrophe stripped
+# A bare island name in a comparator position ("compare with Maui") is not a county name; it gets the one relevant
+# county comparator as a typed choice instead of a guessed or refused comparison. Hawaii (State vs county) is excluded.
+_BARE_ISLAND={'maui':'HI-COUNTY-009-2024','kauai':'HI-COUNTY-007-2024','oahu':'HI-COUNTY-003-2024','honolulu':'HI-COUNTY-003-2024'}
+_BARE_ISLAND_RE=re.compile(r'\b(maui|kauai|oahu|honolulu)\b(?!\s+(?:count(?:y|ies)|service[- ]areas?)\b)')
+def _bare_island_comparators(plain):
+    spans=[(a,b) for _g,a,b in _county_groups(plain)]
+    return [_BARE_ISLAND[m.group(1)] for m in _BARE_ISLAND_RE.finditer(plain)
+            if not any(a<=m.start()<b for a,b in spans) and _is_comparator(plain,m) and not _is_negated(plain,m)]
 
 def _named_service_areas(plain):
     if not _SERVICE_AREA_WORDING.search(plain):return set()
@@ -635,6 +678,8 @@ _REPLACE_TARGET=re.compile(r'\b(?:replace|swap|switch|change)\b[^.;]{0,60}?\b(?:
 _REPLACE_SOURCE_BEFORE=re.compile(r'\b(?:replace|swap|switch|change)\s+(?:the\s+)?(?:[\w-]+\s+){0,3}$')
 _REPLACE_SOURCE_AFTER=re.compile(r'^\s*(?:comparison|comparator|benchmark)?\s*(?:with|to|for)\b')
 _LIST_JOIN=re.compile(r'^\s*,?\s*(?:and|or|,)\s+(?:also\s+)?(?:the\s+|with\s+)?$')
+# A list position right after a named county or the State ("with Maui County and the Big Island").
+_LIST_JOIN_BEFORE=re.compile(r'\b(?:county|counties|state)\s*,?\s*(?:and|or|&|plus)\s+(?:also\s+)?(?:the\s+)?$')
 # A county named only as where the district lies ("House 13 includes Kalawao County", "in Maui County").
 _COUNTY_CONTEXT=re.compile(r'\b(?:includes?|including|contains?|containing|within|inside|part\s+of|located\s+in|lies\s+in|in)\s+(?:the\s+)?(?:city\s+and\s+)?$')
 # A parenthetical directly after a district names where it lies: "House 13 (Maui County)".
@@ -646,6 +691,7 @@ _STATE_MENTION=re.compile(r'\b(?:the\s+)?state(?:wide)?\b(?!\s+(?:house|senate|l
 _ADDITIVE_NOT=re.compile(r'\bnot\s+(?:just|only|merely)\s+$')
 # A directed or list position before a State mention: the State is then a requested comparator.
 _STATE_CUE=re.compile(r'\b(?:with|to|against|versus|vs\.?|than|and|or|plus|also|between|next\s+to|alongside|beside|not\s+(?:just|only|merely))\s+$')
+_ADDITIVE_COMPARISON=re.compile(r'\b(?:also|too|as well|in addition|additionally|add|adding|plus|keep|keeping|both|alongside|along with)\b')
 def _county_comparators(plain,plan,held_gids,comparator_gids):
     """In a comparative request every positively named county must be a compared geography, and a State named in a
     comparator position must be compared too. Excluded are negated or removed counties, a replacement source, and a
@@ -653,7 +699,7 @@ def _county_comparators(plain,plan,held_gids,comparator_gids):
     compared={s['args']['comparison_geography'] for s in plan['steps'] if s['operation']=='compare'}
     if not compared and not _COMPARATIVE.search(plain):return
     required,excluded=set(),set()
-    for gids,a,b in _county_groups(plain):
+    for gids,a,b in _all_county_groups(plain):
         m=_Span(a,b);before=plain[max(0,a-80):a]
         source=_REPLACE_SOURCE_BEFORE.search(before) and _REPLACE_SOURCE_AFTER.match(plain[b:b+40])
         if source or _is_negated(plain,m) or _REMOVAL_BEFORE.search(before[-60:]):excluded.update(gids);continue
@@ -673,6 +719,15 @@ def _county_comparators(plain,plan,held_gids,comparator_gids):
     if positive_state and not excluded_state and 'HI-STATE-2024' not in compared:raise LanguageError('explicit_comparator_conflict')
     # Statewide service-area wording is never State comparison intent: it cannot add a new State comparator.
     if area_state and not positive_state and 'HI-STATE-2024' in compared-held_gids:raise LanguageError('explicit_comparator_conflict')
+    if positive_state:
+        # A State comparison does not exclude other comparators. Each non-State comparator must itself be grounded:
+        # positively named (county or district), or a held comparator that is not removed and that additive wording
+        # keeps ("also/too/as well/add/keep/both"). A bare restated State comparison never silently keeps an old one.
+        additive=_ADDITIVE_COMPARISON.search(plain)
+        for gid in compared-{'HI-STATE-2024'}:
+            if gid in required or gid in comparator_gids:continue
+            if gid in held_gids and gid not in excluded and additive:continue
+            raise LanguageError('explicit_comparator_conflict')
     if required:
         # New comparison geographies must be stated: the named counties, named districts, or the State when named.
         # Only an explicit State comparison allows a new State comparator (never a statewide service-area mention).
@@ -721,7 +776,9 @@ def local_guard(prepared,decision,plan):
     themes=[ids for pattern,ids in PROGRAM_THEMES if re.search(pattern,utterance)]
     if plan is not None:
         proposed={p for s in plan['steps'] for p in s['args'].get('program_ids',[])}|{s['args']['program_id'] for s in plan['steps'] if 'program_id' in s['args']}
-        inherited={p for s in (confirmed or {'steps':[]})['steps'] for p in s['args'].get('program_ids',[])}|{s['args']['program_id'] for s in (confirmed or {'steps':[]})['steps'] if 'program_id' in s['args']}
+        # Held program context follows the one held rule (confirmed, else the visible unconfirmed draft); a divergent
+        # confirmed/draft pair was already resolved or refused as a control conflict above.
+        inherited={p for s in (held or {'steps':[]})['steps'] for p in s['args'].get('program_ids',[])}|{s['args']['program_id'] for s in (held or {'steps':[]})['steps'] if 'program_id' in s['args']}
     # A theme phrase needs a program choice only when the proposal selects a program the utterance does not
     # name and the confirmed plan does not hold; a plan with no such program step proposes normally.
     if themes and not named and plan is not None and proposed-inherited:
@@ -762,6 +819,19 @@ def local_guard(prepared,decision,plan):
         if _gid(plan['district']['chamber'],plan['district']['code']) in excluded or any(
                 s['operation']=='compare' and s['args']['comparison_geography'] in excluded for s in plan['steps']):
             raise LanguageError('explicit_district_conflict')
+    if plan is not None:
+        plan_numbers={int(s['args']['comparison_geography'].split('-')[2]) for s in plan['steps']
+                      if s['operation']=='compare' and re.match(r'HI-(?:HOUSE|SENATE)-',s['args']['comparison_geography'])}
+        for m in _BARE_DISTRICT.finditer(utterance):
+            if re.search(r'\b(?:house|senate)\s*$',utterance[:m.start()]) or not _is_comparator(utterance,m) or _is_negated(utterance,m):continue
+            number=int(m.group(1))
+            if number not in plan_numbers:  # A requested comparator that the proposal dropped or could not place.
+                raise Recovery('explicit_comparator_chamber_missing','clarify',reason='missing_context',field='comparator',
+                               choices=['g_'+_gid(c,number) for c in ('house','senate')])
+        islands=_bare_island_comparators(_plain(utterance))
+        if islands:
+            raise Recovery('explicit_comparator_county_unstated','clarify',reason='missing_context',field='comparator',
+                           choices=['g_'+g for g in dict.fromkeys(islands)])
     if plan is not None:
         # Comparator provenance: a district comparator is either explicitly named in the utterance or already a
         # held comparator. Never a model-invented neighbor or a borrowed chamber for a bare number.
@@ -811,7 +881,6 @@ def local_guard(prepared,decision,plan):
                 if named_poverty:raise LanguageError('explicit_metric_conflict')
                 raise Recovery('explicit_metric_ambiguous','clarify',reason='missing_context',field='metric',
                                choices=('m_poverty_rate_all_people','m_poverty_rate_65_plus'))
-        if re.search(r'\b(?:with|against|versus|vs|minus|to)\s+(?:the\s+)?state\b',utterance) and any(s['operation']=='compare' and s['args']['comparison_geography']!='HI-STATE-2024' for s in plan['steps']):raise LanguageError('explicit_comparator_conflict')
         _county_comparators(plain,plan,held_gids,comparator_gids)
     if decision['intent']=='inspect_source':
         focus=decision['focus_alias'];selected=context['selected_claim_refs']
@@ -903,11 +972,9 @@ def _convert(prepared,decision,core,stage):
             if map_error is not None:stage[0]='map_session';raise map_error
             stage[0]='inheritance'
             before=prepared['context']['draft_plan'] or prepared['context']['confirmed_plan']
-            inherited=decision['inherited_fields']
-            for field in inherited:
-                if field=='focus':
-                    if prepared['context']['focused_step_id'] is None:raise LanguageError('invalid_inheritance')
-                elif prepared['context']['confirmed_plan'] is None or plan[field]!=prepared['context']['confirmed_plan'][field]:raise LanguageError('invalid_inheritance')
+            # decision['inherited_fields'] is untrusted model metadata: it is schema-validated but never authority. The
+            # server derives the preview's inherited fields and typed diff from trusted context below; the plan itself
+            # passed every Core, explicit-request, district/map/provenance and comparator check above.
             # Keep IDs for unchanged steps, even if the provider allocates another ID.
             if before:
                 for s in plan['steps']:

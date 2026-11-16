@@ -32,6 +32,17 @@ POLICY={'schema_version':'ia-language-budget/1','model':MODEL,'effort':'low','se
         'contingency_basis':'qualified_fixed_count_or_nonmodel_allowance_not_a_fee_bound_or_settled_cost',
         'qualification_count_limit':3}
 POLICY_HASH='sha256:'+hashlib.sha256(dumps(POLICY)).hexdigest()
+# One configured reasoning effort. POLICY is the historical low-effort origin (hash unchanged); every
+# other admitted effort declares its own policy and hash and is never relabelled as low.
+REASONING_EFFORTS=('none','low','medium','high','xhigh','max')  # documented gpt-6.1-terra values
+DEFAULT_REASONING_EFFORT=POLICY['effort']
+def reasoning_effort(value):
+    if type(value) is not str or value not in REASONING_EFFORTS:raise LanguageError('invalid_reasoning_effort',503)
+    return value
+def effort_policy(effort):
+    effort=reasoning_effort(effort)
+    return copy.deepcopy(POLICY) if effort==POLICY['effort'] else dict(copy.deepcopy(POLICY),effort=effort)
+def effort_policy_hash(effort):return 'sha256:'+hashlib.sha256(dumps(effort_policy(effort))).hexdigest()
 # Count admission is outside POLICY so the reviewed financial policy hash is unchanged.
 # Finite ALLOWABLE range for root-reviewed approval metadata, not an approved ceiling: every
 # actual ceiling still comes from a separately reviewed protected approval (record-2 helper: 7).
@@ -308,6 +319,8 @@ def usage_cost(usage):
             usage['cache_write_tokens']*RATES['cache_write_30m']+usage['output_tokens']*RATES['output'])
 
 class BudgetLedger:
+    # The protected ledger accounts only the historical POLICY; a provider configured otherwise is refused.
+    reasoning_effort=POLICY['effort']
     def __init__(self,config_hash,control_dir=CONTROL_DIR,*,protected=True,catalog_digest=None):
         self.config_hash=config_hash;self.control_dir=Path(control_dir);self.directory=self.control_dir/'ledger'
         self.path=self.directory/'budget.json';self.protected=protected;self._faulted=False

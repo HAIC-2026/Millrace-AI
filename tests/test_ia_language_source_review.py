@@ -196,10 +196,10 @@ class SourceReviewHttpOperatorTests(unittest.TestCase):
         questions=f.root/'questions.jsonl';output=f.root/'results.jsonl'
         questions.write_text(''.join(json.dumps({'case_id':cid,'request':f.request(text)})+'\n' for cid,text,_ in rows))
         f.decisions.extend(d for *_,d in rows);captured=io.StringIO()
-        with patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'BudgetLedger',return_value=f.ledger),\
+        with patch.object(operator,'load_core',return_value=f.i.core),patch.object(operator,'FundingLedger',return_value=f.ledger),\
              patch.object(operator,'protected_path',side_effect=lambda path,**kw:Path(path)),\
              patch('districtbrief.ia_language_jobs.OpenAIProvider',return_value=f.provider),redirect_stdout(captured):
-            self.assertEqual(operator.main(['smoke','--questions',str(questions),'--output',str(output)]),0)
+            self.assertEqual(operator.main(['smoke','--profile','terra-medium','--questions',str(questions),'--output',str(output)]),0)
         records=[json.loads(line) for line in output.read_text().splitlines()]
         self.assertEqual([(r['status'],r['response']['attribution']['decision_origin']) for r in records],[('clarify','server_recovery'),('propose','model'),('uncertain','model')])
         summary=json.loads(captured.getvalue())

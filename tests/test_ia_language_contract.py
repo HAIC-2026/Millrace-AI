@@ -13,6 +13,7 @@ from districtbrief.interpret import recipe
 from districtbrief.ia_language import (EMPTY_PLAN,LanguageError,SCHEMA_VERSION,convert_decision,
     decision_schema,dumps,lint_schema,prepare_request,strict_json,value_free_catalog,wire_plan)
 from districtbrief.ia_language_provider import provider_payload
+from language_funding_fixture import PROFILE
 
 class LanguageContractTests(unittest.TestCase):
     @classmethod
@@ -102,7 +103,7 @@ class LanguageContractTests(unittest.TestCase):
     def test_step_domain_schema_limits_and_complete_payload(self):
         r=self.request(plan=self.plan());r['context']['confirmed_plan']['steps']=[{'step_id':f's{i}','operation':'profile','args':{'metric_ids':['total_population']}}for i in range(1,9)];r['context']['draft_plan']=copy.deepcopy(r['context']['confirmed_plan'])
         p=prepare_request(r,self.i,'s');stats=lint_schema(p['schema']);self.assertEqual(len(p['step_ids']),16)
-        self.assertLess(stats['enum_entries'],1000);self.assertLess(stats['schema_bytes'],32768);self.assertLess(provider_payload(p)[2]['provider_body_bytes'],65536)
+        self.assertLess(stats['enum_entries'],1000);self.assertLess(stats['schema_bytes'],32768);self.assertLess(provider_payload(p,PROFILE)[2]['provider_body_bytes'],65536)
         with self.assertRaises(LanguageError):decision_schema(value_free_catalog(self.i.core),[f's{i}'for i in range(1,1000)],p['aliases'],p['choices'])
         d=self.decision(p,self.plan());d['plan']['steps'][0]['step_id']='s999'
         with self.assertRaises(LanguageError):convert_decision(p,d,self.i.core)

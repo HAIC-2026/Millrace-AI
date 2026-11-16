@@ -13,7 +13,8 @@ from .case_contract import InvestigationError, obj, uuid4
 from .claim_binding import digest
 from .ia_language import (SCHEMA_VERSION, DISABLED_MESSAGE, PRIVACY_NOTICE, MESSAGES,
     LanguageError, RECOVERY_CATEGORIES, convert_decision, prepare_request, value_free_catalog)
-from .ia_language_accounting import BudgetLedger
+from .ia_language_funding import FundingLedger
+from .ia_language_profiles import Profile
 from .ia_language_provider import OpenAIProvider, configuration_hash, provider_payload, emit_operator_diagnostic
 
 # Closed attribution on every terminal job record (HTTP status and operator rows). Value-free: no utterance,
@@ -51,18 +52,30 @@ def _attribution(origin,decision=None,category='',reported=True,failure='none'):
             'recovery_category':category,'failure_class':failure}
 
 class LanguageService:
-    def __init__(self,investigation,*,enabled=False,provider=None,ledger=None):
+    def __init__(self,investigation,*,enabled=False,provider=None,ledger=None,profile=None):
         self.investigation=investigation;self.enabled=bool(enabled);self.provider=provider;self.ledger=ledger
+        # The selected profile comes from protected operator configuration (or the injected ledger), never a request.
+        if profile is None and ledger is not None:profile=getattr(ledger,'profile',None)
+        if (self.enabled or profile is not None) and not isinstance(profile,Profile):raise LanguageError('profile_unavailable',503)
+        self.profile=profile;self._identity=None
         self._lock=threading.RLock();self._executor=None;self._pid=os.getpid();self._active=None
         self._jobs=OrderedDict();self._sessions=OrderedDict();self._site=deque();self._latest={}
     def bootstrap(self):
         return {'enabled':self.enabled,'schema_version':SCHEMA_VERSION,
             'message':MESSAGES['propose'] if self.enabled else DISABLED_MESSAGE,'privacy_notice':PRIVACY_NOTICE,
             'limits':{'utterance_characters':500,'deadline_seconds':25,'session_starts_per_hour':5,'site_starts_per_hour':15}}
+    def identity(self):
+        """Value-free configured identity for machine verification (health): no budget, secret or request data."""
+        if self.profile is None:return None
+        if self._identity is None:
+            catalog_digest=digest(value_free_catalog(self.investigation.core))
+            self._identity=dict(self.profile.public_identity(),catalog_digest=catalog_digest,
+                active_config_hash=configuration_hash(catalog_digest,self.profile))
+        return copy.deepcopy(self._identity)
     def _resources(self):
         if self.ledger is None:
-            catalog_digest=digest(value_free_catalog(self.investigation.core))
-            self.ledger=BudgetLedger(configuration_hash(catalog_digest),catalog_digest=catalog_digest)
+            self.ledger=FundingLedger(self.profile,config_hash=self.identity()['active_config_hash'])
+        if getattr(getattr(self.ledger,'profile',None),'profile_hash',None)!=self.profile.profile_hash:raise LanguageError('profile_ledger_mismatch',503)
         if self.provider is None:self.provider=OpenAIProvider()
         if self._executor is None:
             self._executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='ia-language')
@@ -155,7 +168,7 @@ class LanguageService:
                 if len(self._site)>=15 or len(self._sessions.get(session,()))>=5:return self._error('shared_demonstration_rate_limit',429)
                 if session not in self._sessions and len(self._sessions)>=1024:return self._error('session_limit_full',429)
             p=prepare_request(raw,self.investigation,session)
-            provider_payload(p)  # Bound and lint the complete payload before all provider access.
+            provider_payload(p,self.profile)  # Bound and lint the complete payload before all provider access.
             if time.monotonic()-begun>=1:raise LanguageError('context_validation_too_slow',409)
             self._resources();job_fd=self.ledger.acquire_job()
             now=time.monotonic();j={'request_id':rid,'session':session,'status':'pending','model_calls':0,

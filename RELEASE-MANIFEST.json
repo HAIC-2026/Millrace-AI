@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:aa37a2774e8e115e5be59eded16c6a0a9e134441efdf81eeadffd703936a5c9c",
+  "source_identity": "sha256:95841a2f43bcfad0c603070739c128d5c0025e5a5b36d5ed88e9fcba53bdd4cb",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -16,8 +16,8 @@
   "files": [
     {
       "path": ".dockerignore",
-      "bytes": 271,
-      "sha256": "7f241f4fa94a933c6660fcbc3c8f2f1508a775c1accefc8518965f3cccc31f92"
+      "bytes": 312,
+      "sha256": "faa7790032fe6f0918962beead269bfe63d38327ece155ac8ae316d56e55c6ad"
     },
     {
       "path": ".gitignore",
@@ -51,13 +51,13 @@
     },
     {
       "path": "PRIVACY.md",
-      "bytes": 3145,
-      "sha256": "98042c213389eb09a8b112f1742dcadaa707c9dae206d5901cbb7a2073373809"
+      "bytes": 4082,
+      "sha256": "c23e1d4a4fc14a808191cc03c346f038555c9637d5497007fca981bb4aaafb5e"
     },
     {
       "path": "README.md",
-      "bytes": 24218,
-      "sha256": "28b81f4cba5eb7e678bd5738067b179e6a08725c040146b67af5860c689781a6"
+      "bytes": 26965,
+      "sha256": "c0e42232ce2fcb1daff2f5860e613dd36b99f036d6c64b284e280d24dcb6b78d"
     },
     {
       "path": "candidate-metadata/MANIFEST.json",
@@ -131,23 +131,38 @@
     },
     {
       "path": "districtbrief/ia_language.py",
-      "bytes": 74317,
-      "sha256": "cd4a9d368cf461a8c6242c6d294ad870154b395751af9ac5628558e427fa095e"
+      "bytes": 79509,
+      "sha256": "fd4e3b77a9922fbbc25b503d02f3c3b560d2777a17df57df0619a3c23e0ea46e"
     },
     {
       "path": "districtbrief/ia_language_accounting.py",
-      "bytes": 48865,
-      "sha256": "a344ce8560731dcaef3d6f4a7b44ee43c799fffd23b86d089b5852a7c9c6f844"
+      "bytes": 49780,
+      "sha256": "4bb36ef6ddad445e7b98141f4447c44f3aa3a42fb0bcc59d8bd65a486df2f305"
+    },
+    {
+      "path": "districtbrief/ia_language_funding.py",
+      "bytes": 24522,
+      "sha256": "edc6ac38e67d83cca2323ce0d721a69b759dd01ae3dbc7325d76a325ef3d7311"
     },
     {
       "path": "districtbrief/ia_language_jobs.py",
-      "bytes": 17427,
-      "sha256": "3532974c625d189b0b6662d8392aaa662e144c30425451a6bc0ccb6dbd5fc2e8"
+      "bytes": 18475,
+      "sha256": "39a2e319b080557e5d0bca3aab1f00a13a7c3a4bb8dc16c8d5b6377adf6afef3"
+    },
+    {
+      "path": "districtbrief/ia_language_profiles.json",
+      "bytes": 1632,
+      "sha256": "e5e8ed252baa431ed4d5f7dc3758aeabcb0b64d16e14a6050ebbd2931c89d820"
+    },
+    {
+      "path": "districtbrief/ia_language_profiles.py",
+      "bytes": 5768,
+      "sha256": "76c0dbb7d58d1fc9b2b025be83dbaddc51f259e59b9e9a7533ca67aa1938ef2c"
     },
     {
       "path": "districtbrief/ia_language_provider.py",
-      "bytes": 19131,
-      "sha256": "ccd996b7c8c88c4fbb6347381190ee75a9f9a65697b24f1702349b34202f1b87"
+      "bytes": 20626,
+      "sha256": "ba8388644cd8e4e21ee79b56eedb72103197d26ddb156f4ca02b02e9535e8e4e"
     },
     {
       "path": "districtbrief/interpret.py",
@@ -236,8 +251,8 @@
     },
     {
       "path": "public_app.py",
-      "bytes": 20518,
-      "sha256": "7c42370d4beb422c9dfff918c88857b8a6848720a1ebd3033c1784dff4358f8f"
+      "bytes": 21508,
+      "sha256": "3bf51faf74bb25e14160d1b44c97558382667d03710f5e2a2b23d86c654e30fb"
     },
     {
       "path": "requirements.txt",
@@ -390,6 +405,11 @@
       "sha256": "04ff5381da78ec230a41d919cf37809c7c4f9337ea52bd61236186db08bfbeb3"
     },
     {
+      "path": "tests/language_funding_fixture.py",
+      "bytes": 2758,
+      "sha256": "fde592a28cee933336a1ad78549cbbed666f69983448e1b767a39ec427f214e8"
+    },
+    {
       "path": "tests/recommended_brief_fixture.py",
       "bytes": 3189,
       "sha256": "ac358e9b36735fb6051da47f4dd1b86246665a03d90593d58f9c6c38cc4e4474"
@@ -431,13 +451,13 @@
     },
     {
       "path": "tests/test_ia_language_adoption.py",
-      "bytes": 25660,
-      "sha256": "7181e6469ad9d4a1c0807d2de6b006da59f088ece52b64524b8953765fb5c875"
+      "bytes": 24720,
+      "sha256": "c7bf37fe68fb158d6184371c8732adf8e7819af6880dbb06c2fb79124d8879b1"
     },
     {
       "path": "tests/test_ia_language_adoption_2.py",
-      "bytes": 22930,
-      "sha256": "1e5ca83f8709ec4f2c233c13a7d9248db19c58ac7308da9657a069d244d63e32"
+      "bytes": 21782,
+      "sha256": "3a862ad00602b1f8338d80827870733a2a507aefb46147deb5e0e7b9ca3091a0"
     },
     {
       "path": "tests/test_ia_language_adoption_3.py",
@@ -461,23 +481,23 @@
     },
     {
       "path": "tests/test_ia_language_contract.py",
-      "bytes": 17288,
-      "sha256": "81870d619fe19cb59ac81fe75a9de56c8cb9a53a75809b8d5473d1413bfb88c7"
+      "bytes": 17341,
+      "sha256": "a0e4d25eb4d2bab54d27de050fbb58bd8530c74216d574ae9b8e83e4d292594c"
     },
     {
       "path": "tests/test_ia_language_contract_fixes.py",
-      "bytes": 22096,
-      "sha256": "9f0385c6db6ffa1d25937fc9517a33c0fc5e612e2817e2250c96f1caddc6ee40"
+      "bytes": 22436,
+      "sha256": "6e9462d2dce1414367a9431ba39780a3f24589bef6d6c6925eb85f70d4a83080"
     },
     {
       "path": "tests/test_ia_language_county_guard.py",
-      "bytes": 14447,
-      "sha256": "c859d19b5fac4deedd4ace328339e126336735ba06867be7c2d13b8a5c1aabfa"
+      "bytes": 14860,
+      "sha256": "1e9912362aa583415366f15bcab43432e7458f734aa52166a36cfe6ca25b4d54"
     },
     {
       "path": "tests/test_ia_language_diagnostics.py",
-      "bytes": 9171,
-      "sha256": "2a46f8d0c6b5ad8613af093e555074ba805af7cfe53161f4857c7a7d183ed6d1"
+      "bytes": 12404,
+      "sha256": "bdeb9183d0f3e6a60e7f119d12208c2d16f40ec7bd10f867b00beb047945d13e"
     },
     {
       "path": "tests/test_ia_language_district_provenance.py",
@@ -490,24 +510,29 @@
       "sha256": "f92d6a94b72206a1096e4a48426ebcdd34014edb329f96874a2fe4d42f817a02"
     },
     {
+      "path": "tests/test_ia_language_funding.py",
+      "bytes": 17672,
+      "sha256": "2da016633ac52bbbdf285bf0eb8906d484798e10da3db11d5793c7ead12c81e5"
+    },
+    {
       "path": "tests/test_ia_language_integrated_review.py",
-      "bytes": 14105,
-      "sha256": "f190eb1ba305c94cd340c49bb5c1323424fa19cf633e1a69e83f37a1aeb0183a"
+      "bytes": 14110,
+      "sha256": "48460976ca0bbb4f209267fe20a994afcda0d1e0cd66e26d4691582b99646ce3"
     },
     {
       "path": "tests/test_ia_language_jobs.py",
-      "bytes": 8500,
-      "sha256": "d41e0310b06936b2c86220eb831e407eaea79cbb5f006742b841b9997aad67b3"
+      "bytes": 8508,
+      "sha256": "eded52a5d22ea4d907d82b80d1e2162858a44dfb5a1c5c16175df505ac5cae78"
     },
     {
       "path": "tests/test_ia_language_map_default.py",
-      "bytes": 25241,
-      "sha256": "438018873620ad19f0e15aed5b45ff8ae3e5aa065baf7dcc459bc88e6525d851"
+      "bytes": 25282,
+      "sha256": "bf1141b1bf3ecd34fabd0334c6cbf4b78059f0a6e60b849a39b633544a626525"
     },
     {
       "path": "tests/test_ia_language_operator_cutoff.py",
-      "bytes": 5312,
-      "sha256": "ca1474f017e6e8acf9c192e0f37494d7595cfd910c90474633380fb9884ae954"
+      "bytes": 7918,
+      "sha256": "b3ddf7e67e834b0153927b6ef1e34b891f278c722d110556a96caf6939f54bfa"
     },
     {
       "path": "tests/test_ia_language_ox3_review.py",
@@ -516,28 +541,38 @@
     },
     {
       "path": "tests/test_ia_language_processes.py",
-      "bytes": 6632,
-      "sha256": "7797e4ab14bc3e2a00aea1a098309836838cfdf6e150cac6352f89431f93ca65"
+      "bytes": 6862,
+      "sha256": "f944fe63ae4466f6cb6b8f4d861585fd2bcaafea9d5fda12890be976d96feb1e"
+    },
+    {
+      "path": "tests/test_ia_language_profiles.py",
+      "bytes": 10753,
+      "sha256": "bc6635202c78fbd373d6ca949e0af00a620ccd58dd60815613660f78b74b8713"
     },
     {
       "path": "tests/test_ia_language_proposals.py",
-      "bytes": 15138,
-      "sha256": "c92fe25462f409e3bd1530c4a78f1d2bf8ef2ed17200b6eabb5866c55663dc3c"
+      "bytes": 15174,
+      "sha256": "0528cfddf7ca1c08991a5dba21ee122a39dfda99ca3d5e688d05ab0ce2523d36"
     },
     {
       "path": "tests/test_ia_language_provider.py",
-      "bytes": 11484,
-      "sha256": "57ecae8142ec72e92955a4a891a041ec0cc83402817342c35ffaf0ee52ba4054"
+      "bytes": 19461,
+      "sha256": "23a0debb745afa5f8c49aff8fd8c70cfd51e0e6fd361e45c4bc24cd21fa13cdd"
     },
     {
       "path": "tests/test_ia_language_repair.py",
-      "bytes": 23024,
-      "sha256": "c5d1aa00f8eca521c2f2e94acf7b82ab38c056de089ba487c27efb45b2fd2ed9"
+      "bytes": 23689,
+      "sha256": "dcebc6199183f13eed0311fbe1db9c9f5eb260e883fc116c4342af85247f272a"
+    },
+    {
+      "path": "tests/test_ia_language_shared_repairs.py",
+      "bytes": 15698,
+      "sha256": "5c9b801c9fc3f15719e01c2fd54f70965c04a8ef42efff0fa7f50eea9f49ecf0"
     },
     {
       "path": "tests/test_ia_language_source_review.py",
-      "bytes": 19365,
-      "sha256": "37cfcc9a7808035d469da744a1319e9f696a1cddb78a7338b9befcf12e4d19b4"
+      "bytes": 19393,
+      "sha256": "08dc4f58b4a2b3952a0ddd327142520bf185b91139f20ca0a82fe29972742d70"
     },
     {
       "path": "tests/test_ia_language_v5_review.py",
@@ -591,8 +626,8 @@
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 7597,
-      "sha256": "3f854750c0794989aa5fba848933e76a71cc47af569ab9248d76751cf43f00ff"
+      "bytes": 7863,
+      "sha256": "cc4a9892e7aad2e2154433e5d9a2113ef69043390e73a75c57707e738ba1a0fd"
     },
     {
       "path": "tools/compile_statistics.py",
@@ -626,8 +661,8 @@
     },
     {
       "path": "tools/ia_language_operator.py",
-      "bytes": 10798,
-      "sha256": "0080238cba3610e24dc553ce12f4da98e81250911d9a9c7c3d55ac6157e60f07"
+      "bytes": 14745,
+      "sha256": "c910ea4b2fccddbbe372a673afac328725676ac4cbc58b9b5ff8ee7e394274ef"
     },
     {
       "path": "tools/probe_investigation.py",

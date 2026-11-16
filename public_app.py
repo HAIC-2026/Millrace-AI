@@ -20,6 +20,7 @@ from districtbrief.investigation import Investigation
 from districtbrief.case_contract import InvestigationError
 from districtbrief.geography import geometry_payload, indicator_payload
 from districtbrief.ia_language_jobs import LanguageService
+from districtbrief.ia_language_profiles import load_profile
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 65536
@@ -97,14 +98,28 @@ class PrivateMetricsService(Service):
         self.metrics.addHandler(sink)
 
     def _log(self, name, record):
-        safe = {'ts': int(time.time()), 'variant': 'A', 'model_calls': 0}
+        # Rows never state a model-call count: the process also serves language routes, and the protected FundingLedger
+        # (plus private operator diagnostics) is the only authority for model calls, Count starts and usage.
+        safe = {'ts': int(time.time()), 'variant': 'A', 'model_calls_authority': 'funding_ledger'}
         # Values come from closed service routes/statuses, never arbitrary event detail.
         for key in ('phase', 'status', 'operation', 'core_called', 'elapsed_ms'):
             if key in record:
                 safe[key] = record[key]
         if name == 'errors.jsonl':
-            safe = {'ts': int(time.time()), 'variant': 'A', 'phase': 'internal_error', 'model_calls': 0}
+            safe = {'ts': int(time.time()), 'variant': 'A', 'phase': 'internal_error', 'model_calls_authority': 'funding_ledger'}
         self.metrics.info(json.dumps(safe, sort_keys=True))
+
+
+def language_service(investigation):
+    """Language is off unless the protected operator environment enables it AND names one validated profile.
+    The profile is never chosen by a question, cookie or client; an unknown profile fails startup closed."""
+    enabled = os.environ.get('HAIC_LANGUAGE_ENABLED') == '1'
+    if not enabled:
+        return LanguageService(investigation, enabled=False)
+    name = os.environ.get('HAIC_LANGUAGE_PROFILE')
+    if not name:
+        raise ValueError('HAIC_LANGUAGE_ENABLED=1 requires HAIC_LANGUAGE_PROFILE naming a validated profile')
+    return LanguageService(investigation, enabled=True, profile=load_profile(name))
 
 
 def load_core(input_profile=None, r2_input_dir=None):
@@ -134,7 +149,7 @@ class Application:
         state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.service = PrivateMetricsService(load_core(input_profile, r2_input_dir), state_dir)
         self.investigation = Investigation(self.service.core)
-        self.language = LanguageService(self.investigation, enabled=os.environ.get('HAIC_LANGUAGE_ENABLED') == '1')
+        self.language = language_service(self.investigation)
         self.investigation_sessions = {}
         self.secret = secrets.token_bytes(32)
         self.secure_cookie = secure_cookie
@@ -204,7 +219,7 @@ class Application:
             return 400, ct, self.route_error(path, 'Request target is too long.')
         if method in ('GET', 'HEAD'):
             if path in ('/api/health', '/healthz'):
-                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'language':self.language.bootstrap(), 'model_calls':0}
+                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'language':self.language.bootstrap(), 'language_profile':self.language.identity(), 'model_calls':0}
             if path in ('/', '/index.html'):
                 _, cookie = self.session(environ)
                 if cookie: extra.append(('Set-Cookie',cookie))

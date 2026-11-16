@@ -11,7 +11,7 @@ from districtbrief.interpret import recipe
 from districtbrief.ia_language import EMPTY_PLAN,SCHEMA_VERSION,LanguageError,convert_decision,prepare_request,wire_plan
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider
-from test_ia_language_accounting import ledger_fixture,usage
+from language_funding_fixture import PROFILE,ledger_fixture,usage
 
 def H(code,chamber='house'):return {'state_fips':'15','chamber':chamber,'code':code,'boundary_session':2024}
 def plan(district=None,steps=None,map_session=2026,svc=None,issue='custom'):
@@ -196,7 +196,7 @@ class LanguageRepairJobTests(unittest.TestCase):
         self.tmp.cleanup()
     def body(self,arguments,**top):
         b={'id':'resp_injected','object':'response','status':'completed','model':'gpt-6.1-terra','service_tier':'default',
-           'reasoning':{'effort':'low','summary':None},'usage':usage(),
+           'reasoning':{'effort':'medium','summary':None},'usage':usage(),
            'output':[{'type':'reasoning','id':'rs_injected','summary':[]},
                      {'type':'function_call','id':'fc_injected','call_id':'call_injected','name':'ia_language_decision',
                       'status':'completed','arguments':arguments if isinstance(arguments,str) else json.dumps(arguments)}]}
@@ -221,12 +221,18 @@ class LanguageRepairJobTests(unittest.TestCase):
 
     def test_each_rejection_layer_is_named_and_model_content_refusals_are_uncertain(self):
         held=plan();moved=copy.deepcopy(held);moved['district']=H('025','senate')
+        renamed=wire(held);renamed['steps']=[dict(renamed['steps'][0],step_id='s9')]
+        # Intentional V3 delta: wrong provider inheritance metadata on an otherwise valid, explicitly requested plan is
+        # ignored; the preview shows only the server-derived inheritance (the moved district is a typed change).
+        out,ev=self.run_job('Same for Senate 25.',decision(intent='replace_plan',p=wire(moved),inherited_fields=['district']),held)
+        self.assertEqual((out['status'],ev['local_result']['rejection_code']),('propose',None))
+        self.assertNotIn('district',out['inherited_fields']);self.assertIn('district',[d['field'] for d in out['typed_diff']])
         cases=[('wire_schema','invalid_provider_enum','Profile House 28.',dict(decision(p=wire(plan())),status='answer'),None),
                ('decision_fields','inapplicable_provider_fields','Profile House 28.',decision(p=wire(plan()),reason_code='missing_context'),None),
                ('map_session','explicit_map_unstated_change','Profile median age in House 28.',decision(p=wire(plan(),2024)),None),
                ('plan_conversion','inapplicable_provider_fields','Profile median age in House 28.',decision(p=dict(wire(plan()),steps=[dict(wire(plan())['steps'][0],program_ids=['snap_hi'])])),None),
                ('local_guard','explicit_district_conflict','Profile median age in House 28.',decision(p=wire(plan(H('029')))),None),
-               ('inheritance','invalid_inheritance','Same for Senate 25.',decision(intent='replace_plan',p=wire(moved),inherited_fields=['district']),held),
+               ('inheritance','changed_unchanged_step_id','Profile median age in House 28.',decision(intent='replace_plan',p=renamed),held),
                ('source_reference','inapplicable_provider_fields','Why that figure?',decision(intent='inspect_source',focus_alias='source_1',inherited_fields=['focus']),None),
                ('nonproposal_fields','invalid_unsupported_reason','Forecast House 28.',decision('unsupported','none'),None),
                ('nonproposal_fields','invalid_clarification','Profile poverty in House 28.',decision('clarify','none',clarify_field='metric',clarify_choices=['c_house'],reason_code='missing_context'),None),

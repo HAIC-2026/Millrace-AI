@@ -6,6 +6,7 @@
 !gunicorn.conf.py
 !districtbrief/
 !districtbrief/*.py
+!districtbrief/ia_language_profiles.json
 !static/
 !static/*
 !runtime-packet/

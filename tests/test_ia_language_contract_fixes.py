@@ -14,7 +14,7 @@ from districtbrief.investigation import Investigation
 from districtbrief.ia_language import EMPTY_PLAN,SCHEMA_VERSION,LanguageError,convert_decision,prepare_request,wire_plan
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import OpenAIProvider
-from test_ia_language_accounting import ledger_fixture,usage
+from language_funding_fixture import PROFILE,ledger_fixture,usage
 
 S='HI-STATE-2024'
 def H(code,chamber='house'):return {'state_fips':'15','chamber':chamber,'code':code,'boundary_session':2024}
@@ -85,8 +85,10 @@ class ProgramThemeTests(Base):
         # A new unnamed program beside a retained confirmed one is still an unnamed selection.
         more=copy.deepcopy(SNAP);more['steps'][0]['args']['program_ids']=['snap_hi','wic_hi']
         self.recovered('clarify','Also include the other food program.',decision(intent='replace_plan',p=wire(more)),SNAP,field='program')
-        # A draft-only program is not confirmed context.
-        self.recovered('clarify','Show the food assistance evidence.',decision(intent='replace_plan',p=wire(SNAP)),None,SNAP,field='program')
+        # Intentional V3 delta (one held rule): with no confirmed plan, the visible draft's program is held context,
+        # so retaining it under a theme phrase proposes; a NEW unnamed program beside the held draft still clarifies.
+        self.assertEqual(self.convert('Show the food assistance evidence.',decision(intent='replace_plan',p=wire(SNAP)),None,SNAP)['status'],'propose')
+        self.recovered('clarify','Also include the other food program.',decision(intent='replace_plan',p=wire(more)),None,SNAP,field='program')
     def test_named_and_unthemed_program_behavior_is_unchanged(self):
         self.assertEqual(self.convert('Show SNAP food assistance evidence for House 28.',decision(p=wire(SNAP)))['status'],'propose')
         self.refused('ungrounded_program','Show program evidence for House 28.',decision(p=wire(SNAP)))
@@ -213,7 +215,7 @@ class JobAttributionTests(Base):
             if service._executor:service._executor.shutdown(wait=True)
         self.addCleanup(close)
         self.bodies.append({'id':'resp_injected','object':'response','status':'completed','model':'gpt-6.1-terra','service_tier':'default',
-            'reasoning':{'effort':'low','summary':None},'usage':usage(),
+            'reasoning':{'effort':'medium','summary':None},'usage':usage(),
             'output':[{'type':'reasoning','id':'rs_injected','summary':[]},
                       {'type':'function_call','id':'fc_injected','call_id':'call_injected','name':'ia_language_decision','status':'completed','arguments':json.dumps(d)}]})
         r=self.request(text,confirmed,picks=picks);events=[]

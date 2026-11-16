@@ -1,0 +1,51 @@
+{
+  "schema_version": "ia-language-profiles/1",
+  "models": {
+    "gpt-6.1-sol": {
+      "api": "responses",
+      "pricing_checked": "2026-11-15",
+      "pricing_source": "https://developers.openai.com/api/docs/pricing",
+      "processing": "standard",
+      "provider": "openai",
+      "rates_nano_usd_per_token": {
+        "cache_write_30m": 2500,
+        "cached_input": 100,
+        "output": 10000,
+        "uncached_input": 2000
+      },
+      "supported_reasoning_efforts": ["low", "medium", "high", "xhigh", "max"]
+    },
+    "gpt-6.1-terra": {
+      "api": "responses",
+      "pricing_checked": "2026-11-15",
+      "pricing_source": "https://developers.openai.com/api/docs/pricing",
+      "processing": "standard",
+      "provider": "openai",
+      "rates_nano_usd_per_token": {
+        "cache_write_30m": 1250,
+        "cached_input": 50,
+        "output": 5000,
+        "uncached_input": 1000
+      },
+      "supported_reasoning_efforts": ["none", "low", "medium", "high", "xhigh", "max"]
+    }
+  },
+  "profiles": {
+    "sol-low": {
+      "expected_response": {"model": "gpt-6.1-sol", "reasoning_effort": "low", "service_tier": "default"},
+      "max_input_tokens": 12288,
+      "max_output_tokens": 2048,
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "low",
+      "service_tier": "default"
+    },
+    "terra-medium": {
+      "expected_response": {"model": "gpt-6.1-terra", "reasoning_effort": "medium", "service_tier": "default"},
+      "max_input_tokens": 12288,
+      "max_output_tokens": 2048,
+      "model": "gpt-6.1-terra",
+      "reasoning_effort": "medium",
+      "service_tier": "default"
+    }
+  }
+}
