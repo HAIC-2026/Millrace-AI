@@ -1710,3 +1710,22 @@ test("a pending question is read-only, typing never cancels it, and every finish
   assert.equal(t.text.readOnly, false, "unlocked after the time-out"); assert.equal(t.ctx.languageJob, null);
   function vm_cancel(h) { require("node:vm").runInContext("cancelLanguage('Question cancelled. Your work is unchanged.'); render();", h.ctx); }
 });
+
+test("a typed request carries the draft's recipe version, so 'add snap' after an unapplied issue change is not refused", () => {
+  const s = worked();
+  assert.equal(C.active(s).recipe_version, "aging_at_home/1");
+  assert.equal(C.beginInterpret(s, "add snap", ids).request.recipe_version, "aging_at_home/1");
+  for (const issue of ["custom", "food_assistance_outreach"]) {
+    const d = Object.assign({}, s, { draft: C.setContext(s.draft, { issue_id: issue }).plan });
+    const i = C.beginInterpret(d, "add snap", ids);
+    assert.equal(i.request.recipe_version, issue + "/1");
+    assert.equal(i.request.recipe_version, i.request.plan.issue_id + "/1", "matches the server rule for the sent plan");
+    assert.equal(i.state.pending.tokens.recipe_version, i.request.recipe_version, "the reply's echoed tokens still match");
+    assert.equal(C.active(i.state).recipe_version, "aging_at_home/1", "the applied branch is unchanged");
+    const r = C.applyResponse(i.state, reply(i.request, { normalized_plan: C.addStep(i.request.plan, "program_evidence", { program_ids: ["snap_hi"] }).plan }), meta(i.request));
+    assert.equal(r.outcome, "interpreted"); assert.notEqual(C.active(r.state).review_state, "replay_blocked");
+  }
+  // Run and brief still use the applied branch's own plan and recipe.
+  const d = Object.assign({}, s, { draft: C.setContext(s.draft, { issue_id: "custom" }).plan });
+  assert.equal(C.beginRun(d, ids).request.recipe_version, "aging_at_home/1");
+});

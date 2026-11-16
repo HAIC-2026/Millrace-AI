@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:5e875cc7381f60a1d58467c1e0264c69f8606f3aaf7ad40b891d74cb2f71368d",
+  "source_identity": "sha256:063848ef7d2d992e34173606f6f7d33427ec1974a9262cf47255d164cbde6245",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -326,8 +326,8 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 76005,
-      "sha256": "fd0e98bae8e2f803e6c1f2fe92c2b47c3341d36d44b8c92bc5a8b56932d4b1a5"
+      "bytes": 76258,
+      "sha256": "82901307eb2339257190fdd9f8c8e8698cd03f7b3e9e5bb4b6acc693f3516bea"
     },
     {
       "path": "static/app.js",
@@ -336,13 +336,13 @@
     },
     {
       "path": "static/case_state.js",
-      "bytes": 71727,
-      "sha256": "2099b48734c52ed51d1b476c9392f0c01f176116015a5f8d5d39584e1009c605"
+      "bytes": 72058,
+      "sha256": "697637ee5aff279a22ccc42b96827fa355eb153f7215591b8fe7ca97278c66cd"
     },
     {
       "path": "static/index.html",
-      "bytes": 24772,
-      "sha256": "a56dfe5c8e712b42ffb9d79273bae7c0355406d51a45b231370defa8d6a5f214"
+      "bytes": 24967,
+      "sha256": "97524ab12d6493ee47c74226dbce1908f8bf93641370a287ca5c5a859852b6f8"
     },
     {
       "path": "static/investigation.js",
@@ -436,8 +436,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 137924,
-      "sha256": "cbc797b5e5c8edc9684a069fd9e454f2b2121a68db327257b99f560056271c4c"
+      "bytes": 139399,
+      "sha256": "aea19a67dec706813d6cc3b007318439712dd373c18642a89f155d707240de48"
     },
     {
       "path": "tests/test_claim_bindings.py",

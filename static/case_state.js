@@ -591,7 +591,10 @@
     if (typeof utterance !== "string" || !utterance.trim()) return err("empty", "Type a request first, for example “add snap” or “use house 13”.");
     if (Array.from(utterance).length > LIMITS.utterance) return err("too_long", "A typed request holds at most 500 characters.");
     const block = blockIfMismatch(state, b); if (block) return block;
-    return begin(state, "interpret", b, { mode: "interpret", plan: clone(state.draft), utterance: utterance }, b.last_ready_revision === null ? 0 : b.last_ready_revision, ids);
+    // The request reads the draft plan, so its recipe version is the draft's issue (an unapplied issue change
+    // such as Custom would otherwise conflict with the applied branch's recipe and be refused).
+    const tokenBranch = state.draft ? Object.assign({}, b, { recipe_version: state.draft.issue_id + "/1" }) : b;
+    return begin(state, "interpret", tokenBranch, { mode: "interpret", plan: clone(state.draft), utterance: utterance }, b.last_ready_revision === null ? 0 : b.last_ready_revision, ids);
   }
 
   function nextRevision(out) {
