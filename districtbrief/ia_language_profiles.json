@@ -39,6 +39,14 @@
       "reasoning_effort": "low",
       "service_tier": "default"
     },
+    "terra-high": {
+      "expected_response": {"model": "gpt-6.1-terra", "reasoning_effort": "high", "service_tier": "default"},
+      "max_input_tokens": 12288,
+      "max_output_tokens": 2048,
+      "model": "gpt-6.1-terra",
+      "reasoning_effort": "high",
+      "service_tier": "default"
+    },
     "terra-medium": {
       "expected_response": {"model": "gpt-6.1-terra", "reasoning_effort": "medium", "service_tier": "default"},
       "max_input_tokens": 12288,

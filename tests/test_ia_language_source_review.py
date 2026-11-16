@@ -37,8 +37,8 @@ class SourceReviewGuardTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(self.convert(text,correct,held)['normalized_plan']['district'],H('028'))
                 self.refused('explicit_district_conflict',text,reversed_,held)
-        # With no held plan the primary is proven missing: typed district choices, never a guess.
-        self.recovered('clarify','Compare senior poverty with House 30.',decision(p=wire(plan(H('030'),[pov('HI-HOUSE-028-2024')]))),field='district')
+        # With no held plan the primary is proven missing: typed choices, never a guess (repair-1: chamber asked first).
+        self.recovered('clarify','Compare senior poverty with House 30.',decision(p=wire(plan(H('030'),[pov('HI-HOUSE-028-2024')]))),field='chamber')
         # Navigation to a newly named primary (no comparison cue) is not a comparator: the held primary may not
         # silently become the comparator.
         self.refused('explicit_comparator_unstated','Show senior poverty for House 30.',reversed_,held)

@@ -85,6 +85,8 @@ def wire_plan(plan):
     return {'district':{k:plan['district'][k] for k in ('chamber','code')},'map_session':plan['map_session'],
             'issue_id':plan['issue_id'],'service_area_id':plan['service_area_id'] or '', 'steps':rows}
 
+EXAMPLE_DISTRICT={'state_fips':'15','chamber':'house','code':'028','boundary_session':2024}  # recipe step templates only
+
 def value_free_catalog(core):
     """Explicit whitelist: no program prose, source body, observation value or URL."""
     from .case_contract import admitted_recipes
@@ -102,7 +104,7 @@ def value_free_catalog(core):
             'geography':{key:copy.deepcopy(v.get('geography',{}).get(key)) for key in ('type','name','geoid') if key in v.get('geography',{})},
             **{key:copy.deepcopy(v[key]) for key in ('program_id','period','source_id') if key in v}})
     from .interpret import recipe,food_assistance_recipe
-    d={'state_fips':'15','chamber':'house','code':'028','boundary_session':2024}
+    d=EXAMPLE_DISTRICT
     recipe_plans=[]
     for version,build in [('aging_at_home/1',recipe),('food_assistance_outreach/1',food_assistance_recipe)]:
         if version in recipes:
@@ -291,23 +293,40 @@ def validate_wire(value,schema):
 NEW_PLAN_MAP_SESSION=2026
 _MAP_YEAR=re.compile(r'\b(?:map(?:\s+session)?|district\s+map|redistricting|reapportionment)\s+(?:for\s+|of\s+|from\s+)?(202[46])\b'
     r'|\b(202[46])\s+(?:legislative\s+|district\s+|redistricting\s+|reapportionment\s+)?(?:map|maps|map\s+session|redistricting|reapportionment)\b'
-    r'|\b(202[46])\s+(?:state\s+)?(?:legislative\s+districts?|(?:house|senate)\s+districts)\b')
+    r'|\b(202[46])\s+(?:state\s+)?(?:legislative\s+districts?|(?:house|senate)\s+districts)\b'
+    # A boundary year tied to the map itself: "the 2024 boundary on the map", "2024 session boundary map". A bare
+    # "2024 boundaries" stays unread (the fixed statistical boundaries are 2024).
+    r'|\b(202[46])\s+(?:session\s+)?(?:district\s+)?boundar(?:y|ies)\s+(?:maps?\b|(?:on|in|for)\s+(?:the\s+)?maps?\b)(?!\s+(?:legend|key|caption|labels?)\b)'
+    # "switch the map to [the] 2024 [session]": the year must end the map phrase ("map to 2024 estimates" is data).
+    r'|\bmap(?:\s+session)?\s+to\s+(?:the\s+)?(202[46])(?=\s*(?:sessions?\b|maps?\b|boundar|[.,;:!?)]|$)|\s+(?:and|instead|please|now|too|so|then|for|with)\b)')
 # Narrow direction: map [session] from X to Y, or from the X map to Y [map/one].
 # The map anchor is required so a data-period "from X to Y" never selects a map.
 _MAP_SWITCH=re.compile(r'\b(?:map(?:\s+session)?\s+from\s+(202[46])|from\s+(?:the\s+)?(202[46])\s+map)'
     r'\s+(?:to|with|for)\s+(?:the\s+)?(202[46])(?:\s+(?:map|one))?\b')
 # Narrow exclusion immediately before a map phrase ("not on the 2024 map", "instead of the 2024 map").
-_MAP_NEGATION=re.compile(r"\b(?:not|never|without|excluding|exclude|instead\s+of|rather\s+than|don'?t\s+use)\s+(?:(?:use|using|on|in|with|show|showing)\s+)?(?:the\s+)?$")
+_MAP_NEGATION=re.compile(r"\b(?:not|never|without|excluding|exclude|instead\s+of|rather\s+than|don'?t|do\s+not|doesn'?t|won'?t|no\s+need\s+to|avoid|stop)\s+"
+    r"(?:(?:use|using|on|in|with|show|showing|switch|switching|change|changing|put|putting|move|moving|set|setting|turn|turning|display|displaying|draw|drawing|go|going)\s+)?"
+    r"(?:(?:back\s+|over\s+)?to\s+)?(?:the\s+|a\s+)?$")
+# "Don't change/alter/touch the 2024 map" KEEPS that map (not an exclusion); only a "to"-directed phrase is excluded.
+_MAP_KEEP=re.compile(r"\b(?:don'?t|do\s+not|never)\s+(?:change|alter|modify|touch|reset|replace)\s+(?:the\s+|this\s+|our\s+)?$")
+# Any other negation earlier in the same clause cannot be attributed to the map phrase: refuse rather than guess.
+_MAP_NEGATION_NEARBY=re.compile(r"\b(?:not|never|no|without|don'?t|do\s+not|doesn'?t|won'?t|avoid|stop)\b[^.;:!?,]{0,50}$")
 
 def _map_mentions(u):
     """(selected, excluded) explicit map years; a switch source and a negated phrase are exclusions."""
     selected,excluded=set(),set();spans=[]
     for m in _MAP_SWITCH.finditer(u):
+        # A negated switch ("don't switch the map from 2026 to 2024") states neither year as the request: refuse.
+        if _MAP_NEGATION_NEARBY.search(u[max(0,m.start()-60):m.start()]):raise LanguageError('explicit_map_ambiguous')
         excluded.add(int(m.group(1) or m.group(2)));selected.add(int(m.group(3)));spans.append(m.span())
     for m in _MAP_YEAR.finditer(u):
         if any(a<=m.start()<b for a,b in spans):continue
-        year=int(m.group(1) or m.group(2) or m.group(3))
-        (excluded if _MAP_NEGATION.search(u[max(0,m.start()-40):m.start()]) else selected).add(year)
+        year=int(m.group(1) or m.group(2) or m.group(3) or m.group(4) or m.group(5))
+        before=u[max(0,m.start()-60):m.start()]
+        if _MAP_KEEP.search(before) and not m.group(5):selected.add(year)
+        elif _MAP_NEGATION.search(before):excluded.add(year)
+        elif _MAP_NEGATION_NEARBY.search(before):raise LanguageError('explicit_map_ambiguous')
+        else:selected.add(year)
     return selected,excluded
 
 def resolve_map_session(prepared,wire_map):
@@ -365,7 +384,30 @@ METRIC_PATTERNS={'poverty_rate_65_plus':r'\b(?:senior|elderly|older adult|65\+?|
  'total_population':r'\btotal population\b','unemployed':r'\bunemployed\b','unemployment_rate':r'\bunemployment rate\b'}
 
 POVERTY_METRICS={'poverty_rate_65_plus','poverty_rate_all_people'}
-RECIPE_NAMES={'aging_at_home':r'\b(?:aging at home|older-adult support at home)\b','food_assistance_outreach':r'\b(?:snap outreach|food assistance outreach)\b'}
+# Staff-facing recipe names come from the app's own issue labels (render._ISSUE_NAMES: the issue selector and printed
+# brief) plus the typed-request alias, never from evaluation wording. A following lead/hypothesis/step/reference noun
+# names one step of that kind, not the recipe ("a SNAP outreach lead").
+from .render import _ISSUE_NAMES
+RECIPE_ALIASES={'aging_at_home':('aging at home',),'food_assistance_outreach':('food assistance outreach',)}
+RECIPE_LABELS={v.rsplit('/',1)[0]:(label,*RECIPE_ALIASES.get(v.rsplit('/',1)[0],())) for v,label in _ISSUE_NAMES.items() if v!='custom/1'}
+RECIPE_NAMES={issue:r'\b(?:'+'|'.join(re.escape(n.lower()).replace(r'\-','[- ]') for n in names)+r')\b(?!\s+(?:leads?|hypothes[ie]s|steps?|references?|cards?)\b)'
+              for issue,names in RECIPE_LABELS.items()}
+def _positive_recipes(utterance,admitted=None):
+    """Recipes the utterance names positively. A negated, removed or replaced mention ("not/instead of/rather than SNAP
+    outreach", "switch/replace the SNAP outreach ... with") names nothing, using the existing negation/removal helpers."""
+    out=set()
+    for issue,pat in RECIPE_NAMES.items():
+        if admitted is not None and issue+'/1' not in admitted:continue
+        for m in re.finditer(pat,utterance):
+            before=utterance[max(0,m.start()-60):m.start()]
+            source=_REPLACE_SOURCE_BEFORE.search(before) and not re.search(r'\b(?:to|with|for|into)\s+(?:the\s+|a\s+)?$',before)  # target stays positive
+            if (_NEGATED_BEFORE.search(before[-30:]) or _REMOVAL_BEFORE.search(before) or source
+                    or re.search(r'\bstop\s+(?:the\s+)?$',before) or _NEGATED_AFTER.match(utterance[m.end():])):continue
+            out.add(issue);break
+    return out
+def _recipe_build(issue):
+    from .interpret import recipe,food_assistance_recipe
+    return {'aging_at_home':recipe,'food_assistance_outreach':food_assistance_recipe}[issue]
 # A population stated next to "poverty" names one admitted poverty measure. Only a bare,
 # population-free "poverty" is ambiguous (prompt: generic poverty needs metric clarification).
 _SENIOR=r'(?:k[ūu]puna|elders?|seniors?|elderly|older (?:adults?|residents?|people)|aged? 65|65\+?|65 and over)'
@@ -392,10 +434,56 @@ _NONLEGISLATIVE=re.compile(r"\b(?:congressional|council|county|school|precinct|n
 _US_FEDERAL=re.compile(r'\bUS\s+(?:[Hh]ouse|[Ss]enate|[Cc]ongress)\b')
 
 def _district_clarification(chambers,number=None):
-    # Missing or chamber-ambiguous district: typed district choices only, never a model-chosen district.
+    # Missing or chamber-ambiguous district: typed choices only, never a model-chosen district. Progressive: with no
+    # number and no single stated chamber, ask the chamber first (c_house/c_senate); a stated chamber gets that chamber's
+    # complete district list; a bare number gets that number in each chamber. Never a partial or place-derived subset.
+    if number is None and set(chambers)>={'house','senate'}:
+        return Recovery('explicit_district_missing','clarify',reason='missing_context',field='chamber',choices=('c_house','c_senate'))
     choices=[f'd_{c[0]}{n:03}' for c in ('house','senate') if c in chambers
              for n in range(1,(51 if c=='house' else 25)+1) if number is None or n==int(number)]
     return Recovery('explicit_district_missing','clarify',reason='missing_context',field='district',choices=choices)
+
+# Actual district-number mentions only: "House 5"/"HD 5" (explicit) and a number list after "district(s)"/"seat(s)"
+# ("district 1 or 2", "seat 3"). Ages, counts and other numbers ("kids under 5") are not district mentions.
+_BARE_DISTRICT_LIST=re.compile(r'\b(?:districts?|seats?)\s*(?:#\s*|no\.?\s*|number\s+)?0*(\d{1,2})\b((?:\s*(?:,|or|and|/)\s*0*\d{1,2}\b)*)')
+# The asker's own district is identity, not plan context: the visible default/held district never answers it.
+_OWN_DISTRICT=re.compile(r"\b(?:my|our)\s+(?:own\s+)?(?:(?:house|senate)\s+)?(?:district|seat)\b|\bthe\s+(?:district|seat)\s+(?:i|we)\s+(?:represent|serve|hold)\b")
+def _district_mentions(u):
+    """(explicit {(chamber, n)}, bare {n}) from a canonical lower-case utterance."""
+    explicit={(m.group(1),int(m.group(2))) for m in re.finditer(r'\b'+_DISTRICT+r'\b',u)}
+    bare=set()
+    for m in _BARE_DISTRICT_LIST.finditer(u):
+        numbers={int(x) for x in re.findall(r'\d{1,2}',m.group(1)+(m.group(2) or ''))}
+        chamber=re.search(r'\b(house|senate)\s*$',u[:m.start()])
+        if chamber:explicit|={(chamber.group(1),n) for n in numbers}
+        else:bare|=numbers
+    return explicit,bare
+def grounded_district_choices(prepared,choices):
+    """A model district clarification may offer only districts the request grounds: an explicit mention, a bare
+    mentioned number in either chamber, or the held (confirmed/draft) district. A model-derived place or identity
+    subset ("around Hilo", "the district I represent") is not a verified mapping: the progressive server clarification
+    replaces it. Returns None when grounded, else the Recovery."""
+    c=prepared['context'];u=_canonical_districts(prepared['provider_context']['utterance'].lower())
+    explicit,bare=_district_mentions(u)
+    ok={f'd_{ch[0]}{n:03}' for ch,n in explicit}|{f'd_{ch[0]}{n:03}' for n in bare for ch in ('house','senate')}
+    for p in (c['confirmed_plan'],c['draft_plan']):
+        if p and not _OWN_DISTRICT.search(u):ok.add(f"d_{p['district']['chamber'][0]}{p['district']['code']}")
+    if all(a in ok for a in choices):return None
+    original=prepared['provider_context']['utterance']
+    if re.search(_NONLEGISLATIVE.pattern,original,re.I) or _US_FEDERAL.search(original):raise LanguageError('nonlegislative_district_unproven')
+    chambers={m.group(1) or m.group(2) for m in _CHAMBER_ONLY.finditer(u)}
+    number=next(iter(bare)) if len(bare)==1 and not explicit else None
+    return _district_clarification(chambers or ('house','senate'),number)
+def missing_district(prepared):
+    """The progressive district clarification when request/context prove the district is missing: no confirmed or
+    draft plan, no actual district-number mention (ages and counts do not count), no non-legislative district. Else None (the model's clarification
+    stands). Derived only from the request; it never chooses a district."""
+    c=prepared['context'];original=prepared['provider_context']['utterance']
+    if c['confirmed_plan'] is not None or c['draft_plan'] is not None:return None
+    u=_canonical_districts(original.lower())
+    if any(_district_mentions(u)):return None
+    if re.search(_NONLEGISLATIVE.pattern,original,re.I) or _US_FEDERAL.search(original):return None
+    return _district_clarification({m.group(1) or m.group(2) for m in _CHAMBER_ONLY.finditer(u)} or ('house','senate'))
 
 def _canonical_districts(u):
     # Explicit chamber+number spellings read exactly as "house N"/"senate N" for every district check.
@@ -412,15 +500,20 @@ def district_provenance(utterance,context,plan):
     held=context['confirmed_plan'] or context['draft_plan']
     current=(held['district']['chamber'],held['district']['code']) if held else None
     chambers={m.group(1) or m.group(2) for m in _CHAMBER_ONLY.finditer(utterance)}
-    numbers=[f'{int(m.group(1)):03}' for m in _BARE_DISTRICT.finditer(utterance)]
+    # A comparator-positioned bare number ("against district 20") never names the primary; the comparator checks
+    # below offer its chamber choice.
+    numbers=[f'{int(m.group(1)):03}' for m in _BARE_DISTRICT.finditer(utterance) if not _is_comparator(utterance,m)]
     if chambers and proposed[0] not in chambers:raise LanguageError('explicit_district_conflict')
     if numbers:
-        # A number without a chamber takes its chamber only from one stated chamber or held context.
-        chamber=next(iter(chambers)) if len(chambers)==1 else current[0] if current and not chambers else None
+        # A number without a chamber takes its chamber only from one stated chamber, or from the number itself when
+        # only one chamber has it (House 26-51). Held context never supplies the chamber of a newly named bare number
+        # (same policy as a bare comparator number): an ambiguous one clarifies with that number in each chamber.
+        possible=[c for c in ('house','senate') if int(numbers[0])<=(51 if c=='house' else 25)]
+        chamber=next(iter(chambers)) if len(chambers)==1 else possible[0] if not chambers and len(possible)==1 else None
         if chamber is None:raise _district_clarification(chambers or ('house','senate'),numbers[0])
         if proposed!=(chamber,numbers[0]):raise LanguageError('explicit_district_conflict')
         return
-    if current is None:raise _district_clarification(chambers or ('house','senate'))
+    if current is None or _OWN_DISTRICT.search(utterance):raise _district_clarification(chambers or ('house','senate'))
     # Without an explicit district the held district is never silently replaced.
     if proposed!=current:raise LanguageError('explicit_district_unstated_change')
 
@@ -463,7 +556,7 @@ _COMPARISON_WORDS=r'\b(?:compar(?:e|ed|es|ing|ison)|versus|vs|minus|against|rela
 _DISTRICT=r'(house|senate)\s*(?:district\s*)?0*(\d{1,2})'
 # Explicit replacement wording: (old, new) district groups. Never inferred from mention order alone.
 _REPLACEMENTS=(
-    (re.compile(r'\b(?:replace|change|switch|move|swap)\s+(?:from\s+)?'+_DISTRICT+r'\s+(?:with|to|for)\s+'+_DISTRICT+r'\b'),(1,2),(3,4)),
+    (re.compile(r'\b(?:replace|change|switch|move|swap)\s+(?:(?:this|the|our|my)\s+(?:plan|district|brief|case)\s+)?(?:from\s+)?'+_DISTRICT+r'\s+(?:with|to|for)\s+'+_DISTRICT+r'\b'),(1,2),(3,4)),
     (re.compile(r'\b'+_DISTRICT+r'\s+instead\s+of\s+'+_DISTRICT+r'\b'),(3,4),(1,2)),
     (re.compile(r'\binstead\s+of\s+'+_DISTRICT+r'\s*,?\s*(?:use\s+|show\s+)?'+_DISTRICT+r'\b'),(1,2),(3,4)),
     (re.compile(r'\bnot\s+'+_DISTRICT+r'\s*(?:[-–—,;:]|but)\s*(?:use\s+)?'+_DISTRICT+r'\b'),(1,2),(3,4)))
@@ -495,9 +588,10 @@ def _peer_comparator(utterance,m,mentions,marked):
         if b==end:return _is_comparator(utterance,_Span(a,b)) and not _is_negated(utterance,_Span(a,b))
     return False
 
-def _directed_districts(utterance,mentions,held):
-    """(expected primary (chamber,code), comparator mentions)."""
-    marked=[_is_comparator(utterance,m) for m in mentions]
+def _directed_districts(utterance,mentions,held,retargets=()):
+    """(expected primary (chamber,code), comparator mentions). retargets: mentions proven to be the focused compare
+    step's new comparator."""
+    marked=[m in retargets or _is_comparator(utterance,m) for m in mentions]
     for i,m in enumerate(mentions):
         if not marked[i] and not _navigates(utterance,m):marked[i]=_peer_comparator(utterance,m,mentions[:i],marked[:i])
     unmarked={_key(m) for m,c in zip(mentions,marked) if not c}
@@ -522,6 +616,24 @@ def _directed_districts(utterance,mentions,held):
     raise LanguageError('explicit_district_ambiguous')
 
 def _gid(chamber,number):return f'HI-{chamber.upper()}-{int(number):03}-2024'
+
+# Focused-step retarget: "point/aim/set/change/switch this step|comparison at|to X" names X as the new comparator of
+# the focused step. It applies only when trusted context focuses a held compare step; the proposal must then put X in
+# exactly that step, and the held primary district stays. Without such a focus the wording proves nothing (fail closed).
+_STEP_RETARGET_BEFORE=re.compile(r'\b(?:point|aim|retarget|repoint|redirect|set|change|switch|move|turn)\s+(?:this|that|the)\s+(?:focused\s+|selected\s+)?'
+    r'(?:step|comparison|comparator)\s+(?:back\s+|over\s+)?(?:at|to|toward|towards|on|onto)\s+(?:the\s+)?$')
+def _focused_compare(context,held):
+    """The step a "this step/comparison" retarget names: the explicitly focused held compare step, else the held plan's
+    only compare step (unambiguous and visible). None when neither is proven."""
+    steps=(held or {'steps':[]})['steps'];focus=context['focused_step_id']
+    if focus:
+        step=next((s for s in steps if s['step_id']==focus),None)
+        return step if step is not None and step['operation']=='compare' else None
+    compares=[s for s in steps if s['operation']=='compare']
+    return compares[0] if len(compares)==1 else None
+def _negated_before(utterance,start):
+    # Any negative token earlier in the same bounded clause (existing helper): the edit is not requested.
+    return bool(_NEGATED_REMOVAL_BEFORE.search(utterance[:start][-40:]))
 
 # Metric edits: a metric named as a removal/negation or replacement source is not required; it must be absent.
 _REMOVAL_BEFORE=re.compile(r'\b(?:remove|drop|delete|omit|without|exclude|excluding|no longer|instead of|rather than|not)\s+(?:the\s+|a\s+|any\s+)?(?:[\w-]+\s+){0,2}$')
@@ -651,7 +763,7 @@ def _unresolved_conflict(utterance,confirmed,draft):
             selected,excluded=_map_mentions(utterance.replace('\u2019',"'"));stated=len(selected)==1 and not selected&excluded
         elif field=='service_area_id':
             plain=_plain(utterance);stated=bool(_SERVICE_AREA_REMOVAL.search(plain)) or len(_named_service_areas(plain))==1
-        elif field=='issue_id':stated=sum(bool(re.search(p,utterance)) for p in RECIPE_NAMES.values())==1
+        elif field=='issue_id':stated=len(_positive_recipes(utterance))==1
         else:stated=False  # A complete step list is never read from wording.
         if not stated:unresolved.append(field)
     return unresolved
@@ -772,7 +884,10 @@ def local_guard(prepared,decision,plan):
             if order in ('dmdm','mdmd') and not _CLAUSE_BREAK.search(utterance[spans[1][1]:spans[3][0]]):
                 raise LanguageError('unsupported_cross_measure')
     named={k for k,v in PROGRAM_PATTERNS.items() if re.search(v,utterance)}
-    if re.search(r'\b(?:aging at home|older-adult support at home)\b',utterance):named.add('kupuna_care_hi')
+    # An admitted recipe named by its staff label (unnegated) names its own program(s) and fixes the proposal's issue.
+    recipes=_positive_recipes(utterance,prepared['provider_context']['catalog']['recipes'])
+    for issue in recipes:
+        named|={p for s in _recipe_build(issue)(EXAMPLE_DISTRICT)['steps'] for p in s['args'].get('program_ids',[])+[s['args'].get('program_id')] if p}
     themes=[ids for pattern,ids in PROGRAM_THEMES if re.search(pattern,utterance)]
     if plan is not None:
         proposed={p for s in plan['steps'] for p in s['args'].get('program_ids',[])}|{s['args']['program_id'] for s in plan['steps'] if 'program_id' in s['args']}
@@ -793,6 +908,7 @@ def local_guard(prepared,decision,plan):
             replacement=pattern.search(utterance)
             if replacement:break
         if replacement:negated=[]  # Replacement wording names the old district explicitly.
+        if replacement and _negated_before(utterance,replacement.start()):raise LanguageError('explicit_district_ambiguous')  # "don't move ..."
         if replacement:
             old=(replacement.group(old_groups[0]),f'{int(replacement.group(old_groups[1])):03}')
             if held is None or (held['district']['chamber'],held['district']['code'])!=old:
@@ -800,10 +916,29 @@ def local_guard(prepared,decision,plan):
             expected=(replacement.group(new_groups[0]),f'{int(replacement.group(new_groups[1])):03}')
             comparators=[m for m in mentions if not replacement.start()<=m.start()<replacement.end()]
         elif live:
+            # "Point this step/comparison at X" retargets one compare step; it never navigates the primary district.
+            wording=[(m,_STEP_RETARGET_BEFORE.search(utterance[:m.start()][-60:])) for m in live]
+            retargets=[m for m,w in wording if w]
+            if retargets:
+                if any(_negated_before(utterance,m.start()-60+w.start() if m.start()>=60 else w.start()) for m,w in wording if w):
+                    raise LanguageError('explicit_district_ambiguous')  # "don't point this step at X"
+                focused=_focused_compare(context,held)
+                if focused is None:raise LanguageError('explicit_step_focus_missing')
+                if (plan['district']['chamber'],plan['district']['code'])!=(held['district']['chamber'],held['district']['code']):
+                    raise LanguageError('explicit_district_conflict')  # a step retarget never moves the primary  # no focus and no unique held comparison
+                if len({_key(m) for m in retargets})!=1:raise LanguageError('explicit_district_ambiguous')
+                target=_gid(*_key(retargets[0]))
+                proposed_steps={s['step_id']:s for s in plan['steps']}
+                step=proposed_steps.get(focused['step_id'])
+                if (step is None or step['operation']!='compare' or step['args']['comparison_geography']!=target
+                        or step['args']['metric_ids']!=focused['args']['metric_ids']):raise LanguageError('explicit_comparator_conflict')
+                # Only the target changes: every other held step stays as it is (additions remain visible in the diff).
+                if any(proposed_steps.get(s['step_id'])!=s for s in held['steps'] if s['step_id']!=focused['step_id']):
+                    raise LanguageError('explicit_comparator_conflict')
             # Several distinct districts with no replacement and no comparison: never silently pick one.
-            if len({_key(m) for m in live})>1 and not re.search(_COMPARISON_WORDS,utterance):
+            if len({_key(m) for m in live})>1 and not re.search(_COMPARISON_WORDS,utterance) and not retargets:
                 raise LanguageError('explicit_district_ambiguous')
-            expected,comparators=_directed_districts(utterance,live,held)
+            expected,comparators=_directed_districts(utterance,live,held,retargets)
         else:
             # Every mention is negated: the held district stays (never the negated one).
             if held is None:raise _district_clarification(('house','senate'))
@@ -874,14 +1009,16 @@ def local_guard(prepared,decision,plan):
             # utterance or already held by admitted context (confirmed, else unconflicted draft); never
             # from the model's own issue_id alone.
             from .interpret import recipe,food_assistance_recipe
-            for issue,build,recipe_name in (('aging_at_home',recipe,RECIPE_NAMES['aging_at_home']),('food_assistance_outreach',food_assistance_recipe,RECIPE_NAMES['food_assistance_outreach'])):
-                if plan['issue_id']==issue and (re.search(recipe_name,utterance) or (held is not None and held['issue_id']==issue)):
+            for issue,build in (('aging_at_home',recipe),('food_assistance_outreach',food_assistance_recipe)):
+                if plan['issue_id']==issue and (issue in recipes or (held is not None and held['issue_id']==issue)):
                     held_metrics|={m for s in build(plan['district'])['steps'] for m in (s['args'].get('metric_ids') or [])}
             if (metric_set&POVERTY_METRICS)-named_poverty-held_metrics:
                 if named_poverty:raise LanguageError('explicit_metric_conflict')
                 raise Recovery('explicit_metric_ambiguous','clarify',reason='missing_context',field='metric',
                                choices=('m_poverty_rate_all_people','m_poverty_rate_65_plus'))
         _county_comparators(plain,plan,held_gids,comparator_gids)
+        # A named recipe is a prompt/catalog DEFAULT (full recipe_plans steps plus explicit edits), not a server rule:
+        # the guard never forces its issue or steps, so omit/add/replace edits and negated or replaced recipes stay valid.
     if decision['intent']=='inspect_source':
         focus=decision['focus_alias'];selected=context['selected_claim_refs']
         aliases=set(re.findall(r'\b(?:selected_[1-8]|source_[0-9]+)\b',utterance))
@@ -1000,6 +1137,15 @@ def _convert(prepared,decision,core,stage):
         reason=decision['reason_code']
         if status=='clarify':
             field=decision['clarify_field'];choices=decision['clarify_choices']
+            if field=='district' and choices and all(a in prepared['choices'] and prepared['choices'][a]['field']=='district' for a in choices):
+                ungrounded=grounded_district_choices(prepared,choices)
+                if ungrounded is not None and (field,sorted(choices))!=(ungrounded.field,sorted(ungrounded.choices)):raise ungrounded
+            if field in ('district','chamber'):
+                # A proven missing district always gets the one progressive server clarification (chamber first, then
+                # that chamber's complete list), never a partial, place-derived or wrong-kind list; an identical model
+                # clarification stays the model's own.
+                proven=missing_district(prepared)
+                if proven is not None and (field,sorted(choices))!=(proven.field,sorted(proven.choices)):raise proven
             if not field or not choices or '' in choices or reason not in ('missing_context','ambiguous_reference','control_conflict'):raise LanguageError('invalid_clarification')
             if any(prepared['choices'][a]['field']!=field for a in choices):raise LanguageError('invalid_clarification')
             common.update(clarify_field=field,choices=[copy.deepcopy(prepared['choices'][a]) for a in choices])

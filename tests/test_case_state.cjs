@@ -1020,3 +1020,67 @@ test("every recommended finding is listed by a successful step, and the program 
   }
   assert.deepEqual(C.recommendedBrief(null), { claims: [], action: null, card: null });
 });
+
+// ---- Language question scope (repair-1 v4): the real UI state shapes the language context is built from.
+test("language context: boot default House 028 plan, edited draft, conflict basis, step focus and inspected finding", () => {
+  const L = require("../static/language_state.js");
+  let s = run(C.createState(RUNTIME, ids));
+  const b = C.active(s), stamp = (st) => JSON.stringify(st.case.branches.map((x) => [x.plan, x.selected_claim_refs])) + JSON.stringify(st.draft);
+  const before = stamp(s);
+  // Boot: confirmed = draft = default plan, no focus, brief selections (none).
+  let c = L.context(s, C.active);
+  assert.deepEqual([c.confirmed_plan.district.code, c.draft_plan.district.code, c.focused_step_id, c.selected_claim_refs], ["028", "028", null, []]);
+  // Explicit step focus is kept only for a step of the held plan; an unknown or removed step is dropped.
+  assert.equal(L.context(s, C.active, { focus: "s2" }).focused_step_id, "s2");
+  assert.equal(L.context(s, C.active, { focus: "s9" }).focused_step_id, null);
+  // Inspected finding: the only selected reference while it belongs to the current revision; brief selections stay.
+  const ref = claim(s, "cmp:house028");
+  const src = { claim_ref: ref, branch_id: b.branch_id, revision: b.last_ready_revision };
+  assert.deepEqual(L.context(s, C.active, { source: src }).selected_claim_refs, [ref]);
+  assert.deepEqual(L.context(s, C.active, { source: Object.assign({}, src, { revision: b.last_ready_revision + 1 }) }).selected_claim_refs, []);
+  assert.deepEqual(C.active(s).selected_claim_refs, []);
+  // Unapplied draft edit: a conflict. Basis 'draft' asks about the draft alone; basis 'confirmed' about the confirmed plan.
+  const confirmedBefore = JSON.stringify(C.active(s).plan);
+  s = Object.assign({}, s, { draft: C.removeStep(s.draft, "s4").plan });
+  c = L.context(s, C.active);
+  assert.notDeepEqual(c.confirmed_plan, c.draft_plan);
+  const asDraft = L.context(s, C.active, { basis: L.makeBasis(s, C.active, "draft"), source: src, focus: "s2" });
+  assert.deepEqual([asDraft.confirmed_plan, asDraft.draft_plan.steps.length, asDraft.selected_claim_refs, asDraft.focused_step_id], [null, 3, [], "s2"]);
+  const asConfirmed = L.context(s, C.active, { basis: L.makeBasis(s, C.active, "confirmed"), focus: "s4" });
+  assert.deepEqual(asConfirmed.draft_plan, asConfirmed.confirmed_plan);
+  assert.equal(asConfirmed.focused_step_id, "s4");  // s4 exists in the confirmed plan the question uses
+  assert.equal(L.context(s, C.active, { basis: L.makeBasis(s, C.active, "draft"), focus: "s4" }).focused_step_id, null);
+  // A basis chosen before a later edit is stale and ignored (no silent reuse of an old choice).
+  const old = L.makeBasis(s, C.active, "draft");
+  const s2 = Object.assign({}, s, { draft: C.removeStep(s.draft, "s3").plan });
+  assert.notEqual(L.context(s2, C.active, { basis: old }).confirmed_plan, null);
+  // Building contexts never mutates the confirmed plan, its selections or the draft.
+  assert.equal(JSON.stringify(C.active(s).plan), confirmedBefore);
+  assert.equal(s.draft.steps.length, 3);
+  assert.deepEqual(C.active(s).selected_claim_refs, []);
+  assert.ok(before.length > 0);
+});
+
+test("language clarification choice becomes a canonical visible question prefix, replacing an earlier one", () => {
+  const L = require("../static/language_state.js");
+  const q = "Switch to district 13 and show senior poverty.";
+  assert.equal(L.withChoice(q, { field: "district", value: { chamber: "house", code: "013" } }), "House 13: " + q);
+  assert.equal(L.withChoice("House 13: " + q, { field: "district", value: { chamber: "senate", code: "013" } }), "Senate 13: " + q);
+  assert.equal(L.withChoice("I want the rate for the district I represent.", { field: "chamber", value: "senate" }), "In the Senate: I want the rate for the district I represent.");
+  assert.equal(L.withChoice("In the Senate: x", { field: "district", value: { chamber: "senate", code: "005" } }), "Senate 5: x");
+  assert.equal(L.withChoice(q, { field: "control_conflict", value: "draft" }), q);
+  assert.equal(L.withChoice(q, { field: "district", value: { chamber: "county", code: "013" } }), q);
+});
+
+test("language replies for an old question scope never match after focus or source scope changes", () => {
+  const L = require("../static/language_state.js");
+  const s = run(C.createState(RUNTIME, ids)), b = C.active(s);
+  const job = { request_id: "r1", context: L.context(s, C.active, { focus: "s2" }), context_digest: "sha256:" + "a".repeat(64) };
+  const reply = { request_id: "r1", context: JSON.parse(JSON.stringify(job.context)), context_digest: job.context_digest,
+    tokens: { schema_version: "ia-language/1", release_id: RUNTIME.release_id, case_id: job.context.case_id, branch_id: job.context.branch_id,
+      revision: job.context.revision, snapshot_id: job.context.snapshot_id, operation_version: job.context.operation_version, recipe_version: job.context.recipe_version } };
+  assert.equal(L.matches(reply, job, L.context(s, C.active, { focus: "s2" }), RUNTIME.release_id), true);
+  assert.equal(L.matches(reply, job, L.context(s, C.active), RUNTIME.release_id), false);  // focus cleared
+  const src = { claim_ref: claim(s, "cmp:house028"), branch_id: b.branch_id, revision: b.last_ready_revision };
+  assert.equal(L.matches(reply, job, L.context(s, C.active, { focus: "s2", source: src }), RUNTIME.release_id), false);  // new finding scope
+});

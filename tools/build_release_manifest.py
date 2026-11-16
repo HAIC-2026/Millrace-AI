@@ -33,7 +33,7 @@ TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','tes
        'test_ia_language_comparator_choices.py','test_metric_caveats.py','test_brief_presentation.py',
        'test_ia_language_adoption_5.py','test_ia_language_county_guard.py','test_ia_language_operator_cutoff.py',
        'test_recommended_brief.py','recommended_brief_fixture.py',
-       'language_funding_fixture.py','test_ia_language_funding.py','test_ia_language_profiles.py','test_ia_language_shared_repairs.py','test_ia_language_rate_limit.py')
+       'language_funding_fixture.py','test_ia_language_funding.py','test_ia_language_profiles.py','test_ia_language_shared_repairs.py','test_ia_language_repair1.py','test_ia_language_repair1_v2.py','test_ia_language_rate_limit.py','test_ia_language_repair1_v4.py')
 FIXTURES=('issue_acceptance.json','private_case.json','public_case.json','README.md','ia-language-dev.json','ia-language-dev-v5-replay.json','ia-language-adoption3-synthetic.json','ia-language-prompt-v8.txt','ia-language-adoption4-synthetic.json','recommended-brief-results.json')
 TOOLS=('build_candidate_metadata.py','build_release_manifest.py','compile_statistics.py','probe_investigation.py','retain_r2_inputs.py','build_completion_projection.py','ia_language_operator.py','ia_language_config_adoption.py','ia_language_config_adoption_2.py','ia_language_config_adoption_3.py','ia_language_config_adoption_4.py','ia_language_config_adoption_5.py')
 EXCLUDED_PARTS=frozenset(('.venv','__pycache__','.git'))

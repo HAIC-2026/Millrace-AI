@@ -86,7 +86,10 @@ class LanguageRepairTests(unittest.TestCase):
                     self.recovered('unsupported',text,decision(intent='replace_plan' if ctx else 'create_plan',p=wire(proposal)),ctx,reason='unavailable_evidence')
             self.assertEqual(self.convert(text,decision('unsupported','none',reason_code='unavailable_evidence'),held)['status'],'unsupported')
         # Valid State legislative mentions and abbreviations stay proposals.
-        for text,code,chamber in (('Profile median age for district 5.','005','house'),('Profile median age for HD 5.','005','house'),
+        # repair-1 v2: a bare 1-25 number never borrows the held House chamber; it clarifies d_h005/d_s005.
+        out=self.convert('Profile median age for district 5.',decision(intent='replace_plan',p=wire(plan(H('005')))),held)
+        self.assertEqual((out['status'],[c['alias'] for c in out['choices']]),('clarify',['d_h005','d_s005']))
+        for text,code,chamber in (('Profile median age for HD 5.','005','house'),
                                   ('Profile median age for SD 5.','005','senate'),('Profile median age for State House district 5.','005','house'),
                                   ('Profile median age for state senate district 5.','005','senate')):
             out=self.convert(text,decision(intent='replace_plan',p=wire(plan(H(code,chamber)))),held)

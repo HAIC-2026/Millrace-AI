@@ -66,8 +66,8 @@ class IntegratedReviewGuardTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(self.convert(text,keep,held)['normalized_plan']['district'],H('028'))
                 self.refused('explicit_district_conflict',text,to30,held);self.refused('explicit_district_conflict',text,add30,held)
-        # Without a held plan a fully negated mention proves the primary missing.
-        self.recovered('clarify','Not House 30.',decision(p=wire(plan(H('030'),[pov(S)]))),field='district')
+        # Without a held plan a fully negated mention proves the primary missing (repair-1: chamber asked first).
+        self.recovered('clarify','Not House 30.',decision(p=wire(plan(H('030'),[pov(S)]))),field='chamber')
         # Explicit replacement wording still names old and new.
         self.assertEqual(self.convert('Not House 28 - House 30.',to30,held)['normalized_plan']['district'],H('030'))
 

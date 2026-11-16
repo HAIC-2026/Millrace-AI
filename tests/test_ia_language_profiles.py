@@ -18,7 +18,7 @@ def data():return json.loads(PROFILES_PATH.read_text())
 
 class ProfileDataTests(unittest.TestCase):
     def test_current_profiles_rates_caps_efforts_and_expected_identity(self):
-        profiles=load_profiles();self.assertEqual(sorted(profiles),['sol-low','terra-medium'])
+        profiles=load_profiles();self.assertEqual(sorted(profiles),['sol-low','terra-high','terra-medium'])  # repair-1 v2: terra-high data added
         t,s=profiles['terra-medium'],profiles['sol-low']
         self.assertEqual((t.model,t.reasoning_effort,t.service_tier),('gpt-6.1-terra','medium','default'))
         self.assertEqual((s.model,s.reasoning_effort,s.service_tier),('gpt-6.1-sol','low','default'))

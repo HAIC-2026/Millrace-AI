@@ -1630,6 +1630,18 @@ ul.support-list {
   color: var(--muted);
 }
 
+.preview-label {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--ink-2);
+}
+
 .optional {
   margin-left: 0.25rem;
   font-size: 0.8rem;

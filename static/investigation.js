@@ -13,6 +13,8 @@
   let importing = null;         // parsed case file awaiting an explicit choice
   let mapHandle = null, mapKey = null, savedDigest = null, showStaffPreview = false;
   let languageJob = null, languageResult = null;
+  // Ephemeral question scope (never saved in the case): conflict basis, explicit step focus, last inspected finding.
+  let questionBasis = null, questionFocus = null, questionSource = null, lastQuestion = '';
   let notice = "";
   let bootRun = false;          // the automatic first run after loading: focus stays where the page starts              // polite status line
 
@@ -234,7 +236,14 @@
   }
 
   // Optional language uses its own request lifecycle; it never dispatches a plan.
-  function languageContext() { return window.IALanguage.context(state, C.active); }
+  function questionScope() {
+    // The inspected finding counts only while it is a finding of the current confirmed results.
+    const res = C.currentResults(state), b = C.active(state);
+    const src = questionSource && res && claimMap(res).has(C.refKey(questionSource.claim_ref)) && questionSource.branch_id === b.branch_id && questionSource.revision === b.last_ready_revision ? questionSource : null;
+    return {basis:questionBasis, focus:questionFocus, source:src};
+  }
+  function languageContext() { return window.IALanguage.context(state, C.active, questionScope()); }
+  function languageEnabled() { return !!(window.IALanguage && catalog.language && catalog.language.enabled === true && catalog.language.schema_version === 'ia-language/1'); }
   async function languagePost(action, body) {
     const r = await fetch('/api/language/' + action, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     let data = null; try { data = await r.json(); } catch (_) { /* handled as unavailable */ }
@@ -257,7 +266,7 @@
     if (!catalog.language || catalog.language.enabled !== true || !window.IALanguage) return;
     if (!text.trim() || Array.from(text).length > 500) { alertUser('Enter a question of up to 500 characters.'); return; }
     if (state.pending) { alertUser('Wait for the current request to finish or cancel it first.'); return; }
-    cancelLanguage();
+    cancelLanguage(); lastQuestion = text;
     const job = {request_id:ids.uuid(), context:languageContext(), context_digest:null, pending:true, cancelled:false, started:Date.now(), timer:null, polls:0};
     languageJob = job; languageResult = {status:'pending',message:'Preparing a proposal. Nothing has been applied or run.'};
     job.deadlineTimer = setTimeout(() => { if (languageJob === job && job.pending) { cancelLanguage('The question timed out. Use Typed request or guided controls; your work is unchanged.'); render(); } }, 25000);
@@ -298,14 +307,37 @@
       cancelLanguage('Language question unavailable. Use Typed request or guided controls; your work is unchanged.'); render();
     }
   }
+  function renderQuestionScope(enabled) {
+    const box = $('#ia-question-scope'), b = C.active(state), ctx = enabled ? languageContext() : null;
+    if (!box) return;
+    if (!ctx) { box.hidden = true; fill(box, []); return; }
+    // Drop scope that no longer applies (changed plans, removed step, new revision or case).
+    if (questionBasis && !window.IALanguage.same(questionBasis, window.IALanguage.makeBasis(state, C.active, questionBasis.kind))) questionBasis = null;
+    if (questionFocus && ctx.focused_step_id !== questionFocus) questionFocus = null;
+    const scope = questionScope(); if (questionSource && !scope.source) questionSource = null;
+    const held = ctx.confirmed_plan || ctx.draft_plan, parts = [];
+    parts.push(h('span',{text:'This question uses: ' + (held ? districtLabel(held.district) + ' · ' + (ctx.confirmed_plan ? (questionBasis && questionBasis.kind === 'confirmed' ? 'confirmed plan' : 'current plan') : 'unapplied draft') : 'no plan')}));
+    if (questionBasis) parts.push(' ', btn('Clear', () => { questionBasis = null; render(); }, {class:'btn-link','aria-label':'Clear plan choice for questions'}));
+    if (ctx.focused_step_id) {
+      const i = held.steps.findIndex((s) => s.step_id === ctx.focused_step_id), st = held.steps[i];
+      parts.push(h('span',{text:' · step ' + (i + 1) + ' (' + (OP_LABEL[st.operation] || humanWords(st.operation)) + ')'}), ' ', btn('Clear', () => { questionFocus = null; render(); }, {class:'btn-link','aria-label':'Clear step for questions'}));
+    }
+    if (scope.source) {
+      const c = claimMap(C.currentResults(state)).get(C.refKey(scope.source.claim_ref));
+      parts.push(h('span',{text:' · finding: ' + (c ? claimShortName(c) : 'inspected finding')}), ' ', btn('Clear', () => { questionSource = null; render(); }, {class:'btn-link','aria-label':'Clear finding for questions'}));
+    }
+    box.hidden = false; fill(box, [h('p',{class:'hint'}, ...parts)]);
+  }
   function renderLanguage() {
     const enabled = !!(window.IALanguage && catalog.language && catalog.language.enabled === true && catalog.language.schema_version === 'ia-language/1');
     // Language is optional. When it is not admitted the whole section stays hidden; guided controls are complete.
     $('#ia-question').hidden = !enabled && !languageResult;
     $('#ia-question-form').hidden = !enabled;
+    $('#ia-question-preview').hidden = !enabled;  // Shown only while language questions are actually on.
     $('#ia-language-off').hidden = enabled;
     $('#ia-question-privacy').textContent = enabled ? 'The answer is a proposed plan you can review. The figures come only from the bundled data when you run it; nothing changes until you choose.' : '';
-    if (languageJob && !window.IALanguage.same(languageJob.context, languageContext())) cancelLanguage('The context changed, so the question and its preview were cancelled.');
+    if (languageJob && !window.IALanguage.same(languageJob.context, languageContext())) cancelLanguage('The question scope or plan changed, so the question and its preview were cancelled.');
+    renderQuestionScope(enabled);
     $('#ia-question-cancel').hidden = !(languageJob && languageJob.pending);
     const result = languageResult, box = $('#ia-question-result');
     if (!result) { fill(box, []); return; }
@@ -335,13 +367,20 @@
       }
     }
     if (result.status === 'clarify' && Array.isArray(result.choices)) {
+      // A source question uses the finding whose source was last inspected; brief selections are never changed for it.
+      if (result.clarify_field === 'referent') nodes.push(h('p',{text:'To ask about one finding, choose “Inspect” on that finding’s source, then ask again. The question then uses that finding; your brief selections stay as they are.'}));
       nodes.push(h('p',{text:'Choose an applicable control, then ask again if you wish. No question is sent automatically.'}),h('ul',{},result.choices.map(choice => {
         let apply = null;
-        if (choice.field === 'district' && choice.value && ['house','senate'].includes(choice.value.chamber) && typeof choice.value.code === 'string') apply = () => editDraft(C.setContext(state.draft,{district:choice.value}));
-        else if (choice.field === 'chamber' && ['house','senate'].includes(choice.value) && Number(state.draft.district.code) <= (choice.value === 'senate' ? 25 : 51)) apply = () => editDraft(C.setContext(state.draft,{district:{chamber:choice.value,code:state.draft.district.code}}));
-        else if (choice.field === 'control_conflict' && choice.value === 'confirmed') apply = () => {state=Object.assign({},state,{draft:JSON.parse(JSON.stringify(C.active(state).plan))});render();};
-        else if (choice.field === 'control_conflict' && choice.value === 'draft') apply = () => render();
-        return h('li',{},apply ? btn('Use ' + String(choice.label),() => {cancelLanguage();apply();notice='Choice placed in controls. Ask again or continue with the plan.';render();}) : String(choice.label) + ' — choose this in the guided controls.');
+        // District/chamber: the choice is written into the question as a visible canonical prefix; nothing is sent and
+        // the plan is not edited. Confirmed/draft: the next question uses that plan; neither plan changes and nothing runs.
+        if ((choice.field === 'district' || choice.field === 'chamber') && window.IALanguage.withChoice(lastQuestion, choice) !== lastQuestion.replace(/^(?:(?:House|Senate) \d{1,2}|In the (?:House|Senate)): /, ''))
+          apply = () => { $('#ia-question-text').value = window.IALanguage.withChoice(lastQuestion, choice); return 'Added “' + choice.label + '” to your question. Choose Ask question to send it.'; };
+        else if (choice.field === 'control_conflict' && (choice.value === 'confirmed' || choice.value === 'draft'))
+          apply = () => { questionBasis = window.IALanguage.makeBasis(state, C.active, choice.value); $('#ia-question-text').value = lastQuestion;
+            return choice.value === 'confirmed' ? 'The next question uses your confirmed plan. Your draft edits are kept.' : 'The next question uses your unapplied draft. Your confirmed findings are unchanged.'; };
+        const label = choice.field === 'referent' && sourceLabels[choice.label] ? srcLabel(choice.label) : String(choice.label);
+        if (!apply && choice.field === 'referent') return h('li',{text:label});
+        return h('li',{},apply ? btn('Use ' + label,() => {cancelLanguage();notice=apply();render();$('#ia-question-text').focus();}) : label + ' — choose this in the guided controls.');
       })));
     }
     fill(box,nodes);
@@ -527,7 +566,10 @@
         h("span", { class: "ia-step-tools" },
           btn("Move up", () => editDraft(C.moveStep(plan, s.step_id, -1), "Step moved. Order does not change any fact."), { class: "btn-link", id: "ia-up-" + s.step_id, disabled: i === 0, "aria-label": "Move step " + (i + 1) + " up" }),
           btn("Move down", () => editDraft(C.moveStep(plan, s.step_id, 1), "Step moved. Order does not change any fact."), { class: "btn-link", id: "ia-down-" + s.step_id, disabled: i === plan.steps.length - 1, "aria-label": "Move step " + (i + 1) + " down" }),
-          btn("Remove", () => editDraft(C.removeStep(plan, s.step_id), "Step " + (i + 1) + " removed from the draft. Choose Apply plan to run it."), { class: "btn-link btn-danger", id: "ia-rm-" + s.step_id, "aria-label": "Remove step " + (i + 1) + ", " + OP_LABEL[s.operation] }))),
+          btn("Remove", () => editDraft(C.removeStep(plan, s.step_id), "Step " + (i + 1) + " removed from the draft. Choose Apply plan to run it."), { class: "btn-link btn-danger", id: "ia-rm-" + s.step_id, "aria-label": "Remove step " + (i + 1) + ", " + OP_LABEL[s.operation] }),
+          // Explicit step focus for the next language question; offered only for steps of the plan the question uses.
+          languageEnabled() && (() => { const c = languageContext(), held = c.confirmed_plan || c.draft_plan; return held && held.steps.some((x) => x.step_id === s.step_id); })()
+            ? btn(questionFocus === s.step_id ? "Asking about this step" : "Ask about this step", () => { questionFocus = questionFocus === s.step_id ? null : s.step_id; render(); $('#ia-question-text').focus(); }, { class: "btn-link", id: "ia-ask-" + s.step_id, "aria-pressed": questionFocus === s.step_id ? "true" : "false", "aria-label": "Ask a question about step " + (i + 1) + ", " + OP_LABEL[s.operation] }) : null)),
       h("p", { class: "ia-step-scope" }, stepScope(s), $("#ia-typed").open ? h("span", { class: "ia-step-id", text: " · typed-request name " + s.step_id }) : null),
       h("details", { id: "ia-scope-" + s.step_id }, h("summary", { text: "Change scope" }), stepEditor(s))))
       : [h("li", { class: "muted", text: "No steps. An empty plan has no results or printable brief. Add a step below." })]);
@@ -784,7 +826,8 @@
       meta && c.kind !== "comparison" && c.kind !== "outreach_hypothesis" ? h("p", { class: "ia-claim-meta", text: meta }) : null,
       keyLimit(limits) ? h("p", { class: "ia-limit" }, h("strong", { text: "Limit: " }), keyLimit(limits)) : null,
       sources.length ? h("div", { class: "ia-sources" }, h("span", { class: "ia-sources-label", text: sources.length === 1 ? "Source:" : "Sources:" }),
-        sources.map((r) => h("button", { type: "button", class: "btn-link source-btn", "data-source-id": r.source_id, "data-finding-id": typeof r.finding_id === "string" ? r.finding_id : c.claim_ref.finding_id, text: "Inspect " + srcName(r) }))) : null,
+        sources.map((r) => h("button", { type: "button", class: "btn-link source-btn", "data-source-id": r.source_id, "data-finding-id": typeof r.finding_id === "string" ? r.finding_id : c.claim_ref.finding_id, text: "Inspect " + srcName(r),
+          on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } }))) : null,
       h("details", { id: id + "-more" }, h("summary", {}, "Definition, margin of error and method", h("span", { class: "sr-only", text: " for " + name })),
         h("dl", { class: "kv" }, claimRows(c).filter((r) => c.kind !== "outreach_hypothesis" || !["Reviewed measures", "Program connection", "Not known from this evidence", "Reviewed next step"].includes(r[0])).map((r) => h("div", {}, h("dt", { text: r[0] }), h("dd", { class: r[0] === "Source address" ? "url" : null }, Array.isArray(r[1]) ? h("ul", {}, r[1].map((x) => h("li", { text: plain(x) }))) : r[0] === "Source address" && /^https:\/\//.test(String(r[1])) ? h("a", { href: String(r[1]), target: "_blank", rel: "noopener noreferrer", class: "official-link", text: String(r[1]) }) : plain(r[1]))))),
         Array.isArray(c.dependencies) && c.dependencies.length ? h("div", {}, h("h4", { class: "ia-sub", text: c.kind === "outreach_hypothesis" ? "Complete reviewed basis (shown in full whatever the profile displays)" : "Depends on" }),

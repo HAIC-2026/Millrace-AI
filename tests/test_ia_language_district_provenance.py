@@ -44,7 +44,8 @@ class DistrictProvenanceTests(unittest.TestCase):
         return out
 
     def test_ox_f1_repros_refused(self):
-        self.recovered('explicit_district_missing','district','Compare senior poverty with the State.',plan(H28,compare('poverty_rate_65_plus')))
+        # repair-1 progressive clarification: no number and no stated chamber asks the chamber first.
+        self.recovered('explicit_district_missing','chamber','Compare senior poverty with the State.',plan(H28,compare('poverty_rate_65_plus')))
         moved=plan(d('house','029'),[*plan()['steps'],{'step_id':'s2','operation':'profile','args':{'metric_ids':['median_household_income']}}])
         self.refused('explicit_district_unstated_change','Also add median household income.',moved,plan())
         self.recovered('explicit_district_missing','district','Profile median age for a senate district.',plan(d('senate','025')))
@@ -76,7 +77,8 @@ class DistrictProvenanceTests(unittest.TestCase):
         self.refused('explicit_district_conflict','Profile median age for HD 28.',plan(d('house','029')))
         out=self.convert('Profile median age for district 29 instead.',plan(d('house','029')),plan())  # chamber from held context
         self.assertEqual(out['normalized_plan']['district'],d('house','029'))
-        self.refused('explicit_district_conflict','Profile median age for district 19 instead.',plan(d('senate','019')),plan())
+        # repair-1 v2: a bare 1-25 number never borrows the held chamber; it clarifies both chambers' district 19.
+        self.recovered('explicit_district_missing','district','Profile median age for district 19 instead.',plan(d('senate','019')),plan())
         self.recovered('explicit_district_missing','district','Profile median age for district 12.',plan(d('house','012')))  # no chamber anywhere
         out=self.convert('Profile median age for the senate, district 12.',plan(d('senate','012')))
         self.assertEqual(out['normalized_plan']['district'],d('senate','012'))
@@ -129,6 +131,8 @@ class DistrictProvenanceTests(unittest.TestCase):
         moved=dict(plan(H28,[*held['steps'],{'step_id':'s2','operation':'compare','args':{'metric_ids':['poverty_rate_65_plus'],'comparison_geography':'HI-STATE-2024'}}]),issue_id='aging_at_home')
         self.recovered('explicit_metric_ambiguous','metric','Also compare poverty with the State.',moved,held)
         # Legitimate: recipe named in the utterance, or already held by confirmed / unconflicted draft context.
+        # repair-1 v4: a named recipe is a default, never a server rule: the full and the partial form both validate.
+        self.convert('Run the aging at home plan for Senate 25 and compare poverty with the State.',recipe(s25))
         self.convert('Run the aging at home plan for Senate 25 and compare poverty with the State.',aging)
         held_aging=dict(plan(H28),issue_id='aging_at_home')
         kept=dict(plan(H28,[*held_aging['steps'],{'step_id':'s2','operation':'compare','args':{'metric_ids':['poverty_rate_65_plus'],'comparison_geography':'HI-STATE-2024'}}]),issue_id='aging_at_home')
@@ -153,7 +157,7 @@ class DistrictProvenanceTests(unittest.TestCase):
 
     def test_refusals_are_typed_clarifications_through_job(self):
         # A guessed district/poverty measure is never proposed; the server returns fixed typed choices.
-        for text,proposal,field,choices in (('Compare senior poverty with the State.',plan(H28,compare('poverty_rate_65_plus')),'district',76),
+        for text,proposal,field,choices in (('Compare senior poverty with the State.',plan(H28,compare('poverty_rate_65_plus')),'chamber',2),  # repair-1: was 76 districts
                               ('Profile median age for a senate district.',plan(d('senate','025')),'district',25),
                               ('Compare poverty in Senate 25 with the State.',plan(d('senate','025'),compare('poverty_rate_65_plus')),'metric',2)):
             out=self.job(self.request(text),json.dumps(self.decision(proposal,'create_plan')))
