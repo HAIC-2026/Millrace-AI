@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:95841a2f43bcfad0c603070739c128d5c0025e5a5b36d5ed88e9fcba53bdd4cb",
+  "source_identity": "sha256:d7e3c83a4110472ae47277c8e6111e4767227d1743a576e94e661534ed9f8204",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -56,8 +56,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 26965,
-      "sha256": "c0e42232ce2fcb1daff2f5860e613dd36b99f036d6c64b284e280d24dcb6b78d"
+      "bytes": 27030,
+      "sha256": "72883d5e4c217a07c8a5eff705ce77cd395c8e68076f4686f54b88e8242924a8"
     },
     {
       "path": "candidate-metadata/MANIFEST.json",
@@ -146,8 +146,8 @@
     },
     {
       "path": "districtbrief/ia_language_jobs.py",
-      "bytes": 18475,
-      "sha256": "39a2e319b080557e5d0bca3aab1f00a13a7c3a4bb8dc16c8d5b6377adf6afef3"
+      "bytes": 19262,
+      "sha256": "21ce68ffc3d775c4b74c7804b7f936358b2064f1ad2b491fd08947373acc0e79"
     },
     {
       "path": "districtbrief/ia_language_profiles.json",
@@ -336,8 +336,8 @@
     },
     {
       "path": "static/investigation.js",
-      "bytes": 114706,
-      "sha256": "b1587ae6ce4d63732d427398b74c3306e487be1c2a49ebc27b6f402060fba4f0"
+      "bytes": 114694,
+      "sha256": "c635a0d6460d26ba8e01d00b14859a30dce72b80d8ea200976e63d6b0f084666"
     },
     {
       "path": "static/language_state.js",
@@ -521,8 +521,8 @@
     },
     {
       "path": "tests/test_ia_language_jobs.py",
-      "bytes": 8508,
-      "sha256": "eded52a5d22ea4d907d82b80d1e2162858a44dfb5a1c5c16175df505ac5cae78"
+      "bytes": 8652,
+      "sha256": "8e1bbde5957bfc161411b6f3ff87fc39d0588cd03422ccc82fc4c6322f48f6ee"
     },
     {
       "path": "tests/test_ia_language_map_default.py",
@@ -558,6 +558,11 @@
       "path": "tests/test_ia_language_provider.py",
       "bytes": 19461,
       "sha256": "23a0debb745afa5f8c49aff8fd8c70cfd51e0e6fd361e45c4bc24cd21fa13cdd"
+    },
+    {
+      "path": "tests/test_ia_language_rate_limit.py",
+      "bytes": 9261,
+      "sha256": "c6f3c4bf6ae9ae1b63686c7b929f4abc44f190c7a04d2bd03b95d763d9c3725a"
     },
     {
       "path": "tests/test_ia_language_repair.py",
@@ -626,8 +631,8 @@
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 7863,
-      "sha256": "cc4a9892e7aad2e2154433e5d9a2113ef69043390e73a75c57707e738ba1a0fd"
+      "bytes": 7896,
+      "sha256": "ba9d821551992bafea35e85e9e8a35be5b13225323f8ad275983deef0aec14c1"
     },
     {
       "path": "tools/compile_statistics.py",

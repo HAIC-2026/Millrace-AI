@@ -90,13 +90,13 @@ class LanguageJobTests(unittest.TestCase):
         begin=time.monotonic();self.assertEqual(self.i.handle(run)['status'],'ok');self.assertLess(time.monotonic()-begin,1)
     def test_http_rate_limiter_and_operator_only_test_bucket(self):
         self.release.set()
-        for n in range(5):
+        r=self.request();r['bucket']='test';self.assertEqual(self.service.handle('start',r,'b')[0],400)  # refused before admission: not counted
+        for n in range(3):  # rate hotfix: 3 public starts per rolling 300 s site-wide (was 5 per session / 15 per site per hour)
             r=self.request();self.assertEqual(self.service.handle('start',r,'a')[0],202)
             self.service._jobs[r['request_id']]['done'].wait(1)
         self.assertEqual(self.service.handle('start',self.request(),'a')[0],429)
         r=self.request();self.assertEqual(self.service.operator_start(r)[0],202);self.service.operator_wait(r['request_id'])
-        summary=self.ledger.summary();self.assertEqual(summary['buckets']['demo']['entries'],5);self.assertEqual(summary['buckets']['test']['entries'],1)
-        r=self.request();r['bucket']='test';self.assertEqual(self.service.handle('start',r,'b')[0],400)
+        summary=self.ledger.summary();self.assertEqual(summary['buckets']['demo']['entries'],3);self.assertEqual(summary['buckets']['test']['entries'],1)
     def test_terminal_retention_bounded_and_no_import_threads(self):
         self.release.set()
         for n in range(34):

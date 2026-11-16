@@ -276,7 +276,7 @@
     } catch (e) {
       if (languageJob !== job) return;
       clearTimeout(job.deadlineTimer); job.pending = false;
-      languageResult = {status:'error',message:(e && e.message === 'rate_limited' ? 'The shared demonstration limit is reached: 5 language questions per session per hour and 15 shared across the site per hour. ' : 'Language question unavailable. ') + 'Use Typed request or guided controls; your work is unchanged.'}; render();
+      languageResult = {status:'error',message:(e && e.message === 'rate_limited' ? 'The shared limit of 3 language questions every 5 minutes across the site is reached. Try again in a few minutes. ' : 'Language question unavailable. ') + 'Use Typed request or guided controls; your work is unchanged.'}; render();
     }
   }
   function scheduleLanguagePoll(job) {

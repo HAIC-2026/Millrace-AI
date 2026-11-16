@@ -51,6 +51,15 @@ def _attribution(origin,decision=None,category='',reported=True,failure='none'):
     return {'decision_origin':origin,'model_status':pick('model_status','status'),'model_intent':pick('model_intent','intent'),
             'recovery_category':category,'failure_class':failure}
 
+# Public (non-operator) admission: one rolling window across the whole site, no per-session cap. Only admitted starts
+# are recorded; a refused start records nothing and reaches no Count, generation or ledger. Per-session timestamps are
+# kept only as existing bookkeeping for the session's latest context (status staleness), never as a limit.
+SITE_STARTS_PER_WINDOW=3
+SITE_WINDOW_SECONDS=300
+SESSION_RETENTION_SECONDS=3600
+RATE_LIMIT_MESSAGE=('The shared limit of 3 language questions every 5 minutes across the site is reached. '
+                    'Try again in a few minutes; guided controls and typed requests still work.')
+
 class LanguageService:
     def __init__(self,investigation,*,enabled=False,provider=None,ledger=None,profile=None):
         self.investigation=investigation;self.enabled=bool(enabled);self.provider=provider;self.ledger=ledger
@@ -63,7 +72,8 @@ class LanguageService:
     def bootstrap(self):
         return {'enabled':self.enabled,'schema_version':SCHEMA_VERSION,
             'message':MESSAGES['propose'] if self.enabled else DISABLED_MESSAGE,'privacy_notice':PRIVACY_NOTICE,
-            'limits':{'utterance_characters':500,'deadline_seconds':25,'session_starts_per_hour':5,'site_starts_per_hour':15}}
+            'limits':{'utterance_characters':500,'deadline_seconds':25,'site_starts_per_window':SITE_STARTS_PER_WINDOW,
+                      'site_window_seconds':SITE_WINDOW_SECONDS}}
     def identity(self):
         """Value-free configured identity for machine verification (health): no budget, secret or request data."""
         if self.profile is None:return None
@@ -85,9 +95,9 @@ class LanguageService:
         terminal=[rid for rid,j in self._jobs.items() if j['finished_at'] is not None]
         for rid in terminal[:-32]:self._jobs.pop(rid)
         for session,last in list(self._sessions.items()):
-            while last and now-last[0]>=3600:last.popleft()
+            while last and now-last[0]>=SESSION_RETENTION_SECONDS:last.popleft()
             if not last:self._sessions.pop(session,None);self._latest.pop(session,None)
-        while self._site and now-self._site[0]>=3600:self._site.popleft()
+        while self._site and now-self._site[0]>=SITE_WINDOW_SECONDS:self._site.popleft()
     def _base(self,j,status=None):
         p=j.get('prepared');out={'status':status or j['status'],'schema_version':SCHEMA_VERSION,
             'request_id':j['request_id'],'model_calls':j['model_calls'],
@@ -110,7 +120,8 @@ class LanguageService:
     def _error(self,code,status,*,request_id=None):
         state='disabled' if status==503 and code=='disabled' else 'busy' if code in ('busy','accounting_busy') else 'error'
         out={'status':state,'schema_version':SCHEMA_VERSION,'code':code,'model_calls':0,
-            'message':DISABLED_MESSAGE if state=='disabled' else 'Another language question is running. Try again after it finishes.' if state=='busy' else 'Language interpretation is unavailable for this request. Use Typed request or guided controls.'}
+            'message':DISABLED_MESSAGE if state=='disabled' else 'Another language question is running. Try again after it finishes.' if state=='busy'
+                else RATE_LIMIT_MESSAGE if code=='shared_demonstration_rate_limit' else 'Language interpretation is unavailable for this request. Use Typed request or guided controls.'}
         if request_id:out['request_id']=request_id
         out['attribution']=_attribution('not_decided',failure='start_refused')  # No job ran: nothing was decoded.
         return status,out
@@ -165,7 +176,7 @@ class LanguageService:
             if known:return self._error('session_mismatch' if known['session']!=session else 'duplicate_request',403 if known['session']!=session else 409)
             if self._active is not None:return self._error('busy',409)
             if not operator:
-                if len(self._site)>=15 or len(self._sessions.get(session,()))>=5:return self._error('shared_demonstration_rate_limit',429)
+                if len(self._site)>=SITE_STARTS_PER_WINDOW:return self._error('shared_demonstration_rate_limit',429)
                 if session not in self._sessions and len(self._sessions)>=1024:return self._error('session_limit_full',429)
             p=prepare_request(raw,self.investigation,session)
             provider_payload(p,self.profile)  # Bound and lint the complete payload before all provider access.
