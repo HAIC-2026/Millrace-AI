@@ -4,6 +4,71 @@ A small MCP server that puts the public HAIC district-evidence engine behind fiv
 
 The connector does not interpret questions itself and calls no model. A client model (for example ChatGPT) reads the engine's own interpretation rules, proposes one structured decision, and the engine's guards accept, clarify or refuse it. Facts come only from the engine's verified public snapshot.
 
+## Hosted endpoint
+
+```text
+https://sr5cc09zyqjtqu-8080.proxy.runpod.net/mcp
+```
+
+The endpoint needs no authentication and serves only public data. It runs connector source commit `2439110ac9523cdedbc35b9b55aeeb43607468c1` (build `sha256:b86b4e0a409766ab87b8f7624064ac1ad8f595135000e97674ec65501b043a9d`) over engine manifest `a3a8eb8d41504c7c05506c474df8dd82a493b4423df77905a99713d9d726bec3`. The `identity` that `prepare_question` returns shows these values. Later commits that change only documentation do not change what the endpoint runs.
+
+The endpoint is one Runpod Secure Cloud CPU Pod (2 vCPU, 4 GB RAM, data center US-CA-2). [deploy/README.md](deploy/README.md) has the bootstrap script, pins and proxy details.
+
+These checks passed over public HTTPS, using hand-written decisions:
+
+- `initialize` returned the server, and `tools/list` returned exactly the five tools.
+- A full chain passed with real engine output: prepare, validate, run, claim source, a "Why that figure?" source intent, and a brief. Each result equaled the pinned local connector's result for the same arguments.
+- An 80-claim run with eight retained selections returned complete (210,170 bytes) and equaled the local result.
+- An unknown path returned 404. A 131,073-byte body returned 413. A hostile Origin returned 403. The Origin `https://chatgpt.com` was accepted.
+- After a stop and start, the URL and identity were unchanged. In that restart the container disk was reset, and the bootstrap rebuilt the service from its pinned sources.
+
+### Cost and ownership
+
+The Pod is billed to the project maintainers' Runpod account. It costs $0.06 per hour of running compute plus $0.50 per month for its 5 GB disk. That is about $44.30 for 730 hours of continuous running. The maintainers can stop or delete the Pod at any time. Stopping ends compute billing. Deleting the Pod also removes its disk. There is no failover, high availability or uptime guarantee.
+
+## Use it in ChatGPT
+
+Custom MCP servers depend on your ChatGPT plan and workspace settings. A workspace admin can block them. The plugin was tested on ChatGPT on the web with a Pro account.
+
+1. Open `https://chatgpt.com/plugins`.
+2. Select **Add**, then **Add custom MCP server**.
+3. Enter the name `HAIC District Briefs`.
+4. Enter the server URL `https://sr5cc09zyqjtqu-8080.proxy.runpod.net/mcp`.
+5. Select **No authentication**.
+6. Read the risk notice and acknowledge it.
+7. Select **Create as a plugin**.
+8. Install the plugin. Open a new chat and @-mention the plugin with a question, such as "Compare senior poverty in House 28 with the State."
+
+This creates a private custom plugin in your own account. It is not a listing in a public plugin directory.
+
+Where your data goes:
+
+- ChatGPT handles your question and its tool calls under your own ChatGPT account. Normal ChatGPT usage limits and data terms apply. The connector calls no model, and the maintainers pay for no model use.
+- Runpod's HTTPS proxy also processes every request, under Runpod's terms.
+- The connector and its Caddy proxy store nothing and keep no access log. The connector logs only tool name, status and duration.
+- The engine uses only public data. Do not put confidential or resident details in a question.
+- The connector keeps no state between calls. ChatGPT itself can remember earlier chats, for example through account memory. The connector cannot make ChatGPT forget them.
+
+### Tested in ChatGPT
+
+One account ran these natural questions on 2026-11-16, with the model selector set to Pro. ChatGPT did not show the underlying model ID. No numbers or decisions were supplied to the model. The results were checked against the pinned engine run directly.
+
+| Question | Observed result |
+| --- | --- |
+| Senate District 17: population age 65 and over and senior poverty, with sources and a brief | The plan was shown before running. 10,462 ±795 people and 6.2% ±1.3 percentage points, with correct universes and period. The brief equaled the engine's canonical brief: both entries, citation hash, locators and all seven limitations. |
+| Follow-up: compare senior poverty with the State | Same district kept. 6.2% ±1.3 vs 9.2% ±0.5, a district-minus-State difference of −3.0 percentage points. No derived margin of error or significance claim. |
+| "District 12" with no chamber, in a new chat | ChatGPT asked House or Senate and gave no figures. |
+| Seniors eligible for Kūpuna Care but not enrolled | Reported as unsupported. No count was invented. |
+| A statistical significance test | The connector reported it as unsupported. No test statistic or p-value was given. ChatGPT separately used web search to explain the Census method in general terms. |
+| Senate District 17: all 20 measures compared with Senate District 23, five programs and a Med-QUEST lead | The first request, which said "all five available programs", was refused as an ungrounded program. ChatGPT ran nothing and asked for the names. A reply naming the five programs then ran an 8-step plan with 72 claims. All 20 values and margins of error equaled the engine. Six rates and medians were differenced; fourteen counts were not. |
+
+ChatGPT took from 20 seconds to about 3 minutes per answer. These are observations from one account, not a benchmark of model quality.
+
+Limits of this test:
+
+- ChatGPT's tool panel showed summaries, not the raw MCP arguments or results. Separate protocol checks cover the raw tool input and output.
+- ChatGPT can use its own features alongside the plugin, such as web search and account memory. The plugin does not make ChatGPT answer only from these sources.
+
 ## Setup
 
 Use CPython 3.11, the engine's runtime version, and a virtual environment outside the repository:
@@ -93,9 +158,9 @@ If instead the user asks "What is the senior poverty rate?", the server returns 
 | Canonical tool arguments | 64 KiB | 5.2 KB (largest context object) |
 | Complete MCP result, both channels | 256 KiB | 210,169 B on the wire (largest measured eight-step run, with eight selections) |
 
-The largest measured run comes from an independent size search, which was not exhaustive: 80 claims and 395 KB of raw engine output, 204,827 B on the wire without selections. A typical eight-step run is 172,001 B. Other measured results: a first preparation is 37 KB, a full-context preparation 54 KB, the largest claim source lookup 51 KB and a brief 27 KB. These are the largest cases measured, not a proven maximum. A larger plan can still be refused as a whole with `result_too_large`, and the fix is a smaller plan.
+The largest measured run comes from an independent size search, which was not exhaustive: 80 claims and 395 KB of raw engine output, 204,827 B on the wire without selections. A typical eight-step run is 172,001 B. Other measured results: a first preparation is 37 KB, a full-context preparation 54 KB, the largest claim source lookup 51 KB and a brief 27 KB. These are the largest cases measured, not a proven maximum.
 
-A larger result is refused with `result_too_large` and is never clipped. All engine work runs under one lock, with at most two waiting calls. Beyond that, a call is refused at once with `busy` and a retry hint. There is no unbounded queue, distributed rate limit or wallet. Python work that has started is not cancelled by a proxy timeout.
+A larger result is refused as a whole with `result_too_large` and is never clipped. A smaller plan then fits. All engine work runs under one lock, with at most two waiting calls. Beyond that, a call is refused at once with `busy` and a retry hint. There is no unbounded queue, distributed rate limit or wallet. Python work that has started is not cancelled by a proxy timeout.
 
 ## Tests
 
@@ -119,6 +184,11 @@ The tests run against the real engine and need no credentials. They cover:
 
 ## Not yet verified
 
-- No ChatGPT account, custom connector, hosted endpoint, HTTPS tunnel or live-model run has been tested. This local proof is not ChatGPT proof.
-- How well a model follows `interpretation_rules`, and how ChatGPT handles results of 170 to 210 KB, are both unmeasured.
-- Exposing the server beyond loopback needs a separately authorized HTTPS endpoint and explicit `--allowed-host` and `--allowed-origin` values.
+- The ChatGPT test covers the six questions above from one account. It is not a broad accuracy or model-quality evaluation. Other questions, models and accounts are untested.
+- ChatGPT's largest tested run had 72 claims. The 80-claim, 210 KB result is tested only at the protocol level, because ChatGPT does not show result sizes.
+- `GET /mcp` still opens a server-sent event stream. Whether ChatGPT uses that stream is unknown.
+- The hosted Pod has been through a few restarts, not a long-running availability or load test.
+
+## License
+
+The MIT license in [`LICENSE`](../LICENSE) covers project-authored code and documentation. It does not cover outside source data. Read [`LICENSE-SCOPE.md`](../LICENSE-SCOPE.md) and [`DATA-NOTICES.md`](../DATA-NOTICES.md) before reusing data. State-derived information has an unresolved commercial-use limitation.
