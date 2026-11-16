@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:54d25dd468e32a07fe7fb57cd48c79aefe87f4279c7931c3c868331fc93cce9a",
+  "source_identity": "sha256:2e680b09eb8c43afbc713080b991716ed545877bfaabc0e6b2e76e2f6a6fe3d3",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -51,13 +51,13 @@
     },
     {
       "path": "PRIVACY.md",
-      "bytes": 4082,
-      "sha256": "c23e1d4a4fc14a808191cc03c346f038555c9637d5497007fca981bb4aaafb5e"
+      "bytes": 4335,
+      "sha256": "07defb450edd77819434857742cc171ed3a4df39040ca919fa481e310cf6b08f"
     },
     {
       "path": "README.md",
-      "bytes": 27030,
-      "sha256": "72883d5e4c217a07c8a5eff705ce77cd395c8e68076f4686f54b88e8242924a8"
+      "bytes": 38786,
+      "sha256": "f032e39f936229ddad23ccf9044cc20b2e3500bf50e6e22939a38ecb90568baa"
     },
     {
       "path": "candidate-metadata/MANIFEST.json",
