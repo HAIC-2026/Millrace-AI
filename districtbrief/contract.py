@@ -40,6 +40,7 @@ ACTION_KINDS = ("run", "clarification_response", "next_action")
 MAX_BRIEF_FINDINGS = 8
 MAX_UTTERANCE = 500
 EDIT_LIMITS = {"title": 90, "note": 400, "next_steps": 300, "finding_note": 160}
+MAX_VALIDATION_ERRORS = 32
 
 # Patterns end in \Z (not $, which also matches before a trailing newline) and use
 # [0-9] (not \d, which also matches non-ASCII digits): canonical IDs only.
@@ -73,7 +74,8 @@ CONTEXT_FIELDS = {"task", "district", "metric_ids", "comparison_geography", "pro
 
 
 def _err(errors, field, message):
-    errors.append({"field": field, "message": message})
+    if len(errors) < MAX_VALIDATION_ERRORS:
+        errors.append({"field": field[:128], "message": message[:256]})
 
 
 def _str_list(value, field, pattern, errors, max_len):
@@ -84,11 +86,14 @@ def _str_list(value, field, pattern, errors, max_len):
         return []
     if len(value) > max_len:
         _err(errors, field, f"at most {max_len} items")
+        return []
     out = []
+    seen = set()
     for i, item in enumerate(value):
         if not isinstance(item, str) or not pattern.match(item):
             _err(errors, f"{field}[{i}]", "malformed identifier")
-        elif item not in out:
+        elif item not in seen:
+            seen.add(item)
             out.append(item)
     return out
 

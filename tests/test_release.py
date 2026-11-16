@@ -137,6 +137,33 @@ class AdapterChecks(unittest.TestCase):
         self.assertEqual(self.call('POST','/api/resolve',req,cookie)[0],200)
         self.assertEqual(self.call('POST','/api/resolve',req,cookie)[0],409)
 
+    def test_validation_work_and_error_response_stay_bounded(self):
+        cookie=self.session()
+        for items in ([f'm{i:04}' for i in range(4000)], [0]*10000):
+            req=self.req('oversized-list',metric_ids=items)
+            self.assertLess(len(json.dumps(req).encode()),65536)
+            code,headers,out=self.call('POST','/api/resolve',req,cookie)
+            self.assertEqual(code,400)
+            self.assertEqual(len(out['validation_errors']),1)
+            self.assertEqual(out['validation_errors'][0]['field'],'metric_ids')
+            self.assertLess(int(headers['Content-Length']),4096)
+        req=self.req('many-errors',metric_ids=[0]*20,program_ids=[0]*5,
+                     observation_ids=[0]*8,selected_finding_ids=[0]*40,
+                     displayed_context={'metric_ids':[0]*20,'program_ids':[0]*5,'observation_ids':[0]*8})
+        code,headers,out=self.call('POST','/api/resolve',req,cookie)
+        self.assertEqual(code,400)
+        self.assertEqual(len(out['validation_errors']),32)
+        self.assertLess(int(headers['Content-Length']),12000)
+        req=self.req('long-error',edits={'finding_notes':{'x'*10000:'note'}})
+        code,headers,out=self.call('POST','/api/resolve',req,cookie)
+        self.assertEqual(code,400)
+        self.assertLess(int(headers['Content-Length']),4096)
+        from districtbrief.contract import validate_request
+        req=self.req('ordered-list',metric_ids=['population_65_plus','median_age','population_65_plus'])
+        normalized,errors=validate_request(req,ACCEPTED_SNAPSHOT_ID)
+        self.assertEqual(errors,[])
+        self.assertEqual(normalized['metric_ids'],['population_65_plus','median_age'])
+
     def test_every_catalog_source_and_statistic_cell(self):
         catalog=self.call('GET','/api/catalog')[2]
         from urllib.parse import urlencode
