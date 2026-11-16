@@ -19,25 +19,31 @@
 :root {
   color-scheme: light;
 
-  --ink: #161616;          /* body text, about 18:1 on white */
-  --ink-2: #3a3a3a;        /* secondary text, about 11:1 on white */
-  --muted: #4a4a4a;        /* muted text, about 8:1 on white and zebra rows */
-  --page: #eceff3;
-  --panel: #f5f6f8;
-  --rule: #c5cbd4;         /* decorative rules only */
-  --line: #5c6370;         /* control and box borders, above 3:1 */
-  --navy: #1f2d3d;
-  --blue: #1d4f8c;         /* primary fill; white text about 8:1 */
-  --blue-ink: #0d4a9e;     /* link text on white, about 8:1 */
-  --blue-deep: #0b2a5b;
+  /* Basalt and lagoon: slate-navy ink on a quiet stone page, one deep teal accent for action and
+     selection, amber kept for limits and cautions. Contrast notes are against white. */
+  --ink: #15232d;          /* body text, about 15:1 */
+  --ink-2: #33424d;        /* secondary text, about 10:1 */
+  --muted: #4d5a64;        /* muted text, about 7:1, and above 6:1 on the page tint */
+  --page: #f1f2ef;
+  --panel: #f6f7f5;
+  --rule: #d5dad7;         /* decorative rules only */
+  --line: #66737d;         /* control and box borders, above 3:1 */
+  --navy: #13303c;         /* header and strong rules */
+  --blue: #0e5d6a;         /* primary fill; white text about 7.4:1 */
+  --blue-ink: #0a5462;     /* link text, about 8:1 */
+  --blue-deep: #083a44;
+  --tint: #e6f0f1;         /* selected and informational fills */
   --amber-line: #8a5a00;
-  --amber-bg: #fff4d6;
+  --amber-bg: #fdf3da;
   --amber-ink: #3d2800;
   --red-line: #9b1c1c;
   --red-bg: #fcf0f0;
   --green-line: #1e6b34;
   --green-bg: #e7f4eb;
   --focus: #111111;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(19, 48, 60, 0.06), 0 3px 10px rgba(19, 48, 60, 0.05);
+  --display: "Iowan Old Style", "Charter", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Liberation Sans", sans-serif;
@@ -2924,4 +2930,1186 @@ details.ia-plan[open] > summary {
 
 #cat-more {
   margin: 0.5rem 0 0;
+}
+
+/* ==========================================================================
+   Screen visual layer (2026-11 overhaul)
+   Presentation only, and screen only: the printed brief (#print-root), the off-screen fit probe and the
+   paper's point sizes are defined above and untouched here. Structure follows the work: a quiet header,
+   a step strip, numbered sections (question, evidence, agency action, brief), then the paper preview.
+   ========================================================================== */
+
+@media screen {
+
+  body {
+    font-size: 15.5px;
+    line-height: 1.5;
+  }
+
+  /* ------------------------------------------------------------ header */
+  /* One compact band: name, purpose line, About. */
+  .app-header {
+    padding: 0;
+    background: var(--navy);
+    border-bottom: 3px solid var(--blue);
+  }
+
+  .app-header-inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 1.1rem;
+    align-items: baseline;
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 0.6rem 1.2rem 0.55rem;
+  }
+
+  .app-header h1 {
+    flex: none;
+    margin: 0;
+    font-family: var(--display);
+    font-size: 1.4rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .app-meta {
+    flex: 1 1 32rem;
+    max-width: 78ch;
+    margin: 0;
+    font-size: 0.87rem;
+    line-height: 1.4;
+    color: #d9e4e8;
+  }
+
+  .app-about {
+    flex: none;
+    margin: 0;
+    font-size: 0.87rem;
+  }
+
+  .app-about[open] {
+    flex-basis: 100%;
+  }
+
+  .app-about > summary {
+    display: inline-block;
+    color: #ffffff;
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.55);
+    text-underline-offset: 3px;
+  }
+
+  .app-about > summary:hover {
+    text-decoration-color: #ffffff;
+  }
+
+  .app-about-body {
+    max-width: 72ch;
+    margin-top: 0.5rem;
+    padding: 0.8rem 1rem;
+    font-size: 0.92rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .app-about-h {
+    font-size: 0.98rem;
+    color: var(--navy);
+  }
+
+  /* ------------------------------------------------------------ tabs */
+  .tabs {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+    max-width: none;
+    padding: 0 max(0.6rem, calc((100% - 1480px) / 2 + 0.6rem));
+    overflow-x: auto;
+    scrollbar-width: thin;
+    background: #ffffff;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .tabs [role="tab"] {
+    flex: none;
+    padding: 0.75rem 0.85rem 0.6rem;
+    font-size: 0.93rem;
+    white-space: nowrap;
+    color: var(--ink-2);
+    border-bottom-width: 3px;
+  }
+
+  .tabs [role="tab"]:hover {
+    color: var(--ink);
+    background: var(--panel);
+  }
+
+  .tabs [role="tab"][aria-selected="true"] {
+    color: var(--blue-deep);
+    font-weight: 700;
+    background: transparent;
+    border-bottom-color: var(--blue);
+  }
+
+  .tabs [role="tab"]:focus-visible {
+    outline-offset: -3px;
+    box-shadow: inset 0 0 0 5px #ffffff;
+  }
+
+  .panel {
+    max-width: 1480px;
+    margin: 1rem auto;
+    border-color: var(--rule);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  #tab-catalog.panel,
+  #tab-sources.panel,
+  #tab-commands.panel {
+    margin: 1rem;
+  }
+
+  @media (min-width: 1512px) {
+    #tab-catalog.panel,
+    #tab-sources.panel,
+    #tab-commands.panel {
+      margin: 1rem auto;
+    }
+  }
+
+  /* ------------------------------------------------------------ controls */
+  select,
+  input[type="text"],
+  input[type="search"],
+  textarea {
+    border-color: #8b979f;
+    border-radius: 6px;
+    transition: border-color 0.12s ease;
+  }
+
+  select:hover,
+  input[type="text"]:hover,
+  input[type="search"]:hover,
+  textarea:hover {
+    border-color: var(--line);
+  }
+
+  .btn {
+    border-width: 1.5px;
+    border-color: var(--line);
+    border-radius: 6px;
+    color: var(--ink);
+  }
+
+  .btn:hover {
+    background: var(--panel);
+    border-color: var(--navy);
+  }
+
+  .btn:active {
+    background: #e7ebe8;
+  }
+
+  .btn-primary {
+    color: #ffffff;
+    background: var(--blue);
+    border-color: var(--blue);
+    box-shadow: 0 1px 2px rgba(8, 58, 68, 0.25);
+  }
+
+  .btn-primary:hover {
+    color: #ffffff;
+    background: var(--blue-deep);
+    border-color: var(--blue-deep);
+  }
+
+  .btn-primary:active {
+    background: #052a31;
+  }
+
+  .btn:disabled,
+  .btn-primary:disabled,
+  .btn:disabled:hover,
+  .btn-primary:disabled:hover {
+    box-shadow: none;
+    border-width: 1.5px;
+  }
+
+  .choice-btn {
+    border-width: 1.5px;
+    border-color: var(--blue);
+    color: var(--blue-deep);
+  }
+
+  .choice-btn:hover {
+    background: var(--tint);
+  }
+
+  .badge {
+    padding: 0.08rem 0.5rem;
+    font-size: 0.74rem;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+    background: var(--panel);
+    border-color: #a3adb4;
+    border-radius: 999px;
+  }
+
+  .badge-info {
+    color: var(--blue-deep);
+    background: var(--tint);
+    border-color: var(--blue);
+  }
+
+  /* Outreach hypothesis keeps its distinct amber, dashed, capitalised label. */
+  .badge-warn {
+    color: #1a1a1a;
+    background: #ffd34d;
+    border: 2px dashed #5c3d00;
+    border-radius: 4px;
+  }
+
+  .data-table thead th {
+    background: #e9ece9;
+    border-bottom-color: var(--navy);
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background: #f7f8f6;
+  }
+
+  .notice {
+    border-color: var(--rule);
+    border-radius: var(--radius);
+  }
+
+  .notice-clarify {
+    background: var(--tint);
+  }
+
+  .alert,
+  .limitations {
+    border-radius: 6px;
+  }
+
+  /* ------------------------------------------------------------ workspace frame */
+  .ia {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 0.75rem;
+  }
+
+  @media (min-width: 760px) {
+    .ia {
+      padding: 1.1rem 1.2rem 1.5rem;
+    }
+  }
+
+  /* Step ribbon: a quiet single line of jump links to the numbered sections. */
+  .ia-flow {
+    grid-column: 1 / -1;
+    margin: 0 0 0.6rem;
+  }
+
+  .ia-flow ol {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.2rem 1.1rem;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    list-style: none;
+    scrollbar-width: none;
+  }
+
+  .ia-flow li {
+    flex: none;
+  }
+
+  .ia-flow li + li::before {
+    content: "›";
+    content: "›" / "";
+    margin-right: 1.1rem;
+    color: #8b979f;
+  }
+
+  .ia-flow a {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    min-height: 2rem;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+
+  .ia-flow a:hover {
+    color: var(--blue-deep);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ia-flow-n {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--blue-deep);
+    background: var(--tint);
+    border: 1px solid #9fc1c6;
+    border-radius: 50%;
+  }
+
+  /* Section titles: one family and size; numbered where they are a step of the work. */
+  .ia-section-title {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.55rem;
+    align-items: center;
+    margin: 0 0 0.6rem;
+    font-size: 1.22rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--navy);
+  }
+
+  .ia-section-title[data-step]::before {
+    content: attr(data-step);
+    content: attr(data-step) / "";
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--blue);
+    border-radius: 50%;
+  }
+
+  /* Without the question section, District and issue is the first step. */
+  #ia-question[hidden] ~ .ia-context .ia-section-title::before {
+    content: "1";
+    content: "1" / "";
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--blue);
+    border-radius: 50%;
+  }
+
+  .ia-group-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .hint {
+    color: var(--muted);
+  }
+
+  /* Shared surface for the workspace's main regions. */
+  .ia-question,
+  .ia-context,
+  .ia-plan,
+  .ia-main,
+  .ia-tray,
+  .ia-brief,
+  .ia-case {
+    background: #ffffff;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  /* --- 1. question and district setup.
+     Wide screens: the question and the district/issue context sit side by side in one row, so the evidence
+     starts near the top of the page. Narrow screens stack them in document order. */
+  .ia-question,
+  .ia-context {
+    min-width: 0;
+    margin: 0 0 0.85rem;
+  }
+
+  @media (min-width: 1100px) {
+    #ia-workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      column-gap: 0.85rem;
+      align-items: stretch;
+    }
+
+    #ia-workspace > * {
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+
+    #ia-workspace > .ia-question:not([hidden]) {
+      grid-column: 1;
+    }
+
+    #ia-workspace > .ia-question:not([hidden]) ~ .ia-context {
+      grid-column: 2;
+    }
+
+    #ia-workspace > .ia-question:not([hidden]) ~ .ia-context .ia-context-fields {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.1rem 0.75rem;
+    }
+  }
+
+  .ia-question {
+    padding: 0.8rem 1rem 0.8rem;
+    border-left: 4px solid var(--blue);
+  }
+
+  .ia-question > .ia-section-title {
+    margin-bottom: 0.3rem;
+  }
+
+  .ia-question form > label {
+    margin: 0.1rem 0 0.35rem;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    color: var(--ink-2);
+  }
+
+  .ia-ask-row textarea {
+    min-height: 3.1rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 1.02rem;
+    background: #fbfcfb;
+  }
+
+  .ia-ask-row textarea:focus-visible {
+    background: #ffffff;
+  }
+
+  .ia-ask-actions .btn-primary {
+    min-width: 6rem;
+    min-height: 3.1rem;
+  }
+
+  .preview-label {
+    padding: 0.08rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--amber-ink);
+    background: var(--amber-bg);
+    border: 1px solid var(--amber-line);
+  }
+
+  .ia-question .ia-ask-notice {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--ink-2);
+  }
+
+  .ia-ask-detail {
+    font-size: 0.85rem;
+  }
+
+  #ia-question-scope:not(:empty) {
+    margin: 0 0 0.35rem;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+
+  .ia-answer {
+    margin-top: 0.75rem;
+    padding: 0.8rem 0.95rem 0.65rem;
+    background: #f7fafa;
+    border: 1px solid #9fc1c6;
+    border-left: 4px solid var(--blue);
+    border-radius: var(--radius);
+  }
+
+  .ia-answer-title {
+    color: var(--navy);
+  }
+
+  .ia-answer-value strong {
+    font-size: 1.7rem;
+    color: var(--navy);
+  }
+
+  /* --- district and issue: compact setup panel */
+  .ia-context {
+    gap: 0.45rem;
+    padding: 0.8rem 1rem 0.75rem;
+  }
+
+  .ia-context .ia-section-title {
+    margin-bottom: 0.35rem;
+    font-size: 1.05rem;
+  }
+
+  .ia-context-fields .field {
+    gap: 0.15rem;
+    margin: 0 0 0.3rem;
+  }
+
+  .ia-context-fields .field > label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--ink-2);
+  }
+
+  .ia-context-fields select {
+    min-height: 2.4rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
+
+  .ia-context-fields .hint {
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .ia-context-summary {
+    margin: 0.35rem 0 0;
+    padding-top: 0.45rem;
+    font-size: 0.93rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .ia-statusline {
+    min-height: 0;
+    margin: 0.1rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .ia-mapbox {
+    background: var(--panel);
+    border-color: var(--rule);
+    border-radius: 6px;
+  }
+
+  .ia-mapbox > summary {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.88rem;
+  }
+
+  .ia-mapbox > summary .ia-map-summary {
+    font-size: 0.8rem;
+  }
+
+  .ia-mapbox > summary .ia-map-summary-title {
+    text-decoration-color: rgba(10, 84, 98, 0.45);
+    text-underline-offset: 3px;
+  }
+
+  /* --- advanced plan: a quiet, secondary disclosure */
+  .ia-plan {
+    padding: 0.5rem 1rem;
+    background: var(--panel);
+    box-shadow: none;
+  }
+
+  details.ia-plan > summary {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.6rem;
+    align-items: baseline;
+  }
+
+  details.ia-plan > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.ia-plan > summary::before {
+    content: "▸";
+    content: "▸" / "";
+    color: var(--blue-ink);
+  }
+
+  details.ia-plan[open] > summary::before {
+    content: "▾";
+    content: "▾" / "";
+  }
+
+  details.ia-plan > summary .ia-section-title {
+    display: inline;
+    font-size: 1.02rem;
+    color: var(--ink);
+  }
+
+  .ia-advanced-sum {
+    display: inline;
+    margin: 0;
+  }
+
+  .ia-step,
+  .ia-claim,
+  .ia-selected > li,
+  .ia-check-item,
+  .ia-parked > li,
+  .ia-branches > li {
+    border-color: var(--rule);
+    border-radius: 6px;
+  }
+
+  .ia-step-num {
+    background: var(--blue);
+  }
+
+  /* --- 2 and 3. findings and agency action */
+  .ia-main {
+    padding: 1.1rem 1.15rem 0.6rem;
+  }
+
+  .ia-main > section.ia-results + section.ia-results {
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .ia-start {
+    margin: 0 0 1.1rem;
+    padding: 0.85rem 1rem 0.8rem;
+    background: var(--tint);
+    border: 1px solid #a9c8cc;
+    border-left: 4px solid var(--blue);
+    border-radius: var(--radius);
+  }
+
+  .ia-start > .ia-group-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--blue-deep);
+  }
+
+  .ia-start > p:not(.hint) {
+    max-width: 82ch;
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  .ia-step-result {
+    margin: 0 0 1.25rem;
+  }
+
+  .ia-step-result > h3 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.5rem;
+    align-items: center;
+    margin: 0.2rem 0 0.55rem;
+    padding: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .ia-step-result > h3 .badge {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: 0.01em;
+  }
+
+  .ia-claim {
+    padding: 0.8rem 0.95rem 0.6rem;
+    margin: 0 0 0.6rem;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+  }
+
+  .ia-claim:hover {
+    border-color: #aab4b9;
+  }
+
+  .ia-claim.is-selected,
+  .ia-response.is-selected,
+  .ia-branches > li.is-selected {
+    background: #f4f9f9;
+    border-color: #9fc1c6;
+    border-left: 5px solid var(--blue);
+  }
+
+  .ia-claim-head {
+    margin: 0 0 0.3rem;
+  }
+
+  .ia-claim .ia-select {
+    padding: 0.15rem 0.55rem 0.15rem 0.45rem;
+    font-size: 0.88rem;
+    color: var(--ink-2);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+  }
+
+  .ia-claim .ia-select:hover {
+    border-color: var(--blue);
+    color: var(--blue-deep);
+  }
+
+  .ia-claim .ia-select:has(input:checked) {
+    color: var(--blue-deep);
+    background: #ffffff;
+    border-color: var(--blue);
+  }
+
+  .ia-claim-text {
+    max-width: 82ch;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .ia-claim-meta {
+    color: var(--muted);
+  }
+
+  .ia-limit {
+    max-width: 82ch;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .ia-sources-group {
+    margin: 0.35rem 0;
+  }
+
+  .ia-sources-group > .ia-sources {
+    margin: 0.15rem 0;
+  }
+
+  .ia-sources-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+
+  .ia-claim > details > summary,
+  .ia-response details > summary {
+    font-size: 0.88rem;
+  }
+
+  .ia details > summary {
+    color: var(--blue-ink);
+  }
+
+  .card {
+    border-color: var(--rule);
+    border-radius: var(--radius);
+  }
+
+  .card.ia-response {
+    padding: 0.95rem 1.05rem;
+  }
+
+  .ia-response > header {
+    margin-bottom: 0.4rem;
+  }
+
+  .ia-response > header h3 {
+    font-size: 1.08rem;
+    color: var(--navy);
+  }
+
+  .ia-next-step {
+    margin: 0.2rem 0 0.7rem;
+    padding: 0.55rem 0.75rem;
+    background: var(--panel);
+    border-radius: 6px;
+  }
+
+  .ia-next-step .ia-sub {
+    margin-top: 0;
+  }
+
+  .ia-response .ia-questions {
+    background: var(--tint);
+    border-left-color: var(--blue);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .ia-choose {
+    border-color: var(--rule);
+    border-radius: 6px;
+  }
+
+  .ia-choose:has(input:checked) {
+    color: var(--blue-deep);
+    background: var(--tint);
+    border-color: var(--blue);
+  }
+
+  /* --- 4. brief tray */
+  .ia-tray {
+    padding: 1rem 1.05rem;
+  }
+
+  .ia-cta {
+    padding: 0.8rem 0.85rem;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+
+  .ia-cta-status {
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  .ia-tray .ia-group-title {
+    margin-top: 1.2rem;
+    padding-top: 0.75rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border-top: 1px solid var(--rule);
+  }
+
+  .ia-tray input[type="text"],
+  .ia-tray input[type="date"],
+  .ia-tray input[type="number"],
+  .ia-tray textarea {
+    border-color: #8b979f;
+    border-radius: 6px;
+  }
+
+  .ia-tracking {
+    border-color: var(--rule);
+    border-radius: 6px;
+  }
+
+  /* --- one-page brief and case */
+  .ia-brief,
+  .ia-case {
+    margin: 1rem 0 0;
+    padding: 1.1rem 1.2rem 1.2rem;
+  }
+
+  .ia-brief-bar {
+    padding: 0 0 0.2rem;
+  }
+
+  .brief-preview {
+    padding: 1.4rem 1rem;
+    background: #dfe3e0;
+    border-radius: 6px;
+  }
+
+  .brief-doc {
+    border-color: #b9c0bd;
+    box-shadow: 0 1px 3px rgba(19, 48, 60, 0.18), 0 8px 24px rgba(19, 48, 60, 0.12);
+  }
+
+  /* Agency action citation roles, preview only (see markCitationRoles); not in the print copy or fit probe. */
+  .brief-preview .brief-doc a.cite[data-screen-label]::before {
+    content: attr(data-screen-label);
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  .ia-case > p:first-of-type {
+    max-width: 82ch;
+    padding: 0.5rem 0.7rem;
+    color: var(--amber-ink);
+    background: var(--amber-bg);
+    border-left: 4px solid var(--amber-line);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .ia-case-actions {
+    gap: 0.8rem 1.4rem;
+  }
+
+  .ia-case-col {
+    padding: 0.2rem 0.9rem 0.8rem;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+
+  p.page-foot {
+    max-width: 1480px;
+    margin: 0.6rem auto 1.4rem;
+    padding: 0 1.2rem;
+  }
+
+  /* ------------------------------------------------------------ wide layout */
+  @media (min-width: 1200px) {
+    .ia-grid {
+      gap: 1.1rem;
+    }
+
+    .ia-grid:has(> details.ia-plan:not([open])) {
+      grid-template-columns: minmax(0, 1fr) 350px;
+    }
+
+    /* The brief tray stays in view beside long evidence, scrolling on its own when taller than the screen. */
+    .ia-tray {
+      position: sticky;
+      top: 0.75rem;
+      max-height: calc(100vh - 1.5rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+
+  /* ------------------------------------------------------------ source dialog */
+  /* The header stays put; only the details scroll. While more is below, the header says so and a
+     shadow sits at the bottom edge. Close is always visible in the header. */
+  dialog#source-dialog {
+    border: 1px solid var(--navy);
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(10, 25, 32, 0.35);
+  }
+
+  dialog#source-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  dialog#source-dialog::backdrop {
+    background: rgba(13, 28, 36, 0.62);
+  }
+
+  .dialog-head {
+    position: static;
+    flex: none;
+    align-items: flex-start;
+    padding: 0.75rem 0.85rem 0.7rem 1.1rem;
+    background: var(--navy);
+    border-bottom: 0;
+  }
+
+  .dialog-head-text {
+    min-width: 0;
+  }
+
+  .dialog-head h2 {
+    margin: 0.35rem 0 0;
+    font-size: 1.05rem;
+    color: #ffffff;
+  }
+
+  .dialog-cue {
+    display: none;
+    margin: 0.2rem 0 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #cfe3e6;
+  }
+
+  .dialog-cue::before {
+    content: "↓ ";
+    content: "↓ " / "";
+  }
+
+  dialog#source-dialog.has-more .dialog-cue {
+    display: block;
+  }
+
+  .dialog-head .dialog-close {
+    flex: none;
+    min-width: 5.5rem;
+    min-height: 2.75rem;
+    color: var(--navy);
+    background: #ffffff;
+    border: 2px solid #ffffff;
+  }
+
+  .dialog-head .dialog-close::before {
+    content: "✕";
+    content: "✕" / "";
+    font-size: 0.85em;
+  }
+
+  .dialog-head .dialog-close:hover {
+    background: var(--tint);
+  }
+
+  .dialog-head .dialog-close:focus-visible {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--navy);
+  }
+
+  #source-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1rem 1.2rem 1.3rem;
+    overflow: auto;
+    overscroll-behavior: contain;
+    /* Scroll shadow: visible only while content remains below the visible area. */
+    background:
+      linear-gradient(#ffffff, #ffffff) bottom / 100% 1.5rem no-repeat local,
+      radial-gradient(farthest-side at 50% 100%, rgba(19, 48, 60, 0.28), rgba(19, 48, 60, 0)) bottom / 100% 0.8rem no-repeat scroll,
+      #ffffff;
+  }
+
+  #source-body .kv > div {
+    border-bottom-color: #e5e8e6;
+  }
+
+  @media (max-width: 600px) {
+    dialog#source-dialog {
+      width: calc(100vw - 1rem);
+      max-height: calc(100vh - 1rem);
+      max-height: calc(100dvh - 1rem);
+    }
+
+    #source-body {
+      padding: 0.85rem 0.9rem 1.1rem;
+    }
+  }
+
+  /* ------------------------------------------------------------ narrow screens */
+  @media (max-width: 600px) {
+    body {
+      font-size: 16px;
+    }
+
+    .app-header-inner {
+      padding: 0.55rem 0.9rem 0.5rem;
+    }
+
+    .app-header h1 {
+      font-size: 1.25rem;
+    }
+
+    .tabs [role="tab"] {
+      padding: 0.7rem 0.7rem 0.55rem;
+    }
+
+    .ia-question,
+    .ia-context,
+    .ia-main,
+    .ia-tray,
+    .ia-brief,
+    .ia-case {
+      padding-left: 0.85rem;
+      padding-right: 0.85rem;
+    }
+
+    .app-header-inner {
+      gap: 0.2rem;
+    }
+
+    .app-meta {
+      flex-basis: 100%;
+      font-size: 0.82rem;
+    }
+
+    .ia-flow {
+      margin-bottom: 0.45rem;
+    }
+
+    .ia-flow ol {
+      gap: 0 0.6rem;
+    }
+
+    .ia-flow li + li::before {
+      margin-right: 0.6rem;
+    }
+
+    .ia-flow a {
+      font-size: 0.82rem;
+    }
+
+    /* Ask stays beside the question box so the district setup starts sooner. */
+    .ia-ask-row {
+      flex-wrap: nowrap;
+      gap: 0.45rem;
+    }
+
+    .ia-ask-row textarea {
+      flex: 1 1 0;
+    }
+
+    .ia-ask-actions {
+      flex: none;
+      flex-direction: column;
+    }
+
+    .ia-ask-actions .btn-primary {
+      min-width: 4.6rem;
+    }
+
+    .ia-claim .ia-select {
+      margin: 0.2rem 0 0;
+    }
+
+    /* Brief preview: the paper reflows at a reading size on phones. The printed copy and the fit probe are
+       outside .brief-preview, so print size, columns and one-page fit are unchanged. */
+    .brief-preview {
+      padding: 0.5rem;
+    }
+
+    .brief-preview .brief-doc {
+      --brief-body: 11.5pt;
+      --brief-small: 10.5pt;
+      padding: 0.9rem 0.85rem;
+      line-height: 1.4;
+      box-shadow: 0 1px 3px rgba(19, 48, 60, 0.18);
+    }
+
+    .brief-preview .brief-doc h2 {
+      font-size: 15pt;
+      line-height: 1.2;
+    }
+
+    .brief-preview .brief-doc h3 {
+      margin-top: 9pt;
+      font-size: 10pt;
+    }
+
+    .brief-preview .brief-doc p,
+    .brief-preview .brief-doc li.brief-finding,
+    .brief-preview .brief-doc ul.brief-limits > li,
+    .brief-preview .brief-doc ol.brief-cites > li {
+      margin-bottom: 4pt;
+    }
+
+    .brief-preview .brief-doc ul.brief-limits,
+    .brief-preview .brief-doc ol.brief-cites {
+      line-height: 1.35;
+    }
+
+    .brief-preview .brief-doc .kind {
+      font-size: 9pt;
+      white-space: normal;
+    }
+
+    .brief-preview .brief-doc a.cite {
+      font-size: 10pt;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+    }
+  }
 }

@@ -119,9 +119,21 @@ def value_with_unit(display, unit) -> str:
     return f"{display} {unit}".strip()
 
 
+# Screen wording for the publisher's "*****" margin-of-error marker (controlled estimate, no MOE published).
+# The marker itself stays visible; stored data and the printed brief text are unchanged.
+MOE_NOT_PUBLISHED = "Not published (source marker *****: controlled estimate)"
+
+
+def _moe_cell(display) -> str:
+    return ('Not published <span class="fine">(source marker *****)</span>' if str(display) == "*****"
+            else e(display))
+
+
 def moe_with_unit(moe, unit) -> str:
     """Margin of error with its unit: ±4.3 percentage points · ±542 persons · ±$1,121."""
     moe, unit = str(moe or ""), str(unit or "")
+    if moe == "*****":
+        return MOE_NOT_PUBLISHED
     if not moe.startswith("±"):
         return moe
     if unit == "percent":
@@ -322,7 +334,7 @@ def _stat_row(f, selectable=True) -> str:
         f'<th scope="row"><span class="metric-label">{e(f["metric"]["label"])}</span> {"".join(badges)}'
         f'<div class="fine">{e(f["metric"]["official_variable_label"])}</div></th>'
         f'<td class="{est_cls}">{e(est)}</td>'
-        f'<td class="num">{e(f["moe_display"])}</td>'
+        f'<td class="num">{_moe_cell(f["moe_display"])}</td>'
         f'<td>{e(f["unit"])}</td>'
         f'<td class="universe">{e(f["universe"])}</td>'
         f'<td>{e(f["period"]["label"])}</td>'
@@ -958,7 +970,7 @@ def catalog_html(cat: dict) -> str:
     rows = "".join(
         f'<tr data-geo="{e(o["geography_id"])}" data-metric="{e(o["metric_id"])}">'
         f'<td>{e(geos[o["geography_id"]])}</td><th scope="row">{e(metrics[o["metric_id"]]["label"])}</th>'
-        f'<td class="num">{e(o["estimate_display"])}</td><td class="num">{e(o["moe_display"])}</td>'
+        f'<td class="num">{e(o["estimate_display"])}</td><td class="num">{_moe_cell(o["moe_display"])}</td>'
         f'<td>{e(o["unit"])}</td><td class="universe fine">{e(metrics[o["metric_id"]]["universe"])}</td>'
         f'<td>{_source_button(o["source_id"], o["finding_id"], context=geos[o["geography_id"]] + ", " + metrics[o["metric_id"]]["label"])}</td></tr>' for o in cat["observations"])
     geo_rows = "".join(

@@ -128,13 +128,31 @@
     if (s.operation === "outreach_lead") return programLabel(a.program_id) + " — complete reviewed measure set; hypothesis reference: State";
     return a.observation_ids.map(adminLabel).join("; ");
   }
+  // Staff-facing wording for recorded values: known issue, operation and geography identifiers and plan
+  // fields use the selector labels; anything else is shown as recorded. Identifiers stay in the data.
+  const MOE_NOT_PUBLISHED = "Not published (source marker *****: controlled estimate)";
+  const VERIFIED_LABEL = { true: "matches the retained cell", false: "not checked against a retained cell", null: "original cell not reread" };
   function plain(v, depth) {
     if (v === null || v === undefined || v === "") return "—";
+    if (typeof v === "string") {
+      if (ISSUE_LABEL[v]) return ISSUE_LABEL[v];
+      if (OP_LABEL[v]) return OP_LABEL[v];
+      if (/^HI-[A-Z]+-/.test(v) && catalog) { const g = geoLabel(v); if (g !== v) return g; }
+      return v;
+    }
     if (typeof v !== "object") return String(v);
     if ((depth || 0) > 2) return "…";
     if (Array.isArray(v)) return v.map((x) => plain(x, (depth || 0) + 1)).join("; ");
     if (v.chamber && v.code) return districtLabel(v);
-    return Object.keys(v).filter((k) => v[k] !== null && v[k] !== "" && !/(^|_)(id|ids|hash|sha256|digest|path)$/.test(k)).map((k) => humanWords(k) + ": " + plain(v[k], (depth || 0) + 1)).join(", ");
+    if (typeof v.operation === "string" && v.args && typeof v.args === "object") {
+      let scope = null;
+      try { scope = stepScope(v); } catch (e) { scope = null; }
+      return (OP_LABEL[v.operation] || humanWords(v.operation)) + (scope ? " — " + scope : "");
+    }
+    return Object.keys(v).filter((k) => v[k] !== null && v[k] !== "" && !/(^|_)(id|ids|hash|sha256|digest|path)$/.test(k) || FIELD_LABEL[k]).map((k) =>
+      k === "cell_verified" ? "Recorded value " + (VERIFIED_LABEL[String(v[k])] || plain(v[k], (depth || 0) + 1)) :
+      k === "args" && v[k] && typeof v[k] === "object" ? plain(v[k], (depth || 0) + 1) :
+      FIELD_LABEL[k] ? fieldLabel(k) + ": " + valueText(k, v[k]) : humanWords(k) + ": " + plain(v[k], (depth || 0) + 1)).join(", ");
   }
 
   // ------------------------------------------------------------------ state plumbing
@@ -529,7 +547,7 @@
         nodes.push(h('h4',{text:'Proposed plan · ' + districtLabel(np.district)}),
           h('ol',{class:'ia-proposal-steps'},np.steps.map(st => h('li',{text:(OP_LABEL[st.operation] || humanWords(st.operation)) + ': ' + stepScope(st)}))));
       }
-      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('details',{id:'ia-proposal-diff'},h('summary',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + plain(d.before), 'to ' + plain(d.after)].filter(Boolean).join(' · ')})))));
+      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('details',{id:'ia-proposal-diff'},h('summary',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + valueText(d.field || '', d.before), 'to ' + valueText(d.field || '', d.after)].filter(Boolean).join(' · ')})))));
       if (Array.isArray(result.inherited_fields) && result.inherited_fields.length) {
         const context = languageJob && languageJob.context, confirmed = context && context.confirmed_plan;
         nodes.push(h('h4',{text:'Inherited from your confirmed context'}), h('ul',{},result.inherited_fields.map(key => h('li',{text:fieldLabel(key) + ': ' + (key === 'focus' ? 'the step you chose to ask about' : valueText(key, confirmed && confirmed[key]))}))));
@@ -981,6 +999,7 @@
   }
   function moeWithUnit(moe, unit) {
     moe = String(moe == null ? "" : moe); unit = String(unit || "");
+    if (moe === "*****") return MOE_NOT_PUBLISHED;
     if (!/^±/.test(moe)) return moe;
     if (unit === "percent") return moe + " percentage points";
     if (/USD/.test(unit)) return "±$" + moe.slice(1);
@@ -989,7 +1008,7 @@
   // Short name used in accessible names and leave-out choices (never an identifier).
   function statLine(c) {
     const m = c.metric || {}, level = typeof c.moe_confidence_level === "number" ? Math.round(c.moe_confidence_level * 100) + "% " : "";
-    const moe = /^±/.test(String(c.moe_display || "")) ? " (" + level + "margin of error " + moeWithUnit(c.moe_display, c.unit) + ")" : c.moe_display ? " (margin of error: " + c.moe_display + ")" : "";
+    const moe = /^±/.test(String(c.moe_display || "")) ? " (" + level + "margin of error " + moeWithUnit(c.moe_display, c.unit) + ")" : c.moe_display ? " (margin of error: " + moeWithUnit(c.moe_display, c.unit) + ")" : "";
     const note = c.annotation_meaning ? " Note: " + c.annotation_meaning : "";
     return (m.label || "Statistic") + ", " + shortGeo(c.geography && c.geography.label) + ": " + valueWithUnit(c.estimate_display, c.unit) + moe + "." + note;
   }
@@ -1127,6 +1146,22 @@
       typeof c.text === "string" ? h("details", { id: id + "-full" }, h("summary", { text: "Complete reviewed statement" }), h("p", { class: "ia-full-text", text: c.text })) : null);
   }
 
+  // Source buttons for one finding. When a finding rests on both published statistics and program or legal
+  // references, the two roles are listed on separate labelled rows; every source stays listed.
+  function sourceRows(sources, c, claims, srcName) {
+    if (!sources.length) return null;
+    const isStat = (r) => {
+      const dep = r.finding_id && r.finding_id !== c.claim_ref.finding_id ? Array.from(claims.values()).find((x) => x.claim_ref.finding_id === r.finding_id) : null;
+      return dep ? !!dep.metric : !!c.metric;
+    };
+    const button = (r) => h("button", { type: "button", class: "btn-link source-btn", "data-source-id": r.source_id, "data-finding-id": typeof r.finding_id === "string" ? r.finding_id : c.claim_ref.finding_id, text: "Inspect " + srcName(r),
+      on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } });
+    const row = (label, list) => h("div", { class: "ia-sources" }, h("span", { class: "ia-sources-label", text: label }), list.map(button));
+    const stats = sources.filter(isStat), refs = sources.filter((r) => !isStat(r));
+    if (stats.length && refs.length) return h("div", { class: "ia-sources-group" }, row("Statistical basis:", stats), row(refs.length === 1 ? "Program source:" : "Program sources:", refs));
+    return row(sources.length === 1 ? "Source:" : "Sources:", sources);
+  }
+
   function claimNode(c, selected, prefix) {
     const key = C.refKey(c.claim_ref);
     const id = prefix + c.claim_ref.semantic_hash.slice(7, 19), on = selected.has(key);
@@ -1149,9 +1184,7 @@
       c.kind === "outreach_hypothesis" ? outreachBody(c, id) : h("p", { class: "ia-claim-text", id: id + "-text", text: c.kind === "statistic" ? findingText(c) : typeof c.text === "string" ? c.text : "Finding text unavailable" }),
       meta && c.kind !== "comparison" && c.kind !== "outreach_hypothesis" ? h("p", { class: "ia-claim-meta", text: meta }) : null,
       keyLimit(limits) ? h("p", { class: "ia-limit" }, h("strong", { text: "Limit: " }), keyLimit(limits)) : null,
-      sources.length ? h("div", { class: "ia-sources" }, h("span", { class: "ia-sources-label", text: sources.length === 1 ? "Source:" : "Sources:" }),
-        sources.map((r) => h("button", { type: "button", class: "btn-link source-btn", "data-source-id": r.source_id, "data-finding-id": typeof r.finding_id === "string" ? r.finding_id : c.claim_ref.finding_id, text: "Inspect " + srcName(r),
-          on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } }))) : null,
+      sourceRows(sources, c, claims, srcName),
       h("details", { id: id + "-more" }, h("summary", {}, "Definition, margin of error and method", h("span", { class: "sr-only", text: " for " + name })),
         h("dl", { class: "kv" }, claimRows(c).filter((r) => c.kind !== "outreach_hypothesis" || !["Reviewed measures", "Program connection", "Not known from this evidence", "Reviewed next step"].includes(r[0])).map((r) => h("div", {}, h("dt", { text: r[0] }), h("dd", { class: r[0] === "Source address" ? "url" : null }, Array.isArray(r[1]) ? h("ul", {}, r[1].map((x) => h("li", { text: plain(x) }))) : r[0] === "Source address" && /^https:\/\//.test(String(r[1])) ? h("a", { href: String(r[1]), target: "_blank", rel: "noopener noreferrer", class: "official-link", text: String(r[1]) }) : plain(r[1]))))),
         Array.isArray(c.dependencies) && c.dependencies.length ? h("div", {}, h("h4", { class: "ia-sub", text: c.kind === "outreach_hypothesis" ? "Complete reviewed basis (shown in full whatever the profile displays)" : "Depends on" }),
@@ -1491,6 +1524,7 @@
       // Trusted server-rendered brief from a reply whose tokens matched this exact branch and revision.
       out.innerHTML = brief.brief.html;
       out.querySelectorAll("[id]").forEach((n) => { if (n.id === "brief-doc") n.id = "ia-brief-doc"; });
+      markCitationRoles(out);
       out.dataset.rev = tag;
     }
     out.classList.toggle("is-stale", !status.ok);
@@ -1503,6 +1537,27 @@
     fill(fitBox, [h("h3", { id: "ia-fit-h", tabindex: "-1", text: "Too long for one printed page" }),
       h("p", { text: "Text is not shrunk to fit. Choose what to leave out, then create the brief again. Staff notes left out of the brief stay in the editor and can be included again." }),
       recommendRecovery("ia-fit-recommend"), choiceList(C.shorteningChoices(state), "ia-fit-", "#ia-fit-h")]);
+  }
+
+  // Screen preview only: the agency action's citation markers are labelled by the recorded family of each
+  // cited source (catalog metadata), statistical basis apart from program references. The label is an
+  // attribute shown by screen CSS inside .brief-preview; printed text, the print copy and the fit probe are
+  // unchanged. No label is added when a family is unknown or the two groups are interleaved.
+  function markCitationRoles(root) {
+    const fam = new Map();
+    (catalog && catalog.sources || []).forEach((src) => { if (typeof src.url === "string") fam.set(src.url, fam.has(src.url) && fam.get(src.url) !== src.family ? null : src.family); });
+    root.querySelectorAll(".brief-action p").forEach((para) => {
+      const cites = Array.from(para.querySelectorAll(":scope > a.cite"));
+      const roles = cites.map((a) => {
+        const li = root.querySelector('li[id="' + String(a.getAttribute("href") || "").slice(1).replace(/"/g, "") + '"]');
+        const link = li && li.querySelector("a.cite-label"), f = link ? fam.get(link.getAttribute("href")) : null;
+        return f === "statistics" ? "basis" : f === "programs" ? "program" : null;
+      });
+      const split = roles.indexOf("program");
+      if (roles.some((r) => r === null) || split <= 0 || roles.slice(split).some((r) => r !== "program")) return;
+      cites[0].setAttribute("data-screen-label", "Statistical basis ");
+      cites[split].setAttribute("data-screen-label", "; program sources ");
+    });
   }
 
   // Whether the current brief passed the one-page check (used by printing).

@@ -689,6 +689,13 @@
     $("#close-source").addEventListener("click", () => $("#source-dialog").close());
     // Escape or Close returns keyboard focus to the control that opened the source.
     $("#source-dialog").addEventListener("close", sourceDialogClosed);
+    // Presentation only: the dialog header says when more of the source is below, until the reader reaches the
+    // end. Each newly shown source starts at its top.
+    const srcBody = $("#source-body"), srcDlg = $("#source-dialog");
+    const sourceCue = () => srcDlg.classList.toggle("has-more", srcDlg.open && srcBody.scrollHeight - srcBody.scrollTop - srcBody.clientHeight > 8);
+    srcBody.addEventListener("scroll", sourceCue, { passive: true });
+    window.addEventListener("resize", sourceCue);
+    if (window.MutationObserver) new MutationObserver(() => { srcBody.scrollTop = 0; requestAnimationFrame(sourceCue); }).observe(srcBody, { childList: true });
   }
 
   function sourceDialogClosed() {

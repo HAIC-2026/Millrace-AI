@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:832f4346b1f5130a436314a7a71ad4d340a26763a9b1a0f56b2a750694fc1cbd",
+  "source_identity": "sha256:cea142e1f47bbcddc2fc7c8076579ef1aad70078b5549b4c4920677101fe64fc",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -191,8 +191,8 @@
     },
     {
       "path": "districtbrief/render.py",
-      "bytes": 70044,
-      "sha256": "9c38b5c7cb64404ddeb2676cbf87ccf519554d2e715204ea06488b39f7a17225"
+      "bytes": 70560,
+      "sha256": "92edb5fb8712868924acc1398c57d98c3d42204a9b50509619713979b9f3c2e6"
     },
     {
       "path": "districtbrief/resolve.py",
@@ -326,13 +326,13 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 51554,
-      "sha256": "1a81179cead0b201f486c850454c16264ec938ddf561c4df109d58b69eabeef7"
+      "bytes": 76005,
+      "sha256": "fd0e98bae8e2f803e6c1f2fe92c2b47c3341d36d44b8c92bc5a8b56932d4b1a5"
     },
     {
       "path": "static/app.js",
-      "bytes": 40136,
-      "sha256": "9659f9116fb61f7897227113cecb36ceb84fdbb3bffa62870be1ae024e6bf989"
+      "bytes": 40802,
+      "sha256": "074f4906c9af4afe6f45753fd4a72b2adaf99ed2eafc55dee2d35f9ded044058"
     },
     {
       "path": "static/case_state.js",
@@ -341,13 +341,13 @@
     },
     {
       "path": "static/index.html",
-      "bytes": 23947,
-      "sha256": "ab257faaac1adb4c71e9717640978701616b167b34612548ceabe0f250144833"
+      "bytes": 24772,
+      "sha256": "a56dfe5c8e712b42ffb9d79273bae7c0355406d51a45b231370defa8d6a5f214"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 163418,
-      "sha256": "7d296ee6a4c3b445cb5a9e171b6a52b7a5213c683c1137ede67f8f388797951d"
+      "bytes": 167211,
+      "sha256": "be7751f51b5a0228a553de7326fc087ed91e5a5342146edb26fdda7bb6d819f0"
     },
     {
       "path": "static/language_state.js",

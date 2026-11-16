@@ -9,6 +9,7 @@
 <body>
 <a class="skip-link" href="#ia-workspace">Skip to main content</a>
 <header class="app-header">
+  <div class="app-header-inner">
   <h1>District Brief Builder</h1>
   <p class="app-meta">Ask about a Hawaiʻi House or Senate district, check the evidence and hand off a one-page brief. Figures come from bundled public data; nothing is fetched live. <span id="packet-status" class="app-status" role="status"></span></p>
   <details id="app-about" class="app-about">
@@ -26,6 +27,7 @@
       <p>Questions or corrections: open an issue at <a href="https://github.com/HAIC-2026/Millrace-AI/issues" target="_blank" rel="noopener noreferrer">github.com/HAIC-2026/Millrace-AI/issues</a> (opens in a new tab; posting requires GitHub sign-in). Do not include resident or confidential details. Team Millrace AI maintains this competition prototype. No agency ownership or service level is claimed.</p>
     </div>
   </details>
+  </div>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
@@ -39,8 +41,16 @@
 <div id="tab-investigation" role="tabpanel" aria-labelledby="tab-btn-investigation" class="ia">
   <div id="ia-boot"><p class="loading" role="status">Loading the investigation workspace…</p></div>
   <main id="ia-workspace" tabindex="-1" aria-label="District investigation" hidden>
+    <nav class="ia-flow" aria-label="Steps in this workspace">
+      <ol>
+        <li><a href="#ia-workspace"><span class="ia-flow-n" aria-hidden="true">1</span>Ask</a></li>
+        <li><a href="#ia-evidence-h"><span class="ia-flow-n" aria-hidden="true">2</span>Evidence</a></li>
+        <li><a href="#ia-responses-h"><span class="ia-flow-n" aria-hidden="true">3</span>Agency action</a></li>
+        <li><a href="#ia-brief-h"><span class="ia-flow-n" aria-hidden="true">4</span>Brief</a></li>
+      </ol>
+    </nav>
     <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
-      <h2 id="ia-question-heading" class="ia-section-title">Ask about this district <span id="ia-question-preview" class="preview-label" hidden>Experimental AI preview</span></h2>
+      <h2 id="ia-question-heading" class="ia-section-title" data-step="1">Ask about this district <span id="ia-question-preview" class="preview-label" hidden>Experimental AI preview</span></h2>
       <div id="ia-question-scope" hidden></div>
       <form id="ia-question-form" hidden>
         <label for="ia-question-text">Ask about a district measure, a comparison with a county or the State, a program reference or a source</label>
@@ -63,7 +73,7 @@
     </section>
     <p id="ia-language-off" class="hint ia-language-off" hidden>Ask a question (AI) is turned off. Nothing is sent to OpenAI. Use Advanced investigation or a typed request; the findings, brief, sources and case files work the same.</p>
 
-    <section class="ia-context" aria-labelledby="ia-context-h">
+    <section id="ia-context" class="ia-context" aria-labelledby="ia-context-h">
       <div class="ia-context-main">
         <h2 id="ia-context-h" class="ia-section-title">District and issue</h2>
         <div class="ia-context-fields">
@@ -131,18 +141,18 @@
       <section id="ia-main" class="ia-main" tabindex="-1" aria-labelledby="ia-evidence-h">
         <section id="ia-error" class="notice notice-error" role="alert" tabindex="-1" hidden></section>
         <section class="ia-results" aria-labelledby="ia-evidence-h">
-          <h2 id="ia-evidence-h" class="ia-section-title" tabindex="-1">Findings and evidence</h2>
+          <h2 id="ia-evidence-h" class="ia-section-title" data-step="2" tabindex="-1">Findings and evidence</h2>
           <div id="ia-evidence"></div>
         </section>
         <section class="ia-results" aria-labelledby="ia-responses-h">
-          <h2 id="ia-responses-h" class="ia-section-title">Agency verification</h2>
+          <h2 id="ia-responses-h" class="ia-section-title" data-step="3">Agency verification</h2>
           <p class="hint">A program reference, a reviewed outreach hypothesis and a staff verification step are different things. Choosing one or none is valid. Nothing here determines eligibility or need.</p>
           <div id="ia-responses"></div>
         </section>
       </section>
 
       <aside class="tray ia-tray" aria-labelledby="ia-tray-h">
-        <h2 id="ia-tray-h" class="ia-section-title">Brief</h2>
+        <h2 id="ia-tray-h" class="ia-section-title" data-step="4">Brief</h2>
         <div class="ia-cta">
           <p id="ia-tray-count" class="ia-cta-status"></p>
           <p id="ia-tray-capacity" class="hint"></p>
@@ -171,7 +181,7 @@
     </div>
 
     <section id="ia-brief" class="panel ia-brief" tabindex="-1" aria-labelledby="ia-brief-h">
-      <h2 id="ia-brief-h" class="ia-section-title">One-page brief</h2>
+      <h2 id="ia-brief-h" class="ia-section-title" data-step="4">One-page brief</h2>
       <div class="ia-brief-bar">
         <button type="button" id="ia-print-btn" class="btn btn-primary" disabled aria-describedby="ia-brief-status">Print or save as PDF</button>
         <p id="ia-brief-status" class="reason" role="status"></p>
@@ -313,8 +323,11 @@
 
 <dialog id="source-dialog" aria-labelledby="source-title">
   <div class="dialog-head">
-    <h2 id="source-title">Source</h2>
-    <button type="button" id="close-source" class="btn">Close</button>
+    <div class="dialog-head-text">
+      <h2 id="source-title">Source</h2>
+      <p id="source-scroll-cue" class="dialog-cue" aria-hidden="true">More details below. Scroll inside this window.</p>
+    </div>
+    <button type="button" id="close-source" class="btn dialog-close">Close</button>
   </div>
   <div id="source-body"></div>
 </dialog>
