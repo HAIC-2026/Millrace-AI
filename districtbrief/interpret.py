@@ -80,7 +80,8 @@ def interpret(utterance,plan,*,allow_food=False):
                 if 1<=n<=limit:choices.append({'field':'district','value':{'state_fips':'15','chamber':chamber,'code':f'{n:03}','boundary_session':2024},'label':f'{chamber.capitalize()} {n:03}'})
             return unresolved('Choose the chamber explicitly.',choices)
         if proposed is None:
-            explicit=re.fullmatch(r'\s*(?:compare senior poverty with (?:state|maui county)|program (?:snap|med-quest|kupuna care)) for (house|senate)\s+(\d{1,3})\s*',t)
+            # 'add' and 'program' are the same program_evidence command (below); both may name the district.
+            explicit=re.fullmatch(r'\s*(?:compare senior poverty with (?:state|maui county)|(?:add|program) (?:snap|med-quest|kupuna care)) for (house|senate)\s+(\d{1,3})\s*',t)
             if not explicit:return unresolved('Choose a district and chamber first.')
             ch=explicit.group(1);n=int(explicit.group(2))
             if not 1<=n<=(51 if ch=='house' else 25):return unresolved('District is outside the admitted range.',status='unsupported')

@@ -93,7 +93,7 @@
         if (indicator.fact && typeof indicator.fact.estimate === 'number' && Number.isFinite(indicator.fact.estimate) && !indicator.fact.annotation) {
           const f = indicator.fact, period = f.period || {};
           const moe = typeof f.margin_of_error === 'number' && Number.isFinite(f.margin_of_error) && !f.moe_annotation ? `±${f.margin_of_error} percentage points` : 'unavailable';
-          factText.textContent = `Shading: poverty rate, all people, ${f.estimate}% (90% margin of error ${moe}); ACS ${period.start_year || 2020}–${period.end_year || 2024} 5-year; ${f.publisher || 'U.S. Census Bureau'}. Universe: ${f.universe}.`;
+          factText.textContent = `Shading: poverty rate, all people (all ages), ${f.estimate}% (90% margin of error ${moe}); ACS ${period.start_year || 2020}–${period.end_year || 2024} 5-year; ${f.publisher || 'U.S. Census Bureau'}. Universe: ${f.universe}. This is not the age 65 and over poverty rate shown in older-adult findings.`;
           shadeNote = indicator.available ? indicator.label : 'not shaded';
         } else { factText.textContent = 'Shading: not shown.'; shadeNote = 'not shaded'; }
         const limit = el('p', (indicator.available ? '' : indicator.reason + ' ') + 'Bands are illustrative display intervals, not thresholds, rankings or statistical tests.', 'map-limit');
@@ -122,7 +122,7 @@
         nodes.push(where, legend(indicator), factText, limit);
         show();
         container.replaceChildren(...nodes);
-        report(`${name} · ${n} part${multi ? 's' : ''} · shading for poverty rate, all people: ${shadeNote}`);
+        report(`${name}, ${data.session} session boundary (display only) · ${n} part${multi ? 's' : ''} · shading: poverty rate for all ages (not the 65 and over rate): ${shadeNote}`);
       } catch (err) {
         if (current !== sequence) return;
         const box = el('div', null, 'notice notice-unsupported');

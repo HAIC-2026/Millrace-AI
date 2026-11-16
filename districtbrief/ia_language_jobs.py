@@ -68,7 +68,7 @@ class LanguageService:
         if (self.enabled or profile is not None) and not isinstance(profile,Profile):raise LanguageError('profile_unavailable',503)
         self.profile=profile;self._identity=None
         self._lock=threading.RLock();self._executor=None;self._pid=os.getpid();self._active=None
-        self._jobs=OrderedDict();self._sessions=OrderedDict();self._site=deque();self._latest={}
+        self._jobs=OrderedDict();self._early_cancels=OrderedDict();self._sessions=OrderedDict();self._site=deque();self._latest={}
     def bootstrap(self):
         return {'enabled':self.enabled,'schema_version':SCHEMA_VERSION,
             'message':MESSAGES['propose'] if self.enabled else DISABLED_MESSAGE,'privacy_notice':PRIVACY_NOTICE,
@@ -90,6 +90,10 @@ class LanguageService:
         if self._executor is None:
             self._executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='ia-language')
     def _prune(self,now):
+        # Cancel-before-start records have their own bound; misses must never evict admitted work.
+        for rid,j in list(self._early_cancels.items()):
+            if now-j['finished_at']>=600:self._early_cancels.pop(rid)
+        while len(self._early_cancels)>32:self._early_cancels.popitem(last=False)
         for rid,j in list(self._jobs.items()):
             if j['finished_at'] is not None and now-j['finished_at']>=600:self._jobs.pop(rid)
         terminal=[rid for rid,j in self._jobs.items() if j['finished_at'] is not None]
@@ -134,19 +138,19 @@ class LanguageService:
         if not self.enabled:return self._error('disabled',503)
         # A preload never starts threads. Reject inherited executors after a fork.
         if self._pid!=os.getpid():
-            self._pid=os.getpid();self._executor=None;self._active=None;self._jobs=OrderedDict()
+            self._pid=os.getpid();self._executor=None;self._active=None;self._jobs=OrderedDict();self._early_cancels=OrderedDict()
             self._lock=threading.RLock();self._sessions=OrderedDict();self._site=deque();self._latest={}
         try:
             if action=='start':return self._start(raw,session,operator,diagnostic_sink if operator else None)
             rid=self._id(raw);now=time.monotonic()
             with self._lock:
-                self._prune(now);j=self._jobs.get(rid)
+                self._prune(now);j=self._jobs.get(rid) or self._early_cancels.get(rid)
                 if j is not None and j['session']!=session:return self._error('session_mismatch',403)
                 if action=='cancel':
                     if j is None:
                         j={'request_id':rid,'session':session,'status':'cancelled','model_calls':0,'prepared':None,
                             'cancelled':threading.Event(),'finished_at':now,'response':None,'deadline':now}
-                        j['cancelled'].set();self._jobs[rid]=j;self._prune(now)
+                        j['cancelled'].set();self._early_cancels[rid]=j;self._prune(now)
                         return 200,self._base(j)
                     self._expire(j,now)
                     if j['status']=='pending':j['cancelled'].set();j.update(status='cancelled',finished_at=now,response=None)
@@ -172,7 +176,7 @@ class LanguageService:
         except InvestigationError as e:raise LanguageError(e.code,e.status) from None
         rid=raw['request_id']
         with self._lock:
-            self._prune(begun);known=self._jobs.get(rid)
+            self._prune(begun);known=self._jobs.get(rid) or self._early_cancels.get(rid)
             if known:return self._error('session_mismatch' if known['session']!=session else 'duplicate_request',403 if known['session']!=session else 409)
             if self._active is not None:return self._error('busy',409)
             if not operator:

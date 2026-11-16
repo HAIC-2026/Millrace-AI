@@ -1084,3 +1084,629 @@ test("language replies for an old question scope never match after focus or sour
   const src = { claim_ref: claim(s, "cmp:house028"), branch_id: b.branch_id, revision: b.last_ready_revision };
   assert.equal(L.matches(reply, job, L.context(s, C.active, { focus: "s2", source: src }), RUNTIME.release_id), false);  // new finding scope
 });
+
+// Answer-focused brief selection: only the requested step's listed findings, the recommended agency action,
+// and the selection survives case export, parsing and the replay request exactly (no new case fields).
+test("a focused brief selection uses the requested step and replays from a case file unchanged", () => {
+  let s = run(C.createState(RUNTIME, ids));
+  const res = C.currentResults(s), legacy = C.recommendedBrief(res);
+  const profile = C.focusedBrief(res, ["s1"]), compare = C.focusedBrief(res, ["s2"]);
+  assert.equal(C.focusedBrief(res, []), null); assert.equal(C.focusedBrief(res, ["nope"]), null);
+  assert.equal(profile.requested, C.AGING_METRICS.length);
+  assert.deepEqual(profile.claims.map((c) => c.claim_ref.finding_id), C.AGING_METRICS.slice(0, 2).map((m) => "stat:house028:" + m));
+  assert.deepEqual(compare.claims.map((c) => c.kind), ["comparison"]);
+  assert.deepEqual(profile.action, legacy.action); assert.ok(profile.action);
+  for (const c of profile.claims) s = ok(C.toggleClaim(s, c.claim_ref, true));
+  const pick = C.chooseAction(s, profile.action); assert.equal(pick.error, undefined);
+  s = ok(C.confirmChange(s, pick.proposal, ids));
+  const file = JSON.stringify(C.exportCase(s, { include_staff_work: false }));
+  const parsed = C.parseCaseFile(file, RUNTIME); assert.ok(parsed.ok);
+  const b = C.beginImport(C.createState(RUNTIME, ids), parsed, { accept_staff_work: false }, ids);
+  assert.equal(b.error, undefined);
+  assert.deepEqual(b.request.selected_claim_refs, profile.claims.map((c) => c.claim_ref));
+  assert.deepEqual(b.request.selected_action_ref, profile.action);
+});
+
+// Brief actions and the answer they focus on, through the actual investigation.js functions (inert DOM, stand-in server).
+function briefActionHarness(state, extra) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // Selects the recommended findings and agency action.", "  function renderTray(") +
+    part("  function answerAfterRun(result) {", "  function finish(result) {") + part("  function settleAnswer() {", "  function focusAnswer()");
+  const briefs = [], runs = [];
+  const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, answerBasis: null, briefFocus: null,
+    currentRecommendation: (res) => ctx.briefFocus || C.recommendedBrief(res), briefBlock: () => null, createBrief: () => briefs.push(clone(ctx.state)),
+    render() {}, runActive() { runs.push(1); }, alertUser(m) { throw new Error(m); }, focusAnswer() {}, districtLabel: (d) => d.chamber + d.code,
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: () => ({ focus() {} }) }, extra || {});
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, briefs, runs, run: (x) => vm.runInContext(x, ctx) };
+}
+
+test("a brief action with unapplied plan edits asks to apply or discard and changes nothing", () => {
+  let s = run(C.createState(RUNTIME, ids));
+  const draft = clone(C.active(s).plan); draft.steps[0].args.metric_ids = ["median_age"];
+  s = Object.assign({}, s, { draft });
+  const before = C.canonical(s);
+  const t = briefActionHarness(s);
+  t.run("createRecommended()");
+  assert.equal(C.canonical(t.ctx.state), before, "state, including the draft edits, is byte-identical");
+  assert.equal(t.briefs.length, 0, "no brief request"); assert.equal(t.runs.length, 0);
+  assert.match(t.ctx.notice, /Apply or discard the plan edits first/);
+});
+
+test("an answer-focused brief keeps its focus through an action-only context fork", () => {
+  let s = run(C.createState(RUNTIME, ids));
+  s = ok(C.setStaffText(s, "title", "Synthetic staff title"));   // staff content makes the action change open a new context
+  const b0 = C.active(s), res = C.currentResults(s);
+  const answer = { kind: "answer", question: "How many older adults?", plan: clone(b0.plan), step_ids: ["s1"], only: {}, branch_id: b0.branch_id };
+  const focus = C.focusedBrief(res, ["s1"], {});
+  const t = briefActionHarness(s, { answerBasis: answer, briefFocus: focus });
+  t.run("createRecommended()");
+  assert.ok(t.ctx.preview && t.ctx.preview.fork, "the action change is reviewed first");
+  assert.deepEqual(t.ctx.preview.kinds, ["response"]);
+  assert.equal(t.briefs.length, 0);
+  assert.ok(t.ctx.pendingAnswer && t.ctx.pendingAnswer.rebind, "the answer is carried to the new context");
+  assert.match(t.ctx.notice, /Create brief from this answer/);
+  // Staff confirms the context review; the new context replays the same plan.
+  const forked = C.confirmChange(t.ctx.state, t.ctx.preview, ids); assert.equal(forked.error, undefined); assert.ok(forked.forked);
+  const bb = C.beginRun(forked.state, ids);
+  const result = C.applyResponse(bb.state, reply(bb.request), meta(bb.request));
+  assert.equal(result.outcome, "committed");
+  t.ctx.state = result.state;
+  t.run("answerAfterRun(" + JSON.stringify({ outcome: result.outcome, status: "ok" }) + ")");
+  const b1 = C.active(t.ctx.state);
+  assert.notEqual(b1.branch_id, b0.branch_id);
+  assert.ok(t.ctx.answerBasis && t.ctx.answerBasis.branch_id === b1.branch_id, "answer rebound to the new context");
+  assert.deepEqual(t.ctx.answerBasis.step_ids, ["s1"]);
+  const again = C.focusedBrief(C.currentResults(t.ctx.state), t.ctx.answerBasis.step_ids, t.ctx.answerBasis.only);
+  assert.deepEqual(again.claims.map((c) => c.claim_ref.finding_id), focus.claims.map((c) => c.claim_ref.finding_id), "same focused findings, not the generic comparison");
+  assert.deepEqual(C.active(t.ctx.state).selected_claim_refs.map((r) => r.finding_id), focus.claims.map((c) => c.claim_ref.finding_id), "carried selection kept");
+  assert.equal(C.pendingReview(t.ctx.state).length, 1, "the staff title waits for review in the new context");
+});
+
+test("a focused brief narrows to the measures or program asked for and pairs the agency action with that program", () => {
+  const ref = (fid) => ({ snapshot_id: RUNTIME.snapshot_id, finding_id: fid, semantic_hash: sha(fid) });
+  const stat = (m) => ({ kind: "statistic", claim_ref: ref("stat:" + m), metric: { metric_id: m }, geography: { geography_id: "HI-HOUSE-028-2024" } });
+  const progc = (p) => ({ kind: "program_relevance", claim_ref: ref("prog:" + p), program: { program_id: p } });
+  const claims = ["population_65_plus", "male_householder_65_plus_living_alone", "median_age"].map(stat).concat([progc("kupuna_care_hi"), progc("snap_hi")]);
+  const card = (p, a) => ({ program_id: p, tier: "verification_action", action_ref: { action_id: a, semantic_hash: sha(a) } });
+  const res = { plan: { district: { chamber: "house", code: "028" } }, claims,
+    steps: [{ step_id: "s1", status: "ok", claim_refs: claims.slice(0, 3).map((c) => c.claim_ref) }, { step_id: "s3", status: "ok", claim_refs: claims.slice(3).map((c) => c.claim_ref) }],
+    responses: [card("kupuna_care_hi", "kupuna_verify/1"), card("snap_hi", "snap_verify/1")] };
+  const age = C.focusedBrief(res, ["s1"], { s1: { metric_ids: ["median_age"] } });
+  assert.deepEqual(age.claims.map((c) => c.claim_ref.finding_id), ["stat:median_age"]); assert.equal(age.requested, 1);
+  const snap = C.focusedBrief(res, ["s3"], { s3: { program_ids: ["snap_hi"] } });
+  assert.deepEqual(snap.claims.map((c) => c.claim_ref.finding_id), ["prog:snap_hi"]);
+  assert.equal(snap.action.action_id, "snap_verify/1", "the SNAP answer gets the SNAP action, not the plan's Kupuna Care");
+  const both = C.focusedBrief(res, ["s3"], {});
+  assert.equal(both.action, null); assert.equal(both.action_note, "no_matching_action", "two programs: no action is guessed");
+  assert.equal(C.focusedBrief(res, ["s1"], { s1: { metric_ids: ["not_in_results"] } }), null);
+});
+
+function programCaseState(withStaff) {
+  const plan = { district: { state_fips: "15", chamber: "house", code: "028", boundary_session: 2024 }, map_session: 2026, issue_id: "custom", service_area_id: null,
+    steps: [{ step_id: "s1", operation: "program_evidence", args: { program_ids: ["kupuna_care_hi", "snap_hi"] } }] };
+  let s = run(C.createState(RUNTIME, ids, plan));
+  const snap = C.currentResults(s).responses.find((r) => r.program_id === "snap_hi").action_ref;
+  s = ok(C.confirmChange(s, C.chooseAction(s, snap).proposal, ids));   // staff chose the SNAP action by hand
+  if (withStaff) s = ok(C.setStaffText(s, "title", "Synthetic staff title"));
+  return s;
+}
+
+test("a recommendation with no agency action replaces an earlier, unrelated action through the ordinary action change", () => {
+  // Answer about a program step listing two programs: no single matching action, so the focused brief has none.
+  let s = programCaseState(false);
+  const res = C.currentResults(s), kupuna = res.claims.find((c) => c.kind === "program_relevance" && /kupuna/.test(c.claim_ref.finding_id));
+  const focus = { claims: [kupuna], action: null, card: null, requested: 2, action_note: "no_matching_action" };
+  let t = briefActionHarness(s, { briefFocus: focus });
+  t.run("createRecommended()");
+  assert.equal(t.briefs.length, 1, "brief created after the action change");
+  assert.equal(t.briefs[0].case.branches.find((b) => b.branch_id === t.briefs[0].case.active_branch_id).selected_action_ref, null, "SNAP action not kept for a Kupuna-only brief");
+  assert.equal(C.beginBrief(t.briefs[0], { clean: false }, ids).request.selected_action_ref, null);
+  // With staff content the same change opens a new context, so it is reviewed first and nothing is sent yet.
+  s = programCaseState(true);
+  t = briefActionHarness(s, { briefFocus: focus });
+  t.run("createRecommended()");
+  assert.equal(t.briefs.length, 0);
+  assert.ok(t.ctx.preview && t.ctx.preview.fork && t.ctx.preview.action_changed && t.ctx.preview.action === null, "the action removal is shown for review");
+  assert.equal(C.actionKey(C.active(t.ctx.state).selected_action_ref), C.actionKey(C.active(s).selected_action_ref), "nothing changed before confirmation");
+});
+
+function previewHarness(state, extra) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  function editDraft(result, message) {", "  function applyPlan() {") + part("  function renderPreview() {", "  // Exact evidence identities");
+  const buttons = {}, commits = [];
+  const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, CHANGE_LABEL: {}, commits,
+    $: () => ({ focus() {}, hidden: false }), h: () => ({}), fill() {}, btn: (label, fn, attrs) => { if (attrs && attrs.id) buttons[attrs.id] = fn; return {}; },
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), render() {}, clearAlert() {}, alertUser(m) { throw new Error(m); }, commit: (p) => commits.push(p) }, extra || {});
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, buttons, run: (x) => vm.runInContext(x, ctx) };
+}
+
+test("a context review never overwrites plan edits made after it opened", () => {
+  const s0 = run(C.createState(RUNTIME, ids));
+  const original = clone(C.active(s0).plan), proposed = clone(original); proposed.map_session = 2024;
+  const revised = clone(proposed); revised.service_area_id = "oahu";
+  const open = () => {
+    const s = Object.assign({}, s0, { draft: clone(proposed) });
+    const t = previewHarness(s, { preview: C.proposeChange(s, { plan: proposed }), pendingAnswer: { plan: clone(proposed), prev_draft: clone(original) } });
+    t.run("renderPreview()");
+    return t;
+  };
+  // Keep current context with no later edit: the plan from before the question returns.
+  let t = open(); t.buttons["ia-preview-cancel"]();
+  assert.deepEqual(t.ctx.state.draft, original);
+  // Keep current context after a later Advanced edit: the newer edit stays.
+  t = open(); t.ctx.change = { plan: clone(revised) }; t.run("editDraft(change, 'Edited after the review opened')"); t.buttons["ia-preview-cancel"]();
+  assert.deepEqual(t.ctx.state.draft, revised);
+  assert.equal(t.ctx.preview, null);
+  // Apply change and run after a later edit: nothing stale is applied, the newer edit stays, and nothing runs.
+  t = open(); t.ctx.change = { plan: clone(revised) }; t.run("editDraft(change, 'Edited after the review opened')"); t.buttons["ia-preview-confirm"]();
+  assert.equal(t.ctx.commits.length, 0); assert.deepEqual(t.ctx.state.draft, revised); assert.equal(t.ctx.preview, null);
+  assert.match(t.ctx.notice, /edited after this review opened/);
+  // Apply change and run with the draft unchanged: the reviewed change is committed.
+  t = open(); t.buttons["ia-preview-confirm"]();
+  assert.equal(t.ctx.commits.length, 1);
+});
+
+// The agency-action radio, through the actual renderResponses change handler (inert DOM, stand-in server).
+function responsesHarness(state) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  function renderResponses(res) {", "  function textField(");
+  const handlers = {}, runs = [], alerts = [];
+  const h = (tag, attrs, ...kids) => { if (attrs && attrs.id && attrs.on) handlers[attrs.id] = attrs.on; return { tag, attrs, kids }; };
+  const ctx = { C, ids, state, notice: "", preview: null, h, fill() {}, $: () => ({ focus() {} }), render() {}, runActive() { runs.push(1); },
+    alertUser(m) { alerts.push(m); }, claimMap: (res) => new Map(res.claims.map((c) => [C.refKey(c.claim_ref), c])), programLabel: (x) => x,
+    plain: (x) => String(x), humanWords: (x) => String(x), humanDate: (x) => String(x), hawaiiDisplay: (x) => x, AREA_LABEL: {}, TIER_LABEL: {},
+    officialNextStep: () => null, claimTitle: () => "", btn: () => ({}) };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, handlers, runs, alerts, render: () => vm.runInContext("renderResponses(C.currentResults(state))", ctx) };
+}
+
+test("choosing an agency action by hand never discards unapplied plan edits", () => {
+  const s0 = run(C.createState(RUNTIME, ids));
+  // Unapplied Advanced edit, no staff content (the action change would otherwise apply at once).
+  const draft = clone(C.active(s0).plan); draft.service_area_id = "oahu";
+  const dirty = Object.assign({}, s0, { draft });
+  const before = C.canonical(dirty);
+  let t = responsesHarness(dirty); t.render();
+  const radio = Object.keys(t.handlers).find((k) => /^ia-act-\d+$/.test(k));
+  assert.ok(radio, "an agency action radio is rendered");
+  t.handlers[radio].change();
+  assert.equal(C.canonical(t.ctx.state), before, "plan, draft, action and selections are byte-identical");
+  assert.equal(t.runs.length, 0); assert.equal(t.ctx.preview, null);
+  assert.ok(t.alerts.some((m) => /Apply or discard the plan edits first/.test(m)), "the reason is shown");
+  // "No agency action" is guarded the same way.
+  const withAction = ok(C.confirmChange(s0, C.chooseAction(s0, C.currentResults(s0).responses.find((r) => r.action_ref).action_ref).proposal, ids));
+  const dirty2 = Object.assign({}, withAction, { draft });
+  const before2 = C.canonical(dirty2);
+  t = responsesHarness(dirty2); t.render(); t.handlers["ia-act-none"].change();
+  assert.equal(C.canonical(t.ctx.state), before2);
+  // With the draft clean, choosing an action still works as before.
+  t = responsesHarness(s0); t.render(); t.handlers[radio].change();
+  assert.ok(C.active(t.ctx.state).selected_action_ref, "action selected on a clean draft");
+  assert.equal(t.alerts.length, 0);
+});
+
+// Finding notes and the one-action brief: a shortcut never moves a staff note out of every case file.
+function annotatedState(note) {
+  let s = run(C.createState(RUNTIME, ids));
+  const pop = C.currentResults(s).claims.find((c) => /population_65_plus/.test(c.claim_ref.finding_id) && c.kind === "statistic");
+  s = ok(C.toggleClaim(s, pop.claim_ref, true));
+  s = ok(C.setFindingNote(s, pop.claim_ref.semantic_hash, note));
+  return { s, pop };
+}
+
+test("a recommended brief that would leave out an annotated finding is held, and the note stays in the case", () => {
+  const { s, pop } = annotatedState("Synthetic note to keep");
+  const before = C.canonical(s);
+  const t = briefActionHarness(s);
+  t.run("createRecommended()");
+  assert.equal(C.canonical(t.ctx.state), before, "selection, note and plan unchanged");
+  assert.equal(t.briefs.length, 0, "no brief request");
+  assert.match(t.ctx.notice, /staff note/i);
+  const file = JSON.stringify(C.exportCase(t.ctx.state, { include_staff_work: true }));
+  assert.ok(file.includes("Synthetic note to keep"), "the downloaded case still holds the note");
+  const reopened = C.parseCaseFile(file, RUNTIME); assert.ok(reopened.ok);
+  assert.ok(JSON.stringify(reopened.preview.staff_preview).includes("Synthetic note to keep"), "reopening the file offers the note");
+  // A recommendation that keeps the annotated finding is not held.
+  const t2 = briefActionHarness(s, { briefFocus: { claims: [pop], action: null, card: null, requested: 1, action_note: null } });
+  t2.run("createRecommended()");
+  assert.equal(t2.briefs.length, 1);
+  assert.ok(JSON.stringify(C.activeStaff(t2.briefs[0])).includes("Synthetic note to keep"), "the note goes into the brief");
+});
+
+test("a note waiting for review after a manual deselection blocks the brief and the staff download until resolved", () => {
+  const { s, pop } = annotatedState("Synthetic note to keep");
+  let d = ok(C.toggleClaim(s, pop.claim_ref, false));            // staff remove the finding by hand
+  const cmp = C.currentResults(d).claims.find((c) => c.kind === "comparison");
+  d = ok(C.toggleClaim(d, cmp.claim_ref, true));
+  assert.equal(C.pendingReview(d).length, 1, "the note waits for review");
+  const t = waitingNotesHarness(d);
+  assert.match(t.run("briefBlock(C.active(state), C.currentResults(state), false, false, C.activeStaff(state), C.reviewCurrent(state), C.pendingReview(state))") || "", /waiting for review/);
+  assert.equal(t.run("staffDownloadBlock()") !== null, true, "a download with staff notes would omit the waiting note");
+  // Selecting the finding again and copying the note back (or leaving it) is the explicit resolution.
+  const copied = ok(C.copyParked(ok(C.toggleClaim(d, pop.claim_ref, true)), C.pendingReview(d)[0].key, {}));
+  assert.ok(JSON.stringify(C.exportCase(copied, { include_staff_work: true })).includes("Synthetic note to keep"), "copied back, the note is in the case file");
+  const t2 = waitingNotesHarness(copied);
+  assert.equal(t2.run("staffDownloadBlock()"), null);
+  const left = ok(C.leaveParked(d, C.pendingReview(d)[0].key));
+  assert.equal(waitingNotesHarness(left).run("staffDownloadBlock()"), null, "leaving it is an intentional choice");
+  // Other staff work is not affected by the guard.
+  const titled = ok(C.setStaffText(s, "title", "Synthetic title"));
+  assert.equal(waitingNotesHarness(titled).run("staffDownloadBlock()"), null);
+});
+
+function waitingNotesHarness(state) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const ctx = { C, state, addDrafts: new Map(), $: () => null };
+  vm.createContext(ctx); vm.runInContext(part("  function briefBlock(", "  function recommendedBrief(res)") + part("  // A note on a removed finding waits for review in this page only:", "  function renderCase(b, busy) {"), ctx);
+  return { ctx, run: (x) => vm.runInContext(x, ctx) };
+}
+
+// Staff text still being typed when a language question finishes, through the actual pollLanguage, flushActive and
+// focus functions: the text is committed before anything renders or runs, and focus stays where staff left it.
+function languageCompletionHarness(state, reply, opts) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  function focusQuestionResult()", "  // ------------------------------------------------------------------ One Ask") +
+    part("  function flushActive() {", "  async function askLanguage(text) {") + part("  // True while keyboard focus is still in the question area", "  function finish(result) {");
+  const log = [], focused = [];
+  // A Summary field in the Brief panel holding unfinished text (its change handler is the field's commit).
+  const input = { tagName: "TEXTAREA", id: "ia-note", isConnected: true, value: "Unfinished staff summary",
+    closest: (sel) => (sel === ".ia-tray" ? {} : null),
+    dispatchEvent: (e) => { if (e.type === "change") ctx.state = ok(C.setStaffText(ctx.state, "note", input.value)); } };
+  const ctx = { C, state, languageJob: null, languageResult: null, Date, Event: class { constructor(t) { this.type = t; } },
+    document: { activeElement: input, body: {} }, $: (sel) => ({ hidden: false, focus() { focused.push(sel); } }),
+    deadlineMs: () => 25000, currentLanguage: () => true, setTimeout: () => 0, clearTimeout() {},
+    languagePost: async () => { if (opts && opts.fail) throw new Error("network"); return { http: 200, data: reply }; },
+    askOnce: () => { log.push({ step: "askOnce", note: C.active(ctx.state).staff_edits.note || "" }); return !!(opts && opts.autorun); },
+    cancelLanguage: (m) => { ctx.languageJob = null; ctx.languageResult = { status: "notice", message: m }; },
+    render: () => log.push({ step: "render", note: C.active(ctx.state).staff_edits.note || "" }) };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  const job = { request_id: "r", pending: true, cancelled: false, started: opts && opts.timedOut ? 0 : Date.now(), timer: null, polls: 0, deadlineTimer: 0 };
+  ctx.languageJob = job;
+  return { ctx, log, focused, input, poll: () => vm.runInContext("pollLanguage(languageJob)", ctx) };
+}
+
+test("staff text being typed survives a finished, refused, failed or timed-out question and keeps its focus", async () => {
+  const s = run(C.createState(RUNTIME, ids));
+  for (const [name, reply, opts] of [["auto-run answer", { status: "propose" }, { autorun: true }], ["refusal", { status: "unsupported" }, {}],
+    ["poll failure", null, { fail: true }], ["timeout", null, { timedOut: true }]]) {
+    const t = languageCompletionHarness(s, reply, opts);
+    await t.poll();
+    assert.equal(C.active(t.ctx.state).staff_edits.note, "Unfinished staff summary", name + ": typed text kept in the case state");
+    assert.ok(t.log.length && t.log.every((x) => x.note === "Unfinished staff summary"), name + ": committed before any render or auto-run");
+    assert.ok(JSON.stringify(C.exportCase(t.ctx.state, { include_staff_work: true })).includes("Unfinished staff summary"), name + ": in a staff-inclusive case file");
+    assert.equal(t.focused.length, 0, name + ": focus is not taken from the staff field");
+  }
+});
+
+// An accepted whole-plan proposal that singles out no step, through the actual renderAnswer and answerItem functions:
+// related findings (not an answer) with sources and selection controls in plan order, no answer-focused brief, and
+// the user's own selection leads to a brief. A single-step answer is still a focused answer.
+function answerRegionHarness(state, basis) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // The finding(s) the latest executed question asked for", "  // ------------------------------------------------------------------ plan editing");
+  const box = { hidden: false, children: [] }, briefs = [];
+  const nodes = (n, out) => { if (Array.isArray(n)) n.forEach((x) => nodes(x, out)); else if (n && typeof n === "object") { out.push(n); nodes(n.kids || [], out); } return out; };
+  const ctx = { C, state, answerBasis: basis, briefFocus: null, languageResult: null, lastQuestion: basis.question, notice: "", questionSource: null, OP_LABEL: {},
+    $: (sel) => (sel === "#ia-answer" ? box : { focus() {} }), fill: (el, kids) => { el.children = kids; },
+    h: (tag, attrs, ...kids) => ({ tag, attrs: attrs || {}, kids, text: (attrs && attrs.text) || "" }),
+    btn: (label, fn, attrs) => ({ tag: "button", attrs: Object.assign({}, attrs || {}), kids: [], text: label, fn }),
+    answerCurrent: () => basis, claimMap: (res) => new Map(res.claims.map((c) => [C.refKey(c.claim_ref), c])), districtLabel: (d) => d.chamber + d.code,
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), shortGeo: (x) => String(x || ""), valueWithUnit: (v) => String(v), moeWithUnit: (m) => String(m), periodText: () => null,
+    plain: (x) => String(x), claimShortName: (c) => c.claim_ref.finding_id, srcLabel: (x) => x, humanWords: (x) => String(x), stepScope: () => "", render() {}, renderLanguage() {},
+    set: (r) => { assert.equal(r.error, undefined); ctx.state = r.state; }, briefBlock: () => null, createBrief: () => briefs.push(clone(ctx.state)), document: { getElementById: () => null } };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  vm.runInContext("renderAnswer(C.currentResults(state))", ctx);
+  const all = nodes(box.children, []);
+  return { ctx, box, briefs, all, text: all.map((n) => n.text).join(" | "), inputs: all.filter((n) => n.tag === "input" && n.attrs.type === "checkbox"), button: (id) => all.find((n) => n.attrs && n.attrs.id === id) };
+}
+
+test("an accepted whole-plan proposal shows related findings to choose from, never a false answer or answer brief", () => {
+  const s = run(C.createState(RUNTIME, ids)), b = C.active(s), res = C.currentResults(s);
+  const t = answerRegionHarness(s, { kind: "answer", question: "How many adults 65 and older live in House 28?", plan: clone(b.plan), step_ids: [], only: {}, branch_id: b.branch_id });
+  assert.match(t.text, /Related findings · house028/); assert.doesNotMatch(t.text, /Answer · /);
+  assert.match(t.text, /Not a completed answer/);
+  const listed = res.plan.steps.flatMap((ps) => res.steps.find((x) => x.step_id === ps.step_id).claim_refs.map((r) => r.finding_id));
+  assert.equal(t.inputs.length, Math.min(7, listed.length), "each related finding (up to seven before Show more) has a selection control");
+  assert.equal(t.button("ia-answer-brief"), undefined, "no Create brief from this answer");
+  const own = t.button("ia-answer-own-brief"); assert.ok(own && own.attrs.disabled, "brief from the user's selection, disabled until something is selected");
+  // Selecting the population finding there, then creating the brief from that selection.
+  const popId = "stat:house028:population_65_plus";
+  const input = t.inputs.find((n) => /population_65_plus/.test(n.attrs["aria-label"] || "") || /population_65_plus/.test(n.attrs.id || ""))
+    || t.inputs[listed.filter((f) => /^stat:/.test(f)).indexOf(popId)];
+  input.attrs.on.change({ target: { checked: true } });
+  assert.deepEqual(C.active(t.ctx.state).selected_claim_refs.map((r) => r.finding_id), [popId]);
+  own.fn();
+  assert.equal(t.briefs.length, 1);
+  assert.deepEqual(C.active(t.briefs[0]).selected_claim_refs.map((r) => r.finding_id), [popId]);
+  // A step with several findings (here four measures) is related findings even when the diff names the step ...
+  const g = answerRegionHarness(s, { kind: "answer", question: "q", plan: clone(b.plan), step_ids: ["s1"], only: {}, branch_id: b.branch_id });
+  assert.match(g.text, /Related findings · house028/); assert.equal(g.button("ia-answer-brief"), undefined);
+  // ... and a step that resolves to one finding stays a focused answer.
+  const one = clone(b.plan); one.steps = [{ step_id: "s1", operation: "profile", args: { metric_ids: ["population_65_plus"] } }];
+  const s1 = run(C.createState(RUNTIME, ids, one)), b1 = C.active(s1);
+  const f = answerRegionHarness(s1, { kind: "answer", question: "q", plan: clone(b1.plan), step_ids: ["s1"], only: {}, branch_id: b1.branch_id });
+  assert.match(f.text, /Answer · house028/); assert.equal(f.inputs.length, 0); assert.equal(f.button("ia-answer-own-brief"), undefined);
+});
+
+// Staff text being typed when a restore reply arrives, through the actual send and flushActive functions: it is
+// committed to the context it was typed in, before the reply switches the active context.
+function sendHarness(state, fetchImpl, typed) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  async function send(request) {", "  // A run started by a question") + part("  // A reply can arrive while staff are typing.", "  async function askLanguage(text) {");
+  const input = { tagName: "INPUT", type: "text", id: "ia-title", value: typed, closest: (sel) => (sel === ".ia-tray" ? {} : null),
+    dispatchEvent: (e) => { if (e.type === "change") ctx.state = ok(C.setStaffText(ctx.state, "title", input.value)); } };
+  const ctx = { C, state, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input }, render() {}, sha256Hex: async () => null,
+    fetch: fetchImpl, finish: (result) => { ctx.state = result.state; ctx.outcome = result.outcome; }, answerAfterRun() {} };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, send: (request) => vm.runInContext("send", ctx)(request) };
+}
+
+test("typing in one context while another is being restored keeps each title in its own context", async () => {
+  // Context A (House 028) with a saved title; context B (House 013) open with its own saved title.
+  let s = run(C.createState(RUNTIME, ids));
+  s = ok(C.setStaffText(s, "title", "Saved House 28 title"));
+  const a = C.active(s).branch_id;
+  const p = C.proposeChange(s, { plan: C.setContext(s.draft, { district: { chamber: "house", code: "013" } }).plan });
+  s = run(ok(C.confirmChange(s, p, ids)));
+  s = ok(C.setStaffText(s, "title", "Saved House 13 title"));
+  const b = C.active(s).branch_id;
+  const titleOf = (st, id) => (st.case.branches.find((x) => x.branch_id === id).staff_edits || {}).title;
+  for (const fail of [false, true]) {
+    const r = C.beginRestore(s, a, ids); assert.equal(r.error, undefined);
+    const fetchImpl = fail ? async () => { throw new Error("offline"); } : async (url, opts) => ({ status: 200, json: async () => reply(JSON.parse(opts.body)) });
+    const t = sendHarness(r.state, fetchImpl, "Unblurred House 13 title");
+    await t.send(r.request);
+    assert.equal(titleOf(t.ctx.state, b), "Unblurred House 13 title", (fail ? "failed" : "successful") + " restore: the typed text stays with House 13");
+    assert.equal(titleOf(t.ctx.state, a), "Saved House 28 title", (fail ? "failed" : "successful") + " restore: House 28 keeps its own title");
+    assert.equal(C.active(t.ctx.state).branch_id, fail ? b : a);
+  }
+});
+
+test("a fallback step with several findings is related findings to choose from; with one finding it is the answer", () => {
+  const s = run(C.createState(RUNTIME, ids)), b = C.active(s), res = C.currentResults(s);
+  // The kept or only step lists four measures and the diff names none: no single answer.
+  const t = answerRegionHarness(s, { kind: "answer", question: "What is the poverty rate for adults 65+ in House 28?", plan: clone(b.plan), step_ids: ["s1"], only: {}, fallback: true, branch_id: b.branch_id });
+  assert.match(t.text, /Related findings · house028/); assert.match(t.text, /did not single out which one answers it/);
+  const stepFindings = res.steps.find((x) => x.step_id === "s1").claim_refs.map((r) => r.finding_id);
+  assert.equal(t.inputs.length, stepFindings.length, "every finding of that step has a selection control");
+  assert.equal(t.button("ia-answer-brief"), undefined, "no focused brief");
+  // The poverty measure can be selected from there, then the brief is created from that selection.
+  const povIndex = stepFindings.indexOf("stat:house028:poverty_rate_65_plus");
+  t.inputs[povIndex].attrs.on.change({ target: { checked: true } });
+  t.button("ia-answer-own-brief").fn();
+  assert.deepEqual(C.active(t.briefs[0]).selected_claim_refs.map((r) => r.finding_id), ["stat:house028:poverty_rate_65_plus"]);
+  // A fallback step with exactly one finding is the answer.
+  const single = clone(b.plan); single.steps = [{ step_id: "s1", operation: "profile", args: { metric_ids: ["poverty_rate_65_plus"] } }];
+  const s1 = run(C.createState(RUNTIME, ids, single)), b1 = C.active(s1);
+  const f = answerRegionHarness(s1, { kind: "answer", question: "q", plan: clone(b1.plan), step_ids: ["s1"], only: {}, fallback: true, branch_id: b1.branch_id });
+  assert.match(f.text, /Answer · house028/); assert.equal(f.inputs.length, 0);
+});
+
+// Staff text typed while a chosen case file is being read, through the actual file-input callback and flushActive:
+// it is committed before the reopen preview renders (also when the read fails).
+test("a title typed while a case file is being read is kept when the reopen preview opens", async () => {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // A reply can arrive while staff are typing.", "  async function askLanguage(text) {") +
+    part('    $("#ia-import-file").addEventListener("change", async (e) => {', "    // Only the reviewed investigation brief prints");
+  for (const failRead of [false, true]) {
+    const s0 = ok(C.setStaffText(run(C.createState(RUNTIME, ids)), "title", "Saved title"));
+    const handlers = {}, renders = [];
+    const input = { tagName: "INPUT", type: "text", id: "ia-title", value: "Saved title", closest: (sel) => (sel === ".ia-tray" ? {} : null),
+      dispatchEvent: (e) => { if (e.type === "change") ctx.state = ok(C.setStaffText(ctx.state, "title", input.value)); } };
+    const ctx = { C, state: s0, importing: null, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input },
+      $: (sel) => (sel === "#ia-import-file" ? { addEventListener: (ev, fn) => { handlers[ev] = fn; } } : { focus() {} }),
+      render: () => renders.push(C.active(ctx.state).staff_edits.title) };
+    vm.createContext(ctx); vm.runInContext(code, ctx);
+    let release;
+    const text = JSON.stringify(C.exportCase(s0, { include_staff_work: true }));
+    const file = { size: text.length, text: () => new Promise((res, rej) => { release = () => (failRead ? rej(new Error("read")) : res(text)); }) };
+    const pending = handlers.change({ target: { files: [file], value: "x" } });
+    input.value = "Typed while the file is read";   // unblurred edit during the read
+    release(); await pending;
+    assert.equal(C.active(ctx.state).staff_edits.title, "Typed while the file is read", (failRead ? "failed read" : "preview") + ": typed title kept");
+    assert.ok(renders.length && renders.every((t) => t === "Typed while the file is read"), "committed before the preview renders");
+    assert.ok(ctx.importing, "the preview (or its error) opens");
+  }
+});
+
+// Unfinished add-checklist-item text through the actual renderTray add-item code: it stays with the case and context it
+// was typed in, comes back there, is added only there, survives a failed Add, and never appears in another case.
+test("unfinished custom checklist text belongs to the context it was typed in", () => {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const start = ui.indexOf("    // Unfinished text in the add-item box"), end = ui.indexOf("    // staff notes and tracking", start);
+  assert.ok(start > 0 && end > start);
+  const nodes = new Map(), buttons = new Map(), alerts = [];
+  const ctx = { C, state: run(C.createState(RUNTIME, ids)), addDrafts: new Map(), programLabel: (x) => x, $: (sel) => nodes.get(sel),
+    h: (tag, attrs, ...kids) => { const n = { tag, attrs, kids, value: "" }; if (attrs && attrs.id) nodes.set("#" + attrs.id, n); return n; },
+    btn: (label, fn, attrs) => { buttons.set(attrs.id, fn); return { label }; }, fill: (el, kids) => { el.kids = kids; },
+    set: (r) => { if (r.error) { alerts.push(r.error.message); ctx.render(); return false; } ctx.state = r.state; ctx.render(); return true; } };
+  vm.createContext(ctx);
+  vm.runInContext("function renderCustom(){const b=C.active(state),card=null,check={},templates=[],loose=[],free=C.CHECK_IDS.slice(3).find(k=>!b.checklist_edits.some(e=>e.item_id===k));" + ui.slice(start, end) + "}" +
+    ui.slice(ui.indexOf("  // A note on a removed finding waits for review in this page only:"), ui.indexOf("  function renderCase(b, busy) {")), ctx);
+  const held = () => vm.runInContext("staffDownloadBlock()", ctx);
+  ctx.render = () => vm.runInContext("renderCustom()", ctx);
+  ctx.render();
+  const h28 = C.active(ctx.state).branch_id;
+  nodes.get("#ia-chk-new").value = "Call the House 28 partner";        // typed, not added
+  assert.match(held() || "", /unfinished custom checklist item/, "a staff download (and context removal) is held while unfinished text is in no case file");
+  const p = C.setContext(ctx.state.draft, { district: { chamber: "house", code: "013" } }).plan;
+  ctx.state = run(ok(C.confirmChange(ctx.state, C.proposeChange(ctx.state, { plan: p }), ids)));
+  ctx.render();
+  const h13 = C.active(ctx.state).branch_id;
+  assert.equal(nodes.get("#ia-chk-new").value, "", "House 013 does not show House 028's unfinished text");
+  buttons.get("ia-chk-add")();                                          // empty box: nothing is added
+  assert.deepEqual(C.active(ctx.state).checklist_edits, []);
+  // Back in House 028 the unfinished text returns; a failed Add keeps it; a successful Add stores it only there.
+  ctx.state = Object.assign({}, ctx.state, { case: Object.assign({}, ctx.state.case, { active_branch_id: h28 }) });
+  ctx.render();
+  assert.equal(nodes.get("#ia-chk-new").value, "Call the House 28 partner");
+  const tooLong = "x".repeat(400);
+  nodes.get("#ia-chk-new").value = tooLong; buttons.get("ia-chk-add")();
+  assert.equal(alerts.length, 1, "the overlong item is refused");
+  assert.equal(nodes.get("#ia-chk-new").value, tooLong, "a refused Add keeps the typed text");
+  nodes.get("#ia-chk-new").value = "Call the House 28 partner"; buttons.get("ia-chk-add")();
+  const items = (id) => ctx.state.case.branches.find((x) => x.branch_id === id).checklist_edits.map((c) => c.text);
+  assert.deepEqual(items(h28), ["Call the House 28 partner"]); assert.deepEqual(items(h13), []);
+  assert.equal(nodes.get("#ia-chk-new").value, "", "the box is empty after the item is added");
+  assert.equal(held(), null, "once added, nothing is held");
+  // A different case never inherits unfinished text.
+  nodes.get("#ia-chk-new").value = "Unfinished in the first case"; ctx.render();
+  ctx.state = run(C.createState(RUNTIME, ids)); ctx.render();
+  assert.equal(nodes.get("#ia-chk-new").value, "");
+});
+
+// While a confirmed case-file import replays, the actual render code makes the outgoing case's controls inert, keeps
+// Cancel request outside them, and re-enables them once nothing is pending (opened, failed or cancelled).
+test("editing the outgoing case is paused only while a confirmed case-file import replays", () => {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8"), html = fs.readFileSync(path.join(__dirname, "../static/index.html"), "utf8");
+  const a = ui.indexOf("    const importPaused = "), code = ui.slice(a, ui.indexOf("\n", ui.indexOf("forEach((sel)", a)) + 1);
+  const regions = { "#ia-question": {}, ".ia-grid": {}, "#ia-brief": {} };
+  Object.values(regions).forEach((el) => { el.attrs = {}; el.setAttribute = (k, v) => { el.attrs[k] = v; }; el.removeAttribute = (k) => { delete el.attrs[k]; }; });
+  const pause = (pending) => { const ctx = { state: { pending }, document: { querySelector: (sel) => regions[sel] } }; vm.createContext(ctx); vm.runInContext(code, ctx); };
+  pause({ kind: "import" });
+  Object.entries(regions).forEach(([sel, el]) => { assert.equal(el.inert, true, sel + " inert during the import replay"); assert.equal(el.attrs["aria-busy"], "true"); });
+  for (const pending of [null, { kind: "run" }, { kind: "restore" }, { kind: "brief" }]) {
+    pause(pending);
+    Object.entries(regions).forEach(([sel, el]) => { assert.equal(el.inert, false, sel + " editable when " + (pending ? pending.kind : "nothing") + " is pending"); assert.equal(el.attrs["aria-busy"], undefined); });
+  }
+  // Cancel request lives in the context bar, outside every paused region.
+  const grid = html.indexOf('<div class="ia-grid">'), cancel = html.indexOf('id="ia-cancel"'), brief = html.indexOf('id="ia-brief"'), q0 = html.indexOf('id="ia-question"'), q1 = html.indexOf("</section>", html.indexOf('id="ia-answer"'));
+  assert.ok(cancel > 0 && cancel < grid && !(cancel > q0 && cancel < q1) && cancel < brief, "Cancel request stays usable");
+});
+
+test("a newly added step with several findings is related findings, so the asked measure can be chosen", () => {
+  const p = { district: { state_fips: "15", chamber: "house", code: "028", boundary_session: 2024 }, map_session: 2026, issue_id: "custom", service_area_id: null,
+    steps: [{ step_id: "s1", operation: "profile", args: { metric_ids: ["population_65_plus", "poverty_rate_65_plus", "median_age"] } }] };
+  const s = run(C.createState(RUNTIME, ids, p)), b = C.active(s);
+  // The diff names the added step but not which of its three measures answers the question.
+  const t = answerRegionHarness(s, { kind: "answer", question: "What is the poverty rate for adults 65+?", plan: clone(b.plan), step_ids: ["s1"], only: {}, branch_id: b.branch_id });
+  assert.match(t.text, /Related findings · house028/); assert.equal(t.button("ia-answer-brief"), undefined, "no brief claiming to be the answer");
+  assert.equal(t.inputs.length, 3, "all three measures with selection controls");
+  t.inputs[1].attrs.on.change({ target: { checked: true } });
+  t.button("ia-answer-own-brief").fn();
+  assert.deepEqual(C.active(t.briefs[0]).selected_claim_refs.map((r) => r.finding_id), ["stat:house028:poverty_rate_65_plus"]);
+});
+
+// The reopen preview's Cancel, through the actual renderCase callback: after Replay and open it cancels the pending
+// import like Cancel request, so the case and its staff work stay, editing returns and the late reply is ignored.
+test("Cancel in the reopen preview also cancels a confirmed import that is still replaying", () => {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // Name a staff group in the reopen preview", "  // ------------------------------------------------------------------ map");
+  const a = ui.indexOf("    const importPaused = "), pauseCode = ui.slice(a, ui.indexOf("\n", ui.indexOf("forEach((sel)", a)) + 1);
+  const harness = (state, importing) => {
+    const buttons = {}, el = () => ({ hidden: false, checked: false, focus() {} });
+    const els = { "#ia-download-staff": el(), "#ia-staff-preview": el(), "#ia-import-preview": el(), "#ia-download": el(), "#ia-branches": el(), "#ia-import-file": el(), "#ia-chk-new": null };
+    const ctx = { C, state, importing, notice: "", savedDigest: null, addDrafts: new Map(), $: (sel) => els[sel] !== undefined ? els[sel] : el(),
+      h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), fill() {}, btn: (label, fn, attrs) => { if (attrs && attrs.id) buttons[attrs.id] = fn; return {}; },
+      render() {}, contextName: () => "Context", planLabel: () => "plan", replayHelp: () => null, staffLine: () => [], OP_LABEL: {}, plural: (n, x, y) => n + " " + (n === 1 ? x : y) };
+    vm.createContext(ctx); vm.runInContext(code, ctx);
+    vm.runInContext("renderCase(C.active(state), !!state.pending)", ctx);
+    return { ctx, buttons };
+  };
+  const s0 = ok(C.setStaffText(run(C.createState(RUNTIME, ids)), "title", "Outgoing title"));
+  const parsed = C.parseCaseFile(PUBLIC_TEXT, RUNTIME); assert.ok(parsed.ok);
+  // Replay and open was chosen: the import is pending.
+  const begun = C.beginImport(s0, parsed, { accept_staff_work: false }, ids); assert.equal(begun.error, undefined);
+  assert.equal(begun.state.pending.kind, "import");
+  let t = harness(begun.state, parsed);
+  t.buttons["ia-import-cancel"]();
+  assert.equal(t.ctx.state.pending, null, "the replay is cancelled");
+  assert.equal(t.ctx.state.case.case_id, s0.case.case_id, "the current case is kept");
+  assert.equal(C.active(t.ctx.state).staff_edits.title, "Outgoing title");
+  assert.equal(t.ctx.importing, null); assert.match(t.ctx.notice, /current case is kept/);
+  const regions = { "#ia-question": {}, ".ia-grid": {}, "#ia-brief": {} };
+  Object.values(regions).forEach((r) => { r.inert = true; r.setAttribute = () => {}; r.removeAttribute = () => {}; });
+  const pctx = { state: t.ctx.state, document: { querySelector: (sel) => regions[sel] } }; vm.createContext(pctx); vm.runInContext(pauseCode, pctx);
+  Object.values(regions).forEach((r) => assert.equal(r.inert, false, "editing is back on after the render"));
+  const late = C.applyResponse(t.ctx.state, reply(begun.request), meta(begun.request));
+  assert.equal(late.outcome, "discarded", "the matching late reply is ignored");
+  // Cancel before Replay and open only closes the preview.
+  t = harness(s0, parsed);
+  t.buttons["ia-import-cancel"]();
+  assert.equal(t.ctx.state, s0, "nothing else changes"); assert.equal(t.ctx.importing, null); assert.match(t.ctx.notice, /current case is unchanged/);
+  // Cancel request (main) still uses the same reducer: the late reply is ignored there too.
+  assert.equal(C.applyResponse(C.cancelPending(begun.state), reply(begun.request), meta(begun.request)).outcome, "discarded");
+});
+
+// A question being asked cannot be edited, so typing can no longer cancel a request that may already be charged. Real
+// cancelLanguage/askLanguage/pollLanguage/lockQuestion and the real question "input" listener, stand-in language server.
+function pendingQuestionHarness(state, startReply, statusReply) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const listener = part('$("#ia-question-text").addEventListener("input", ', "\n");
+  const code = part("  function cancelLanguage(message, recover) {", "  // ------------------------------------------------------------------ One Ask") +
+    "\n  var onQuestionInput = null; const $real = $; " + listener.replace('$("#ia-question-text").addEventListener("input", ', "onQuestionInput = (").replace(/\);\s*$/, ");");
+  const text = { id: "ia-question-text", readOnly: false, value: "How many adults 65 and older live in House 28?" };
+  const posts = [], renders = [], timers = [];
+  const ctx = { C, state, languageJob: null, languageResult: null, lastQuestion: "", notice: "", Date, Error,
+    catalog: { language: { enabled: true } }, window: { IALanguage: { matches: () => true } }, ids: { uuid: () => "q-1" },
+    document: { activeElement: text }, $: (sel) => (sel === "#ia-question-text" ? text : { hidden: true, focus() {} }),
+    languageContext: () => ({}), deadlineMs: () => 25000, languagePolicy: () => "", alertUser: (m) => { throw new Error("alert " + m); },
+    userInComposer: () => false, askOnce: () => false,
+    setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {},
+    render: () => renders.push({ readOnly: text.readOnly, value: text.value, pending: !!(ctx.languageJob && ctx.languageJob.pending) }),
+    languagePost: async (action, body) => { posts.push(action); if (action === "start") return startReply(); if (action === "status") return statusReply(body); return { http: 200, data: {} }; } };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, text, posts, renders, timers, input: () => vm.runInContext("onQuestionInput()", ctx),
+    ask: () => vm.runInContext("askLanguage", ctx)(text.value), poll: () => vm.runInContext("pollLanguage(languageJob)", ctx) };
+}
+
+test("a pending question is read-only, typing never cancels it, and every finish/error/cancel path unlocks it with the question kept", async () => {
+  const s = run(C.createState(RUNTIME, ids));
+  const accepted = () => ({ http: 202, data: { request_id: "q-1", status: "pending" } });
+  const question = "How many adults 65 and older live in House 28?";
+  // 1. Pending: read-only from the first render, text kept; an input event does not cancel or change the job.
+  let t = pendingQuestionHarness(s, accepted, () => ({ http: 200, data: { request_id: "q-1", status: "unsupported" } }));
+  await t.ask();
+  assert.deepEqual(t.renders[0], { readOnly: true, value: question, pending: true }, "locked while the question is being read");
+  assert.equal(t.text.readOnly, true);
+  const job = t.ctx.languageJob; t.input();
+  assert.equal(t.ctx.languageJob, job, "typing during a pending question keeps the same request");
+  assert.equal(job.pending, true); assert.deepEqual(t.posts, ["start"], "no cancel was sent for a possibly charged request");
+  // 2. Finished answer: unlocked, question kept, still no cancel; editing afterwards only clears the shown answer (as before).
+  await t.poll();
+  assert.equal(t.text.readOnly, false, "unlocked when the answer arrives"); assert.equal(t.text.value, question);
+  assert.deepEqual(t.posts, ["start", "status"]);
+  t.input(); assert.equal(t.ctx.languageJob, null); assert.deepEqual(t.posts, ["start", "status"], "clearing a finished answer sends nothing");
+  // 3. Poll failure: unlocked, question kept.
+  t = pendingQuestionHarness(s, accepted, () => { throw new Error("network"); });
+  await t.ask(); assert.equal(t.text.readOnly, true); await t.poll();
+  assert.equal(t.text.readOnly, false, "unlocked after a failed status check"); assert.equal(t.text.value, question);
+  assert.equal(t.ctx.languageResult.status, "error");
+  // 4. Refused start (shared limit): unlocked, question kept.
+  t = pendingQuestionHarness(s, () => ({ http: 429, data: { code: "shared_demonstration_rate_limit", message: "limit" } }), () => null);
+  await t.ask();
+  assert.equal(t.text.readOnly, false, "unlocked after a refused start"); assert.equal(t.text.value, question); assert.deepEqual(t.posts, ["start"]);
+  // 5. Explicit Cancel keeps its behavior (it may still be charged) and unlocks.
+  t = pendingQuestionHarness(s, accepted, () => null);
+  await t.ask(); vm_cancel(t);
+  assert.equal(t.text.readOnly, false, "unlocked after Cancel"); assert.deepEqual(t.posts, ["start", "cancel"]); assert.equal(t.text.value, question);
+  // 6. Time-out: unlocked.
+  t = pendingQuestionHarness(s, accepted, () => null);
+  await t.ask(); t.timers[0]();
+  assert.equal(t.text.readOnly, false, "unlocked after the time-out"); assert.equal(t.ctx.languageJob, null);
+  function vm_cancel(h) { require("node:vm").runInContext("cancelLanguage('Question cancelled. Your work is unchanged.'); render();", h.ctx); }
+});

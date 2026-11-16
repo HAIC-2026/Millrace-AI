@@ -960,6 +960,46 @@
     return { claims: picks, action: card ? card.action_ref : null, card: card };
   }
 
+  // The findings a question asked for: those listed by the requested successful steps, narrowed where the question
+  // added specific measures, programs or administrative rows to a step (only[step_id] = {metric_ids}, {program_ids} or {observation_ids}).
+  function focusedFindings(res, stepIds, only) {
+    if (!res || !Array.isArray(res.claims) || !Array.isArray(stepIds) || !stepIds.length) return [];
+    const byRef = new Map(res.claims.filter((c) => c.claim_ref).map((c) => [refKey(c.claim_ref), c]));
+    const lead = [];
+    (res.steps || []).filter((s) => s.status === "ok" && stepIds.includes(s.step_id)).forEach((s) => {
+      const narrow = only && only[s.step_id];
+      (Array.isArray(s.claim_refs) ? s.claim_refs : []).forEach((r) => {
+        const c = byRef.get(refKey(r));
+        if (!c || lead.includes(c)) return;
+        if (narrow && narrow.metric_ids && !(c.metric && narrow.metric_ids.includes(c.metric.metric_id))) return;
+        if (narrow && narrow.program_ids && !(c.program && narrow.program_ids.includes(c.program.program_id))) return;
+        if (narrow && narrow.observation_ids && !(c.kind === "administrative_context" && narrow.observation_ids.includes(c.observation_id))) return;
+        lead.push(c);
+      });
+    });
+    return lead;
+  }
+
+  // A brief focused on what a question asked for, sized like the recommended brief: a requested comparison (first one),
+  // else up to two requested measures in plan order, else the first requested finding. Agency action: when the focus
+  // is about a program, that program's verification action if exactly one is recorded, otherwise none (reported as
+  // action_note "no_matching_action"); when it is not about a program, the recommended brief's action. Null when the
+  // requested steps list no findings, so callers keep the recommended brief.
+  function focusedBrief(res, stepIds, only) {
+    const lead = focusedFindings(res, stepIds, only);
+    if (!lead.length) return null;
+    const comparison = lead.find((c) => c.kind === "comparison"), stats = lead.filter((c) => c.kind === "statistic");
+    const base = recommendedBrief(res);
+    let action = base.action, card = base.card, note = null;
+    const programs = Array.from(new Set(lead.filter((c) => (c.kind === "program_relevance" || c.kind === "outreach_hypothesis") && c.program && c.program.program_id).map((c) => c.program.program_id)));
+    if (programs.length) {
+      const cards = (res.responses || []).filter((c) => c.action_ref && c.tier === "verification_action" && programs.includes(c.program_id));
+      if (programs.length === 1 && cards.length === 1) { action = cards[0].action_ref; card = cards[0]; }
+      else { action = null; card = null; note = "no_matching_action"; }
+    }
+    return { claims: comparison ? [comparison] : stats.length ? stats.slice(0, 2) : [lead[0]], action: action, card: card, requested: lead.length, action_note: note };
+  }
+
   return {
     SCHEMA_VERSION, OPERATION_VERSION, CASE_SCHEMA, OPERATIONS, SERVICE_AREAS, ISSUES, CHECK_IDS, TEMPLATE_CHECK_IDS, TOKEN_KEYS, LIMITS, AGING_METRICS,
     canonical, planCanonical, validDate, utf8Length, refKey, actionKey, geographyIdOf,
@@ -968,6 +1008,6 @@
     currentResults, toggleClaim, moveSelection, availableActions, chooseAction, setStaffText, setFindingNote, setChecklist, setTracking,
     copyParked, leaveParked, pendingReview, setExclusion, activeStaff, staffDigest, markReviewed, reviewCurrent,
     beginInterpret, beginRun, beginRestore, beginBrief, cancelPending, applyResponse, applyTransportFailure, shorteningChoices, printStatus,
-    exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments, recommendedBrief,
+    exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments, recommendedBrief, focusedFindings, focusedBrief,
   };
 });

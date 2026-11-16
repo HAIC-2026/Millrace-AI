@@ -453,7 +453,7 @@ def _district_mentions(u):
     explicit={(m.group(1),int(m.group(2))) for m in re.finditer(r'\b'+_DISTRICT+r'\b',u)}
     bare=set()
     for m in _BARE_DISTRICT_LIST.finditer(u):
-        numbers={int(x) for x in re.findall(r'\d{1,2}',m.group(1)+(m.group(2) or ''))}
+        numbers={int(x) for x in re.findall(r'\d+',m.group(1)+(m.group(2) or ''))}
         chamber=re.search(r'\b(house|senate)\s*$',u[:m.start()])
         if chamber:explicit|={(chamber.group(1),n) for n in numbers}
         else:bare|=numbers
@@ -465,6 +465,26 @@ def grounded_district_choices(prepared,choices):
     replaces it. Returns None when grounded, else the Recovery."""
     c=prepared['context'];u=_canonical_districts(prepared['provider_context']['utterance'].lower())
     explicit,bare=_district_mentions(u)
+    # A district in a comparator role ("against district 10", "than in district 10", "the State and district 10",
+    # "against Senate 10") never grounds a primary-district choice. A model district clarification that offers one gets
+    # the typed comparator clarification instead (as on the proposal path): both admitted chambers for a bare number, the
+    # named chamber for an explicit one. A district that is also named without a comparator role still grounds.
+    bare_roles={};explicit_roles={};primary=set()
+    for n in _bare_comparators(u):bare_roles[n]=[_gid(ch,n) for ch in ('house','senate')]
+    memo={}
+    for m in re.finditer(r'\b'+_DISTRICT+r'\b',u):
+        alias=f'd_{m.group(1)[0]}{int(m.group(2)):03}'
+        if _comparator_role(u,m,memo) and not _is_negated(u,m):explicit_roles[alias]=_gid(m.group(1),m.group(2))
+        else:primary.add(alias)
+    offered=[]
+    for a in choices:
+        if a in primary:continue
+        if a in explicit_roles:offered.append(explicit_roles[a])
+        elif int(a[3:]) in bare_roles:offered.extend(bare_roles[int(a[3:])])
+    if offered:
+        # Only admitted catalog geographies are offered (no Senate 26-51).
+        return Recovery('explicit_comparator_chamber_missing','clarify',reason='missing_context',field='comparator',
+                        choices=[x for x in dict.fromkeys('g_'+g for g in offered) if x in prepared['choices']])
     ok={f'd_{ch[0]}{n:03}' for ch,n in explicit}|{f'd_{ch[0]}{n:03}' for n in bare for ch in ('house','senate')}
     for p in (c['confirmed_plan'],c['draft_plan']):
         if p and not _OWN_DISTRICT.search(u):ok.add(f"d_{p['district']['chamber'][0]}{p['district']['code']}")
@@ -502,7 +522,7 @@ def district_provenance(utterance,context,plan):
     chambers={m.group(1) or m.group(2) for m in _CHAMBER_ONLY.finditer(utterance)}
     # A comparator-positioned bare number ("against district 20") never names the primary; the comparator checks
     # below offer its chamber choice.
-    numbers=[f'{int(m.group(1)):03}' for m in _BARE_DISTRICT.finditer(utterance) if not _is_comparator(utterance,m)]
+    memo={};numbers=[f'{int(m.group(1)):03}' for m in _BARE_DISTRICT.finditer(utterance) if not _comparator_role(utterance,m,memo)]
     if chambers and proposed[0] not in chambers:raise LanguageError('explicit_district_conflict')
     if numbers:
         # A number without a chamber takes its chamber only from one stated chamber, or from the number itself when
@@ -523,7 +543,7 @@ def district_provenance(utterance,context,plan):
 # district is the primary. Only comparator mentions plus a held plan keep the held primary. A single named
 # district with no cue is the primary; two or more DISTINCT districts with no comparator role established fail
 # closed for every ordering (mention order is never a role). Any other mix also fails closed.
-_COMPARATOR_BEFORE=re.compile(r'\b(?:against|versus|vs\.?|minus|than|relative to|compared (?:with|to)|comparison (?:with|to)|benchmarked (?:against|to))\s+(?:the\s+|an?\s+|our\s+)?$')
+_COMPARATOR_BEFORE=re.compile(r'\b(?:against|versus|vs\.?|minus|than(?:\s+(?:in|for|at))?|relative to|compared (?:with|to)(?:\s+(?:that|those)\s+of)?|comparison (?:with|to)|benchmarked (?:against|to))\s+(?:the\s+|an?\s+|our\s+)?$')
 # The compare clause is bounded: no comma/clause punctuation, no conjunction or second verb, at most 40 chars.
 _CLAUSE_STOP=r'(?!\b(?:and|then|but|or|also|plus|switch|move|change|go|use|show|profile|keep|add)\b)[^.;:!?,]'
 _COMPARE_CLAUSE=re.compile(r'\bcompar(?:e|es|ed|ing)\b(?:'+_CLAUSE_STOP+r'){0,40}?\b(?:with|to|against)\s+(?:the\s+)?$')
@@ -563,6 +583,35 @@ _REPLACEMENTS=(
 
 def _key(m):return (m.group(1),int(m.group(2)))
 def _navigates(utterance,m):return bool(_NAVIGATE_BEFORE.search(utterance[:m.start()][-50:]))
+def _comparator_role(utterance,m,memo=None):
+    """A district mention (bare "district N" not preceded by a chamber, or explicit "House N") in a comparator role: a
+    directed cue, or a peer joined by and/or/plus directly after a directed comparator (the State, a county or a
+    district). Shared by the clarification grounding, district_provenance and the proposal comparator recovery; each
+    applies its own negation rule."""
+    # Call-local memo (a caller looping over one utterance may pass its own dict; nothing is kept after it returns): a
+    # peer's role reads its antecedent's role, so each mention is evaluated once and the mention list is built once.
+    memo={} if memo is None else memo
+    if None not in memo:memo[None]=[*re.finditer(r'\b'+_DISTRICT+r'\b',utterance),*_BARE_DISTRICT_LIST.finditer(utterance)]
+    mentions=memo[None]
+    def role(x):
+        key=(x.start(),x.end())
+        if key not in memo:
+            if re.search(r'\b(?:house|senate)\s*$',utterance[:x.start()]):memo[key]=False
+            elif _is_comparator(utterance,x):memo[key]=True
+            elif _navigates(utterance,x):memo[key]=False
+            else:
+                earlier=[y for y in mentions if y.end()<=x.start()]
+                # A negated antecedent passes no role on, as for the State and county antecedents in _peer_comparator.
+                memo[key]=_peer_comparator(utterance,x,earlier,[role(y) and not _is_negated(utterance,y) for y in earlier])
+        return memo[key]
+    return role(m)
+def _bare_comparators(utterance):
+    """Chamberless bare district numbers in a (non-negated) comparator role: every number of a "district(s) N[, M or K]"
+    list whose head has the role. The one reading used by the clarification grounding and the proposal recovery."""
+    out=[];memo={}
+    for m in _BARE_DISTRICT_LIST.finditer(utterance):
+        if _comparator_role(utterance,m,memo) and not _is_negated(utterance,m):out+=[int(x) for x in re.findall(r'\d+',m.group(1)+(m.group(2) or ''))]
+    return list(dict.fromkeys(out))
 def _is_comparator(utterance,m):
     if _navigates(utterance,m):return False
     prefix=utterance[:m.start()]
@@ -572,6 +621,8 @@ def _is_comparator(utterance,m):
 # Coordinated peer: a district joined ("and/or/plus") directly after a directed comparator (the State, a county or a
 # comparator district) is a further comparator, unless it opens its own comparison clause ("..., and House 12 with X").
 # Only an explicit conjunction joins peers; a bare comma may open the main clause ("Compare to Senate 25, House 28 ...").
+# Directed State antecedent for a peer district (not "between/next to/alongside the State and district N").
+_STATE_DIRECTED=re.compile(r'\b(?:with|(?<!next\s)to|against|versus|vs\.?|than(?:\s+(?:in|for|at))?)\s+$')
 _PEER_JOIN=re.compile(r'(?:\s*,\s*(?:and|or|plus)\s+|\s+(?:and|or|plus|&)\s+)(?:also\s+)?(?:the\s+)?$')
 _OWN_CLAUSE_AFTER=re.compile(r"^\s*(?:[\w-]+\s+){0,3}?(?:with|against|versus|vs\.?|compared|relative|to|than)\b")
 def _peer_comparator(utterance,m,mentions,marked):
@@ -583,7 +634,8 @@ def _peer_comparator(utterance,m,mentions,marked):
     for s in _STATE_MENTION.finditer(utterance):
         if s.end()==end:
             before=utterance[max(0,s.start()-60):s.start()]
-            return bool((_STATE_CUE.search(before) or _is_comparator(utterance,s)) and not _REMOVAL_BEFORE.search(before) and not _is_negated(utterance,s))
+            directed=_STATE_DIRECTED.search(before) or _is_comparator(utterance,s) or _peer_comparator(utterance,s,mentions,marked)
+            return bool(directed and not _REMOVAL_BEFORE.search(before) and not _is_negated(utterance,s))
     for _gids,a,b in _county_groups(utterance):
         if b==end:return _is_comparator(utterance,_Span(a,b)) and not _is_negated(utterance,_Span(a,b))
     return False
@@ -731,6 +783,12 @@ _NEGATED_BEFORE=re.compile(r"\b(?:no|not|never|without|avoid|exclude|excluding|d
 # proves it only inside a closed request form (a question about who/what/whether, or a determine/estimate
 # verb); otherwise it is unproven and the proposal is refused as uncertain, never answered as unsupported.
 _UNSAFE_OPERATION=r'\b(?:resident lookup|names? of residents|participation gap|unmet need|live availability|currently (?:open|available)|predict|forecast)\b'
+# Statistical-significance wording only (not "the significance of a program"): no significance test is performed, so a
+# clarification never asks for a field as if one were available.
+_SIGNIFICANCE=(r'\bstatistical(?:ly)?\s+signific\w*|\bsignifican(?:ce|t)\s+(?:test\w*|difference\w*|gap\w*)\b|\btest\w*\s+(?:of|for)\s+significance\b'
+    r'|\bsignificantly\s+(?:different|higher|lower|greater|larger|smaller|more|less|above|below|worse|better)\b|\bp[- ]?values?\b'
+    r'|\b(?:difference|gap)s?\b[^.;:!?]{0,60}?\bsignificant\b|\bstatistically\s+(?:different|distinguishable|higher|lower|greater|smaller)\b'
+    r'|\bsignificant\s+at\s+(?:the\s+)?(?:\d|p\b|alpha)|(?<![\w\'\u2019])t[- ]tests?\b')
 _UNSAFE_KEYWORD=r'\b(?:caus(?:e|ed|es|al)|eligib(?:le|ility)|qualif(?:y|ies))\b'
 _UNSAFE_REQUEST=re.compile(r'\b(?:who|whom|which|what|how many|how much|whether|if|is|are|am|was|were|do|does|did|can|could|would|will|should)\b[^.;:!?]{0,60}?\b(?:caus(?:e|ed|es)|eligible|qualif(?:y|ies))\b'
     r'|\b(?:determine|check|assess|verify|screen|decide|confirm|estimate|count|calculate|identify|find|list)\b[^.;:!?]{0,40}?\b(?:eligib(?:le|ility)|qualif(?:y|ies)|caus(?:e|ed|es|al))\b'
@@ -855,7 +913,7 @@ def local_guard(prepared,decision,plan):
     # ("no causal claims") states what NOT to do and proves nothing unsupported.
     if plan is not None:
         keywords=_unnegated(_UNSAFE_KEYWORD,utterance)
-        if _unnegated(_UNSAFE_OPERATION,utterance) or any(r.start()<=k.start()<r.end() for r in _UNSAFE_REQUEST.finditer(utterance) for k in keywords):
+        if _unnegated(_UNSAFE_OPERATION,utterance) or _unnegated(_SIGNIFICANCE,utterance.replace('\u2019',"'")) or any(r.start()<=k.start()<r.end() for r in _UNSAFE_REQUEST.finditer(utterance) for k in keywords):
             raise Recovery('unsupported_explicit_constraint','unsupported',reason='unsupported_operation')
         if keywords:raise LanguageError('unsupported_inference_unproven')
     # A non-State-legislative district is outside the admitted geography; never borrow a chamber. It is
@@ -957,12 +1015,11 @@ def local_guard(prepared,decision,plan):
     if plan is not None:
         plan_numbers={int(s['args']['comparison_geography'].split('-')[2]) for s in plan['steps']
                       if s['operation']=='compare' and re.match(r'HI-(?:HOUSE|SENATE)-',s['args']['comparison_geography'])}
-        for m in _BARE_DISTRICT.finditer(utterance):
-            if re.search(r'\b(?:house|senate)\s*$',utterance[:m.start()]) or not _is_comparator(utterance,m) or _is_negated(utterance,m):continue
-            number=int(m.group(1))
-            if number not in plan_numbers:  # A requested comparator that the proposal dropped or could not place.
-                raise Recovery('explicit_comparator_chamber_missing','clarify',reason='missing_context',field='comparator',
-                               choices=['g_'+_gid(c,number) for c in ('house','senate')])
+        bare_comparators=_bare_comparators(utterance)
+        missing=[n for n in bare_comparators if n not in plan_numbers]
+        if missing:  # A requested comparator that the proposal dropped or could not place.
+            raise Recovery('explicit_comparator_chamber_missing','clarify',reason='missing_context',field='comparator',
+                           choices=['g_'+_gid(c,n) for n in missing for c in ('house','senate')])
         islands=_bare_island_comparators(_plain(utterance))
         if islands:
             raise Recovery('explicit_comparator_county_unstated','clarify',reason='missing_context',field='comparator',
@@ -977,9 +1034,9 @@ def local_guard(prepared,decision,plan):
                 raise LanguageError('explicit_comparator_unstated')  # never "its county"/"a nearby county"
             if s['operation']=='compare' and re.match(r'HI-(?:HOUSE|SENATE)-',gid) and gid not in comparator_gids|held_gids:
                 number=int(gid.split('-')[2])
-                if any(int(m.group(1))==number and not re.search(r'\b(?:house|senate)\s*$',utterance[:m.start()]) for m in _BARE_DISTRICT.finditer(utterance)):
+                if number in bare_comparators or any(int(m.group(1))==number and not re.search(r'\b(?:house|senate)\s*$',utterance[:m.start()]) for m in _BARE_DISTRICT.finditer(utterance)):
                     raise Recovery('explicit_comparator_chamber_missing','clarify',reason='missing_context',field='comparator',
-                                   choices=['g_'+_gid(c,number) for c in ('house','senate')])
+                                   choices=['g_'+_gid(c,n) for n in dict.fromkeys([number,*bare_comparators]) for c in ('house','senate')])
                 raise LanguageError('explicit_comparator_unstated')
     if plan is not None:
         if proposed-named-inherited:raise LanguageError('ungrounded_program')
@@ -1137,6 +1194,8 @@ def _convert(prepared,decision,core,stage):
         reason=decision['reason_code']
         if status=='clarify':
             field=decision['clarify_field'];choices=decision['clarify_choices']
+            if _unnegated(_SIGNIFICANCE,prepared['provider_context']['utterance'].lower().replace('\u2019',"'")):
+                raise Recovery('unsupported_explicit_constraint','unsupported',reason='unsupported_operation')
             if field=='district' and choices and all(a in prepared['choices'] and prepared['choices'][a]['field']=='district' for a in choices):
                 ungrounded=grounded_district_choices(prepared,choices)
                 if ungrounded is not None and (field,sorted(choices))!=(ungrounded.field,sorted(ungrounded.choices)):raise ungrounded

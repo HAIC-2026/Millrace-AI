@@ -102,3 +102,75 @@ class LanguageJobTests(unittest.TestCase):
         for n in range(34):
             r=self.request();self.assertEqual(self.service.operator_start(r)[0],202);self.service.operator_wait(r['request_id'])
         self.assertEqual(len(self.service._jobs),32)
+
+    def test_cancel_misses_cannot_evict_completed_result(self):
+        self.release.set()
+        r=self.request();self.assertEqual(self.service.handle('start',r,'a')[0],202)
+        self.assertTrue(self.service._jobs[r['request_id']]['done'].wait(2))
+        before=self.poll('status',r['request_id'])
+        self.assertEqual(before[1]['status'],'uncertain')
+        for _ in range(80):self.assertEqual(self.poll('cancel',str(uuid.uuid4()),'other')[0],200)
+        self.assertEqual(self.poll('status',r['request_id']),before)
+        self.assertEqual(len(self.transports),2)
+
+    def test_early_cancel_preserves_owner_and_consumes_no_admission(self):
+        r=self.request()
+        self.assertEqual(self.poll('cancel',r['request_id'])[1]['status'],'cancelled')
+        with patch.object(self.service,'_resources',side_effect=AssertionError('resources')):
+            self.assertEqual(self.service.handle('start',r,'a')[0],409)
+            self.assertEqual(self.service.handle('start',r,'other')[0],403)
+        self.assertEqual(self.poll('status',r['request_id'],'other')[0],403)
+        self.assertEqual(self.poll('cancel',r['request_id'],'other')[0],403)
+        self.assertEqual(self.poll('status',r['request_id'])[1]['status'],'cancelled')
+        self.assertEqual(self.poll('cancel',r['request_id'])[1]['code'],'already_terminal')
+        self.assertEqual(self.transports,[]);self.assertEqual(len(self.service._site),0)
+        self.assertEqual(len(self.service._sessions),0);self.assertIsNone(self.service._active)
+        self.assertEqual(self.ledger.summary()['buckets']['demo']['entries'],0)
+
+    def test_concurrent_cancel_misses_preserve_pending_and_bound_retention(self):
+        r=self.request();self.assertEqual(self.service.handle('start',r,'a')[0],202)
+        self.assertTrue(self.entered.wait(1))
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            replies=list(pool.map(lambda _:self.poll('cancel',str(uuid.uuid4()),'other'),range(128)))
+        self.assertTrue(all(code==200 for code,_ in replies))
+        self.assertEqual(self.poll('status',r['request_id'])[1]['status'],'pending')
+        self.assertEqual(len(self.service._jobs),1)
+        self.assertEqual(len(self.service._early_cancels),32)
+        self.assertEqual(len(self.service._site),1)
+        retained=next(iter(self.service._early_cancels))
+        finished=self.service._early_cancels[retained]['finished_at']
+        with patch('districtbrief.ia_language_jobs.time.monotonic',return_value=finished+600):
+            self.assertEqual(self.poll('status',retained,'other')[1]['code'],'request_expired')
+        self.assertNotIn(retained,self.service._early_cancels)
+
+    def test_cancel_misses_preserve_provider_error_result(self):
+        from districtbrief.ia_language import LanguageError
+        with patch.object(self.provider,'interpret',side_effect=LanguageError('provider_transport_error',503)):
+            r=self.request();self.assertEqual(self.service.handle('start',r,'a')[0],202)
+            self.assertTrue(self.service._jobs[r['request_id']]['done'].wait(2))
+        before=self.poll('status',r['request_id']);self.assertEqual(before[1]['status'],'error')
+        self.assertEqual(before[1]['attribution']['failure_class'],'transport')
+        for _ in range(40):self.poll('cancel',str(uuid.uuid4()),'other')
+        self.assertEqual(self.poll('status',r['request_id']),before)
+        self.assertIsNone(self.service._active);self.assertFalse(self.ledger.summary()['unresolved'])
+
+    def test_executor_error_releases_slot_and_does_not_create_result(self):
+        class BrokenExecutor:
+            def submit(self,*args):raise RuntimeError('injected executor failure')
+        self.service._executor=BrokenExecutor()
+        r=self.request();code,out=self.service.handle('start',r,'a')
+        self.assertEqual((code,out['code']),(503,'executor_unavailable'))
+        self.assertIsNone(self.service._active);self.assertNotIn(r['request_id'],self.service._jobs)
+        self.assertEqual(self.transports,[])
+        self.service._executor=None
+
+    def test_concurrent_duplicate_start_admitted_exactly_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+        r=self.request()
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            replies=list(pool.map(lambda _:self.service.handle('start',r,'a'),range(16)))
+        self.assertEqual(sum(code==202 for code,_ in replies),1)
+        self.assertTrue(all(code in (202,409) for code,_ in replies))
+        self.assertTrue(self.entered.wait(1));self.assertEqual(len(self.service._site),1)
+        self.assertEqual(len(self.service._sessions['a']),1);self.assertEqual(len(self.transports),2)

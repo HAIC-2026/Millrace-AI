@@ -49,6 +49,10 @@
     return o;
   }
 
+  // Display spelling for place names recorded without diacritics in geography labels; identifiers are unchanged.
+  const PLACE = { Hawaii: "Hawaiʻi", Kauai: "Kauaʻi", Oahu: "Oʻahu", Molokai: "Molokaʻi", Lanai: "Lānaʻi" };
+  const placeDisplay = (t) => String(t == null ? "" : t).replace(/\b(Hawaii|Kauai|Oahu|Molokai|Lanai)\b/g, (m) => PLACE[m]);
+
   function catalogTabLabel(catalogData) {
     const n = catalogData && catalogData.coverage && catalogData.coverage.statistics_observations;
     return Number.isSafeInteger(n) && n >= 0 ? "Data catalog (all " + n.toLocaleString("en-US") + " observations)" : "Data catalog";
@@ -79,12 +83,12 @@
       $("#ctl-profile-metrics").appendChild(option(m.metric_id, m.label));
     });
     const geo = $("#ctl-geo");
-    catalog.geographies.forEach((g) => geo.appendChild(option(g.geography_id, g.label)));
-    catalog.unavailable_geographies.forEach((g) => geo.appendChild(option(g.geography_id, g.label + " (not normalized)")));
+    catalog.geographies.forEach((g) => geo.appendChild(option(g.geography_id, placeDisplay(g.label))));
+    catalog.unavailable_geographies.forEach((g) => geo.appendChild(option(g.geography_id, placeDisplay(g.label) + " (not normalized)")));
     const prog = $("#ctl-program");
     catalog.programs.forEach((p) => prog.appendChild(option(p.program_id, p.name)));
     (catalog.administrative_rows || catalog.participation || []).forEach((r) => {
-      const geography = typeof r.geography === "object" ? (r.geography.label || r.geography.name) : r.geography;
+      const geography = placeDisplay(typeof r.geography === "object" ? (r.geography.label || r.geography.name) : r.geography) || null;
       const label = [r.series_label || r.label || r.program_id, geography, r.period, r.unit, r.status || r.publication_status || r.revision_status].filter(Boolean).join(" · ");
       const rowOption = option(r.observation_id, label);
       rowOption.title = label;
@@ -92,9 +96,10 @@
     });
     $("#ctl-admin").addEventListener("change", administrativeSelectionNote);
     $("#ctl-profile-mode").addEventListener("change", relevantFieldsets);
-    $("#ctl-chamber").addEventListener("change", fillDistricts);
-    $("#ctl-session").addEventListener("change", fillDistricts);
-    $("#ctl-code").addEventListener("change", districtNote);
+    // A district, chamber or session chosen here replaces the copied investigation district.
+    $("#ctl-chamber").addEventListener("change", () => { dropPrefill(); fillDistricts(); });
+    $("#ctl-session").addEventListener("change", () => { dropPrefill(); fillDistricts(); });
+    $("#ctl-code").addEventListener("change", () => { dropPrefill(); districtNote(); });
     $("#ctl-utterance").addEventListener("input", () => {
       if ($("#ctl-utterance").value.trim()) $('input[name="mode"][value="language"]').checked = true;
     });
@@ -153,14 +158,36 @@
     return r ? r.value : null;
   }
 
+  // Only the controls the chosen task uses are shown. A guided run sends only those fields (DBRequest.collect);
+  // a typed command still reads the controls as context, including ones hidden for the chosen task.
   function relevantFieldsets() {
     const t = currentTask();
     districtNote();
-    $("#fs-profile").classList.toggle("dim", t !== "profile");
+    $("#fs-profile").hidden = t !== "profile";
     $("#ctl-profile-metrics").disabled = $("#ctl-profile-mode").value !== "selected";
-    $("#fs-admin").classList.toggle("dim", t !== "administrative_context");
-    $("#fs-measure").classList.toggle("dim", !(t === "compare"));
-    $("#fs-program").classList.toggle("dim", !(t === "program_relevance" || t === "outreach"));
+    $("#fs-admin").hidden = t !== "administrative_context";
+    $("#fs-measure").hidden = t !== "compare";
+    $("#fs-program").hidden = !(t === "program_relevance" || t === "outreach");
+  }
+
+  // Single lookup starts from the investigation's applied district while no district has been chosen here. Only
+  // the district is copied in; the investigation, its staff work and its selections are untouched. The copy is not
+  // the user's own control choice: a typed command does not send it, and any change here or by a run ends it.
+  let prefill = null;
+  const prefillUntouched = () => !!prefill && $("#ctl-chamber").value === prefill.chamber && $("#ctl-code").value === prefill.code && $("#ctl-session").value === "2024";
+  function dropPrefill() { prefill = null; const n = $("#lookup-context"); if (n) n.hidden = true; }
+  function prefillLookup() {
+    if (!catalog || !window.IAWorkspace) return;
+    if (($("#ctl-chamber").value || $("#ctl-code").value) && !prefillUntouched()) return;
+    const d = window.IAWorkspace.district();
+    if (!d || !/^(house|senate)$/.test(d.chamber) || !/^\d{3}$/.test(d.code)) return;
+    if (!catalog.districts.some((x) => x.chamber === d.chamber && x.code === d.code && x.boundary_session === 2024)) return;
+    $("#ctl-chamber").value = d.chamber; $("#ctl-session").value = "2024"; fillDistricts();
+    $("#ctl-code").value = d.code; districtNote();
+    prefill = { chamber: d.chamber, code: d.code };
+    const note = $("#lookup-context");
+    text(note, "District filled in from District investigation: " + (d.chamber === "house" ? "House " : "Senate ") + Number(d.code) + ". Guided runs use it; a typed command uses the district it names. Changing it here does not change the investigation or its brief.");
+    note.hidden = false;
   }
 
   function districtFromControls() {
@@ -192,7 +219,7 @@
     return {
       mode: $('input[name="mode"]:checked').value,
       task: currentTask(),
-      district: districtFromControls(),
+      district: $('input[name="mode"]:checked').value === "language" && prefillUntouched() ? null : districtFromControls(),
       profile_mode: $("#ctl-profile-mode").value,
       metric_ids: currentTask() === "profile" && $("#ctl-profile-mode").value === "selected" ? Array.from($("#ctl-profile-metrics").selectedOptions, (o) => o.value) : (metric ? [metric] : []),
       observation_ids: Array.from($("#ctl-admin").selectedOptions, (o) => o.value),
@@ -228,6 +255,7 @@
   }
 
   function applyToControls(req) {
+    dropPrefill();
     if (req.task) { const r = $("#task-" + req.task); if (r) r.checked = true; }
     if (req.district && req.district.chamber) {
       $("#ctl-chamber").value = req.district.chamber;
@@ -556,6 +584,7 @@
       b.tabIndex = on ? 0 : -1;
       $("#" + b.getAttribute("aria-controls")).hidden = !on;
     });
+    if (btn.id === "tab-btn-workflow") prefillLookup();
     logEvent("open_tab", { detail: btn.id });
   }
 
@@ -575,18 +604,37 @@
   }
 
   // ------------------------------------------------------------ catalog tab
+  // The observations table (filters first) is placed before the coverage summary. Rows are already in the page;
+  // only the first 50 matching rows are shown at a time, and the filters always search every row.
   function wireCatalogFilters() {
-    const geo = $("#cat-geo"), q = $("#cat-q");
-    const apply = () => {
+    const geo = $("#cat-geo"), q = $("#cat-q"), table = $("#cat-table");
+    if (!geo || !q || !table) return;
+    const obs = table.closest("section"), cov = $("#cov-h") && $("#cov-h").closest("section");
+    if (obs && cov && obs.parentNode === cov.parentNode) cov.parentNode.insertBefore(obs, cov);
+    const rows = $$("tbody tr", table), STEP = 50;
+    let limit = STEP;
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "btn btn-small"; more.id = "cat-more";
+    table.after(more);
+    const apply = (reset) => {
+      if (reset) limit = STEP;
       const g = geo.value, s = q.value.trim().toLowerCase();
-      let shown = 0;
-      $$("#cat-table tbody tr").forEach((tr) => {
+      let matched = 0, shown = 0;
+      rows.forEach((tr) => {
         const ok = (!g || tr.dataset.geo === g) && (!s || tr.textContent.toLowerCase().includes(s));
-        tr.hidden = !ok; if (ok) shown += 1;
+        if (ok) matched += 1;
+        tr.hidden = !(ok && matched <= limit);
+        if (!tr.hidden) shown += 1;
       });
-      text($("#cat-count"), shown + " of " + $$("#cat-table tbody tr").length + " observations shown");
+      text($("#cat-count"), "Showing " + shown + " of " + matched + " matching observations (" + rows.length + " in the catalog).");
+      more.hidden = shown >= matched;
+      more.textContent = "Show " + Math.min(STEP, matched - shown) + " more";
     };
-    geo.addEventListener("change", apply); q.addEventListener("input", apply); apply();
+    const count = $("#cat-count"); if (count) count.setAttribute("tabindex", "-1");
+    // When the last rows are shown the button hides, so focus moves to the count instead of being lost.
+    more.addEventListener("click", () => { limit += STEP; apply(false); if (more.hidden && count) count.focus(); });
+    geo.addEventListener("change", () => apply(true)); q.addEventListener("input", () => apply(true));
+    apply(true);
   }
 
   function renderCommands() {

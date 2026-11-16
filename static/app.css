@@ -2653,3 +2653,275 @@ p.page-foot {
 .ia-start p { margin: 0.3rem 0 0; }
 .ia-next-step { margin: 0.4rem 0 0.6rem; }
 .ia-next-step p { margin: 0.2rem 0; }
+
+/* --- question and requested answer, ahead of the working columns */
+.ia-question {
+  margin: 0 0 0.9rem;
+  padding: 0.8rem 0.95rem 0.9rem;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-top: 4px solid var(--blue);
+  border-radius: 4px;
+}
+
+.ia-question > .ia-section-title {
+  margin-bottom: 0.4rem;
+}
+
+.ia-question form > label {
+  display: block;
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.ia-ask-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
+  align-items: flex-start;
+}
+
+.ia-ask-row textarea {
+  flex: 1 1 22rem;
+  min-width: 0;
+  font-size: 1.05rem;
+}
+
+.ia-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ia-ask-actions .btn-primary {
+  min-width: 6.5rem;
+  font-size: 1.05rem;
+}
+
+.ia-question #ia-question-privacy {
+  max-width: 75ch;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
+.ia-question .ia-interpretation {
+  max-width: 80ch;
+  margin-bottom: 0.2rem;
+}
+
+.ia-review-reasons {
+  margin: 0.2rem 0 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.ia-language-off {
+  margin: 0 0 0.9rem;
+}
+
+.ia-alternatives {
+  margin-top: 0.6rem;
+}
+
+.ia-alternatives ul {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.ia-alternatives li {
+  margin: 0.25rem 0;
+}
+
+.ia-answer {
+  margin: 0.7rem 0 0;
+  padding: 0.7rem 0.9rem 0.6rem;
+  background: #f4f7fb;
+  border: 2px solid var(--blue-deep);
+  border-radius: 6px;
+}
+
+.ia-answer[hidden] {
+  display: none;
+}
+
+.ia-answer-title {
+  margin: 0 0 0.15rem;
+  font-size: 1.15rem;
+}
+
+.ia-answer-q {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ia-answer-item {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0 0.4rem;
+  border-top: 1px solid var(--rule);
+}
+
+.ia-answer-item p {
+  max-width: 80ch;
+  margin: 0.1rem 0;
+}
+
+.ia-answer-measure {
+  font-weight: 600;
+}
+
+.ia-answer-value strong {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.ia-answer-moe,
+.ia-answer-facts {
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.ia-answer-tools .badge {
+  margin-left: 0.4rem;
+}
+
+.ia-answer details {
+  margin-top: 0.3rem;
+}
+
+.ia-answer:focus,
+.ia-answer-title:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- Advanced investigation: the editable plan, secondary while questions are on */
+details.ia-plan > summary {
+  cursor: pointer;
+}
+
+details.ia-plan > summary .ia-section-title {
+  display: inline;
+  margin: 0;
+}
+
+.ia-advanced-sum {
+  display: block;
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
+details.ia-plan[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.ia-grid:has(> details.ia-plan:not([open])) > details.ia-plan {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 760px) {
+  .ia-grid:has(> details.ia-plan:not([open])) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .ia-grid:has(> details.ia-plan:not([open])) {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+.ia-recover {
+  margin: 0.5rem 0 0.7rem;
+}
+
+.ia-recover .hint {
+  margin: 0.25rem 0 0;
+}
+
+.ia-alternatives .btn-link {
+  display: inline;
+  text-align: left;
+}
+
+.ia-answer-brief {
+  margin: 0.4rem 0 0.3rem;
+}
+
+.ia-answer-brief .hint {
+  max-width: 80ch;
+  margin: 0.25rem 0 0;
+}
+
+/* --- About: a disclosure in the header; opened content uses a light panel for reading */
+.app-about {
+  max-width: 75ch;
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+}
+
+.app-about > summary {
+  cursor: pointer;
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.app-about > summary:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.app-about-body {
+  margin: 0.4rem 0 0.2rem;
+  padding: 0.6rem 0.8rem;
+  color: var(--ink);
+  background: #ffffff;
+  border-radius: 4px;
+}
+
+.app-about-body a {
+  color: var(--blue-ink);
+}
+
+.app-about-h {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 1rem;
+}
+
+.app-about-h:first-child {
+  margin-top: 0;
+}
+
+.app-about-body ol {
+  margin: 0.2rem 0;
+  padding-left: 1.3rem;
+}
+
+.app-about-body p {
+  margin: 0.25rem 0;
+}
+
+#lookup-context {
+  margin-top: 0.3rem;
+}
+
+.ia-question .ia-ask-notice {
+  max-width: 75ch;
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.ia-ask-detail {
+  max-width: 75ch;
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+}
+
+.ia-ask-detail p {
+  margin: 0.3rem 0;
+}
+
+#cat-more {
+  margin: 0.5rem 0 0;
+}

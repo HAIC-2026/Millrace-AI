@@ -7,10 +7,25 @@
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<a class="skip-link" href="#ia-main">Skip to findings</a>
+<a class="skip-link" href="#ia-workspace">Skip to main content</a>
 <header class="app-header">
   <h1>District Brief Builder</h1>
-  <p class="app-meta">Investigate a district issue, check the evidence, choose an agency action and hand off a one-page brief. Uses bundled public data; nothing is fetched live. <span id="packet-status" class="app-status" role="status"></span></p>
+  <p class="app-meta">Ask about a Hawaiʻi House or Senate district, check the evidence and hand off a one-page brief. Figures come from bundled public data; nothing is fetched live. <span id="packet-status" class="app-status" role="status"></span></p>
+  <details id="app-about" class="app-about">
+    <summary>About this app, its data and privacy</summary>
+    <div class="app-about-body">
+      <p>District Brief Builder is a working prototype by team Millrace AI for the HAIC 2026 Know Your District challenge. It helps legislative staff turn a district question into a sourced, one-page brief for agency follow-up, using published aggregate data. It is not an official State of Hawaiʻi service. Agencies decide eligibility and current availability.</p>
+      <h2 class="app-about-h">Try an example</h2>
+      <p>The page opens on House 028, Older-adult support at home, with its plan already run. Inspect a finding’s source, then choose Create recommended brief: it builds a real one-page brief with the Kūpuna Care agency action, ready to print or save as a PDF.</p>
+      <h2 class="app-about-h">Data and dates</h2>
+      <p>ACS estimates show their period, universe and 90% margin of error. Administrative counts show their period, coverage and source location. Program references show their source and checked date. Sources were retrieved October 30, 2026.</p>
+      <p>Statistics are ACS 2020–2024 estimates for the 2024 statistical legislative districts. The 2024 or 2026 map setting changes the boundary drawn, not the statistics. In the current data the 2024 and 2026 boundaries match for all 76 districts.</p>
+      <h2 class="app-about-h">Where your work goes</h2>
+      <p>Plans, selections, typed requests and brief edits are sent to this app’s server to calculate results and render the brief. The app does not save or log them. Case files are built and read in your browser; running or reopening a case sends its plan and selections to the server. The hosting services (Cloudflare, a Caddy proxy and AWS) can keep connection logs, including IP addresses.</p>
+      <h2 class="app-about-h">Contact</h2>
+      <p>Questions or corrections: open an issue at <a href="https://github.com/HAIC-2026/Millrace-AI/issues" target="_blank" rel="noopener noreferrer">github.com/HAIC-2026/Millrace-AI/issues</a> (opens in a new tab; posting requires GitHub sign-in). Do not include resident or confidential details. Team Millrace AI maintains this competition prototype. No agency ownership or service level is claimed.</p>
+    </div>
+  </details>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
@@ -23,7 +38,31 @@
 
 <div id="tab-investigation" role="tabpanel" aria-labelledby="tab-btn-investigation" class="ia">
   <div id="ia-boot"><p class="loading" role="status">Loading the investigation workspace…</p></div>
-  <div id="ia-workspace" hidden>
+  <main id="ia-workspace" tabindex="-1" aria-label="District investigation" hidden>
+    <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
+      <h2 id="ia-question-heading" class="ia-section-title">Ask about this district <span id="ia-question-preview" class="preview-label" hidden>Experimental AI preview</span></h2>
+      <div id="ia-question-scope" hidden></div>
+      <form id="ia-question-form" hidden>
+        <label for="ia-question-text">Ask about a district measure, a comparison with a county or the State, a program reference or a source</label>
+        <div class="ia-ask-row">
+          <textarea id="ia-question-text" rows="2" maxlength="500" aria-describedby="ia-question-privacy" placeholder="For example: How many adults 65 and older live in House 28?"></textarea>
+          <div class="ia-ask-actions">
+            <button type="submit" id="ia-question-submit" class="btn btn-primary">Ask</button>
+            <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
+          </div>
+        </div>
+        <p id="ia-question-privacy" class="ia-ask-notice">Your question is sent to OpenAI as typed. Leave out names, case details and anything confidential.</p>
+        <details id="ia-question-detail" class="ia-ask-detail">
+          <summary>What is sent and how a question runs</summary>
+          <p>With your question the app sends public plan context (the confirmed and draft plan), value-free catalog identifiers and labels, and references to selected findings. The app does not add staff notes, computed figures, cookies or case identifiers, but anything you type in the question is sent. The request asks OpenAI not to store the response; that is not a zero-retention guarantee, and OpenAI’s own policies apply. The server checks each proposal against the allowed operations and sources before using it.</p>
+          <p id="ia-question-flow"></p>
+        </details>
+      </form>
+      <div id="ia-question-result" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
+      <section id="ia-answer" class="ia-answer" tabindex="-1" aria-labelledby="ia-answer-h" hidden></section>
+    </section>
+    <p id="ia-language-off" class="hint ia-language-off" hidden>Ask a question (AI) is turned off. Nothing is sent to OpenAI. Use Advanced investigation or a typed request; the findings, brief, sources and case files work the same.</p>
+
     <section class="ia-context" aria-labelledby="ia-context-h">
       <div class="ia-context-main">
         <h2 id="ia-context-h" class="ia-section-title">District and issue</h2>
@@ -32,10 +71,11 @@
             <select id="ia-district" aria-describedby="ia-district-help"></select>
             <p id="ia-district-help" class="hint">All 51 House and 25 Senate districts.</p></div>
           <div class="field"><label for="ia-issue">Issue</label>
-            <select id="ia-issue"><option value="aging_at_home">Older-adult support at home</option><option value="custom">Custom (staff-composed steps)</option></select></div>
+            <select id="ia-issue" aria-describedby="ia-issue-help"><option value="aging_at_home">Older-adult support at home</option><option value="custom">Custom (staff-composed steps)</option></select>
+            <p id="ia-issue-help" class="hint"></p></div>
           <div class="field"><label for="ia-map-session">Boundary shown on map</label>
             <select id="ia-map-session" aria-describedby="ia-session-help"><option value="2026">2026 session</option><option value="2024">2024 session</option></select>
-            <p id="ia-session-help" class="hint">Statistics always use 2024 boundaries.</p></div>
+            <p id="ia-session-help" class="hint">Changes the boundary drawn, not the statistics (ACS 2020–2024 estimates for the 2024 districts).</p></div>
           <div class="field"><label for="ia-service">Program area <span class="optional">(optional)</span></label>
             <select id="ia-service" aria-describedby="ia-service-help"><option value="">None chosen</option><option value="statewide">Statewide</option><option value="oahu">Oʻahu</option><option value="hawaii_island">Hawaiʻi Island</option><option value="maui">Maui</option><option value="molokai">Molokaʻi</option><option value="lanai">Lānaʻi</option><option value="kauai">Kauaʻi</option><option value="kalawao">Kalawao</option></select>
             <p id="ia-service-help" class="hint">Staff choice for program questions; not a coverage finding.</p></div>
@@ -56,23 +96,9 @@
     </section>
 
     <div class="ia-grid">
-      <section class="ia-plan" aria-labelledby="ia-plan-h">
-        <h2 id="ia-plan-h" class="ia-section-title">Investigation plan</h2>
-        <p class="hint">Supported steps run on the bundled data. Edit a step’s scope, then apply the plan.</p>
-        <section id="ia-question" class="ia-question" aria-labelledby="ia-question-heading" hidden>
-          <h3 id="ia-question-heading" class="ia-group-title">Ask a question <span id="ia-question-preview" class="preview-label" hidden>Experimental AI preview</span></h3>
-          <p id="ia-question-privacy" class="hint"></p>
-          <div id="ia-question-scope" hidden></div>
-          <form id="ia-question-form" hidden>
-            <label for="ia-question-text">Ask about a district measure, a State or county comparison, a program reference or a source</label>
-            <textarea id="ia-question-text" rows="3" maxlength="500" placeholder="For example: How does senior poverty in House 28 compare with the state?"></textarea>
-            <p class="hint">Your question and limited investigation/Plan context are sent to OpenAI, an external model provider. Omit confidential or resident details. Notes and brief edits are excluded from model requests.</p>
-            <button type="submit" class="btn btn-primary">Ask question</button>
-            <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
-          </form>
-          <div id="ia-question-result" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
-        </section>
-        <p id="ia-language-off" class="hint" hidden>AI language questions are off in this release. Use the steps below or a typed request; the brief, sources and case files work the same.</p>
+      <details id="ia-advanced" class="ia-plan">
+        <summary><h2 id="ia-plan-h" class="ia-section-title">Advanced investigation</h2> <span id="ia-advanced-sum" class="hint ia-advanced-sum">Edit the plan’s steps and scope</span></summary>
+        <p class="hint">Each step runs on the bundled data. Edit a step’s scope, then apply the plan.</p>
         <h3 id="ia-steps-h" class="ia-group-title">Steps <span id="ia-step-count" class="count"></span></h3>
         <ol id="ia-steps" class="ia-steps" aria-labelledby="ia-steps-h"></ol>
         <div class="ia-add">
@@ -100,9 +126,9 @@
           </form>
         </details>
         <div id="ia-interpretation" class="ia-interpretation" tabindex="-1" aria-live="polite"></div>
-      </section>
+      </details>
 
-      <main id="ia-main" class="ia-main" tabindex="-1" aria-labelledby="ia-evidence-h">
+      <section id="ia-main" class="ia-main" tabindex="-1" aria-labelledby="ia-evidence-h">
         <section id="ia-error" class="notice notice-error" role="alert" tabindex="-1" hidden></section>
         <section class="ia-results" aria-labelledby="ia-evidence-h">
           <h2 id="ia-evidence-h" class="ia-section-title" tabindex="-1">Findings and evidence</h2>
@@ -113,7 +139,7 @@
           <p class="hint">A program reference, a reviewed outreach hypothesis and a staff verification step are different things. Choosing one or none is valid. Nothing here determines eligibility or need.</p>
           <div id="ia-responses"></div>
         </section>
-      </main>
+      </section>
 
       <aside class="tray ia-tray" aria-labelledby="ia-tray-h">
         <h2 id="ia-tray-h" class="ia-section-title">Brief</h2>
@@ -121,12 +147,12 @@
           <p id="ia-tray-count" class="ia-cta-status"></p>
           <p id="ia-tray-capacity" class="hint"></p>
           <div id="ia-recommend" class="ia-recommend" hidden>
-            <button type="button" id="ia-recommend-btn" class="btn" aria-describedby="ia-recommend-what">Use recommended brief</button>
+            <button type="button" id="ia-recommend-btn" class="btn btn-primary" aria-describedby="ia-recommend-what">Create recommended brief</button>
             <p id="ia-recommend-what" class="hint"></p>
           </div>
           <div class="btn-row">
             <button type="button" id="ia-review-btn" class="btn" hidden>Mark staff notes reviewed</button>
-            <button type="button" id="ia-brief-btn" class="btn btn-primary" aria-describedby="ia-brief-reason">Create one-page brief</button>
+            <button type="button" id="ia-brief-btn" class="btn" aria-describedby="ia-brief-reason">Create brief from my selection</button>
             <button type="button" id="ia-clean-brief-btn" class="btn" hidden>Create brief without staff notes</button>
           </div>
           <p id="ia-brief-reason" class="reason" role="status" tabindex="-1"></p>
@@ -139,7 +165,7 @@
         <h3 class="ia-group-title">Office checklist</h3>
         <div id="ia-checklist"></div>
         <h3 class="ia-group-title">Staff notes</h3>
-        <p class="hint">Printed as labeled staff edits, never as verified facts. Sent to the server only when you create a brief and not stored by the app; reloading or closing the page discards them unless you download a case file with staff notes.</p>
+        <p class="hint">Printed as labeled staff edits, never as verified facts. Sent to this app’s server to render the brief; the app does not save or log them. Reloading or closing the page discards them unless you download a case file with staff notes.</p>
         <div id="ia-staff"></div>
       </aside>
     </div>
@@ -156,7 +182,7 @@
 
     <section class="panel ia-case" aria-labelledby="ia-case-h">
       <h2 id="ia-case-h" class="ia-section-title">Save or reopen the case</h2>
-      <p><strong>Unsaved work is lost when this page is reloaded or closed.</strong> The case exists only in this page: nothing is stored in the browser or placed in a link. Download a case file to keep it.</p>
+      <p><strong>Unsaved work is lost when this page is reloaded or closed.</strong> The app does not save the case in the browser or in a link. Download a case file to keep it.</p>
       <h3 class="ia-group-title">Contexts in this case</h3>
       <p class="hint">Earlier districts or issues stay as separate contexts (up to four). Restoring one replays its exact evidence.</p>
       <ul id="ia-branches" class="ia-branches"></ul>
@@ -177,7 +203,7 @@
       </div>
       <section id="ia-import-preview" class="notice" tabindex="-1" aria-live="polite" hidden></section>
     </section>
-  </div>
+  </main>
 </div>
 
 <div id="tab-workflow" role="tabpanel" aria-labelledby="tab-btn-workflow" class="layout" hidden>
@@ -195,7 +221,8 @@
       <div class="field"><label for="ctl-code">District number <span class="req">(for district tasks)</span></label>
         <select id="ctl-code"><option value="">Choose chamber first…</option></select></div>
       <div class="field"><label for="ctl-session">Boundary session</label>
-        <select id="ctl-session"><option value="2024" selected>2024 (default; ACS 2024 geography)</option><option value="2026">2026</option></select></div>
+        <select id="ctl-session"><option value="2024" selected>2024 (default; the boundaries the statistics use)</option><option value="2026">2026</option></select></div>
+      <p id="lookup-context" class="fine" aria-live="polite" hidden></p>
       <p id="district-note" class="fine" aria-live="polite"></p>
     </fieldset>
 
@@ -265,7 +292,7 @@
       <button type="button" id="build-brief" class="btn btn-primary">Build a brief from these findings</button>
       <button type="button" id="clear-tray" class="btn">Clear selection</button>
     </div>
-    <p class="fine">A one-page brief holds up to 8 findings from one district, together with district-independent administrative context.</p>
+    <p class="fine">You can select up to 8 findings from one district, plus district-independent administrative context. What fits on one printed page depends on the findings, their sources and any notes; the fit is measured when the brief is built.</p>
   </aside>
 </div>
 

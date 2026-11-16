@@ -15,6 +15,9 @@
   let languageJob = null, languageResult = null;
   // Ephemeral question scope (never saved in the case): conflict basis, explicit step focus, last inspected finding.
   let questionBasis = null, questionFocus = null, questionSource = null, lastQuestion = '';
+  // The executed question whose findings lead the page (never saved in the case). It is shown only while the
+  // current results are exactly the plan the question produced, in the context where it ran.
+  let answerBasis = null, pendingAnswer = null;
   let notice = "";
   let bootRun = false;          // the automatic first run after loading: focus stays where the page starts              // polite status line
 
@@ -39,6 +42,11 @@
   const fill = (el, nodes) => { el.replaceChildren.apply(el, [].concat(nodes).filter(Boolean)); };
 
   // ------------------------------------------------------------------ labels
+  // The brief recommendation focused on the current question's answer (C.focusedBrief), set on every render;
+  // null when no answer singles out findings, and the investigation's recommended brief applies instead.
+  let briefFocus = null;
+  // Unfinished add-checklist-item text per "case_id|branch_id" (page memory only; never in a case file).
+  const addDrafts = new Map();
   const OP_LABEL = { profile: "Profile measures", compare: "Compare with a geography", program_evidence: "Program reference", outreach_lead: "Reviewed outreach hypothesis", administrative_evidence: "Administrative records" };
   const ISSUE_LABEL = { aging_at_home: "Older-adult support at home", food_assistance_outreach: "SNAP outreach", custom: "Custom (staff-composed steps)" };
   const AREA_LABEL = { statewide: "Statewide", oahu: "Oʻahu", hawaii_island: "Hawaiʻi Island", maui: "Maui", molokai: "Molokaʻi", lanai: "Lānaʻi", kauai: "Kauaʻi", kalawao: "Kalawao" };
@@ -52,7 +60,7 @@
   const srcLabel = (id) => sourceLabels[id] || "Recorded source";
   const humanWords = (v) => { const t = String(v == null ? "" : v).replace(/_/g, " ").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Not recorded"; };
   const humanDate = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : v ? String(v) : "not recorded");
-  const PENDING_LABEL = { run: "Running the plan…", brief: "Creating the brief…", interpret: "Reading your typed request…", restore: "Replaying the saved context…", import: "Replaying the case file…" };
+  const PENDING_LABEL = { run: "Running the plan…", brief: "Creating the brief…", interpret: "Reading your typed request…", restore: "Replaying the saved context…", import: "Replaying the case file… Editing is paused until it opens (this case is then replaced) or you cancel the request." };
   const CHECK_LABEL = { agency_route: "Agency route", partner_plan: "Partner plan", next_check: "Next check" };
   const checkLabel = (id) => CHECK_LABEL[id] || (/^custom/.test(id) ? "Custom item" : humanWords(id));
   const FIELD_LABEL = { district: "District", issue_id: "Issue", issue: "Issue", service_area_id: "Area for program questions", map_session: "Map boundary", metric_ids: "Measures", comparison_geography: "Comparison geography", program_ids: "Programs", program_id: "Program", steps: "Steps", removed_step_id: "Remove step", focus: "Focused step" };
@@ -81,6 +89,10 @@
   // Display form for agency/publisher/jurisdiction names recorded as "Hawaii <body>"; stored data is unchanged.
   const hawaiiDisplay = (t) => String(t == null ? "" : t).replace(/\bHawaii (?=(DBEDT|DOH|DHS|Legislature|Office of Elections|Public Housing Authority|statewide)\b)/g, "Hawaiʻi ");
   const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+  // Display spelling for place names recorded without diacritics in geography labels ("Hawaii County" shows as
+  // "Hawaiʻi County"). Geography labels only: identifiers, source titles, publishers and claim text are unchanged.
+  const PLACE = { Hawaii: "Hawaiʻi", Kauai: "Kauaʻi", Oahu: "Oʻahu", Molokai: "Molokaʻi", Lanai: "Lānaʻi" };
+  const placeDisplay = (t) => String(t == null ? "" : t).replace(/\b(Hawaii|Kauai|Oahu|Molokai|Lanai)\b/g, (m) => PLACE[m]);
   // The scope that tells saved contexts of one district and issue apart: each comparison geography in the
   // plan's steps and the staff-chosen program area. A geography not in the catalog is named as unlisted.
   function planScope(p) {
@@ -89,7 +101,7 @@
       const g = st && st.operation === "compare" && st.args ? st.args.comparison_geography : null;
       if (typeof g === "string") {
         const known = (catalog.geographies || []).concat(catalog.unavailable_geographies || []).find((x) => x.geography_id === g);
-        bits.push("compared with " + (known ? known.label : "an unlisted geography"));
+        bits.push("compared with " + (known ? placeDisplay(known.label) : "an unlisted geography"));
       }
     });
     if (p && p.service_area_id) bits.push("program area " + (AREA_LABEL[p.service_area_id] || "not listed"));
@@ -101,12 +113,12 @@
   const programLabel = (id) => ((catalog.programs || []).find((p) => p.program_id === id) || {}).name || id;
   function geoLabel(id) {
     const g = (catalog.geographies || []).concat(catalog.unavailable_geographies || []).find((x) => x.geography_id === id);
-    return g ? g.label : id;
+    return g ? placeDisplay(g.label) : id;
   }
   const adminRows = () => catalog.administrative_rows || catalog.participation || [];
   function adminLabel(id) {
     const r = adminRows().find((x) => x.observation_id === id);
-    return r ? [r.series_label || r.label || r.program_id, typeof r.geography === "object" && r.geography ? (r.geography.label || r.geography.name) : r.geography, r.period].filter(Boolean).join(" · ") : "Recorded administrative row";
+    return r ? [r.series_label || r.label || r.program_id, placeDisplay(typeof r.geography === "object" && r.geography ? (r.geography.label || r.geography.name) : r.geography) || null, r.period].filter(Boolean).join(" · ") : "Recorded administrative row";
   }
   function stepScope(s) {
     const a = s.args;
@@ -153,12 +165,14 @@
     try {
       resp = await fetch("/api/investigation", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(request) });
     } catch (e) {
+      flushActive();
       return finish(C.applyTransportFailure(state, request.request_id, "network"));
     }
     try { body = await resp.json(); } catch (e) { body = null; }
     if (resp.status === 403) {
       // Session or origin check failed: renew the session cookie, keep all local work, ask for a retry.
       try { await fetch("/api/health", { credentials: "same-origin" }); } catch (e) { /* retry stays available */ }
+      flushActive();
       return finish(C.applyTransportFailure(state, request.request_id, "session"));
     }
     let planHash = null;
@@ -167,14 +181,47 @@
       // The server recomputes and checks it; the reply itself is left exactly as received.
       try { planHash = await sha256Hex(C.planCanonical(body.normalized_plan)); } catch (e) { planHash = null; }
     }
-    // request_id is the originating request, checked against the pending one after all async work above.
-    finish(C.applyResponse(state, body, { http_status: resp.status, plan_hash: planHash, request_id: request.request_id }));
+    // Staff text still being typed belongs to the context on screen now, so it is committed there before the reply
+    // is applied (a restore or import may switch the active context). request_id is the originating request, checked
+    // against the pending one after all async work above.
+    flushActive();
+    const result = C.applyResponse(state, body, { http_status: resp.status, plan_hash: planHash, request_id: request.request_id });
+    finish(result);
+    answerAfterRun(result);
+  }
+  // A run started by a question: when it commits the question's exact plan in the active context, its requested
+  // findings lead the page. Any other completed reply drops the pending question.
+  function answerAfterRun(result) {
+    if (!pendingAnswer || result.outcome === "error" || result.outcome === "discarded") return;
+    if (result.outcome !== "committed") { pendingAnswer = null; return; }
+    const b = C.active(state), origin = pendingAnswer.origin_branch_id, rebind = !!pendingAnswer.rebind;
+    pendingAnswer.branch_id = b.branch_id;
+    if (!settleAnswer()) return;
+    delete answerBasis.rebind;
+    if (rebind) { notice = "The agency action was chosen in a new context with the same plan and replayed findings; your answer carried over. Choose Create brief from this answer to make the brief."; render(); return; }
+    if (answerBasis.kind !== "answer") return;
+    const res = C.currentResults(state), unsingled = !answerBasis.step_ids.length || C.focusedFindings(res, answerBasis.step_ids, answerBasis.only).length > 1;
+    notice = "Your question ran for " + districtLabel(b.plan.district) + "." + (unsingled ? " It did not single out one finding, so related findings are shown to choose from." : " The answer is shown first; other findings follow.") + (result.status === "ok" ? "" : " Some steps did not produce findings.") + openedContextNote(origin);
+    const inComposer = userInComposer();
+    render(); if (inComposer) focusAnswer();
+  }
+  // Names a context a question opened and the room left, so the four-context limit is never reached silently.
+  function openedContextNote(originBranchId) {
+    const b = C.active(state), n = state.case.branches.length, i = state.case.branches.findIndex((x) => x.branch_id === b.branch_id);
+    if (!originBranchId || originBranchId === b.branch_id) return "";
+    const left = C.LIMITS.branches - n;
+    return " It opened as Context " + (i + 1) + "; your earlier context is kept under Save or reopen the case. " + (left > 0 ? plural(left, "more context", "more contexts") + " can be opened in this case." : "This case now holds the most contexts it can; a question that changes the plan will need one removed first.");
+  }
+  // True while keyboard focus is still in the question area (or nowhere), so a result may take focus.
+  function userInComposer() {
+    const a = document.activeElement;
+    return !a || a === document.body || !a.isConnected || !!(a.closest && a.closest("#ia-question")) || a.id === "ia-cancel";
   }
 
   function finish(result) {
     const quiet = bootRun; bootRun = false;
+    // Typed staff text was committed to its own context in send(), before this reply could switch the active context.
     state = result.state;
-    flushActive();
     if (result.outcome === "discarded") { notice = "A late reply for an earlier request was ignored. The current context is unchanged."; render(); return; }
     if (result.outcome === "error") {
       const e = state.last_error || {};
@@ -191,7 +238,11 @@
       const out = $("#ia-brief"); out.focus(); return;
     }
     const dropped = (result.retired || []).filter((r) => r.claim_ref).length;
-    if (result.outcome === "imported") { importing = null; notice = "Case file replayed against this release's evidence and opened." + (dropped ? " " + plural(dropped, "saved selection was", "saved selections were") + " not reselected; see Selected findings." : ""); }
+    if (result.outcome === "imported") {
+      // A reopened case starts with no unfinished add-item text from the page's earlier case.
+      addDrafts.clear();
+      const box = $("#ia-chk-new"); if (box) box.value = "";
+      importing = null; notice = "Case file replayed against this release's evidence and opened." + (dropped ? " " + plural(dropped, "saved selection was", "saved selections were") + " not reselected; see Selected findings." : ""); }
     else if (result.outcome === "restored") notice = "Context restored after an exact replay. Its staff notes and progress are shown as staff contributions from that context.";
     else notice = (result.draft_kept ? "Results updated for the plan you applied earlier. Your newer plan edits are kept as a draft; choose Apply plan to run them. " : "") + (result.status === "ok" ? "Results updated." : "Results updated; some steps did not produce findings (see Findings and evidence).") + (result.retired && result.retired.length ? " " + result.retired.length + " earlier selection" + (result.retired.length === 1 ? " was" : "s were") + " not carried into this context." : "");
     render();
@@ -243,13 +294,22 @@
     return {basis:questionBasis, focus:questionFocus, source:src};
   }
   function languageContext() { return window.IALanguage.context(state, C.active, questionScope()); }
+  // Question policy as the server states it in its catalog (limits); nothing about remaining questions is invented.
+  function languageLimits() { const l = catalog.language && catalog.language.limits; return l && typeof l === "object" ? l : {}; }
+  const deadlineMs = () => 1000 * (Number.isInteger(languageLimits().deadline_seconds) && languageLimits().deadline_seconds > 0 ? languageLimits().deadline_seconds : 25);
+  function languagePolicy() {
+    const l = languageLimits();
+    if (!Number.isInteger(l.site_starts_per_window) || !Number.isInteger(l.site_window_seconds) || l.site_window_seconds <= 0) return "";
+    const span = l.site_window_seconds % 60 === 0 ? plural(l.site_window_seconds / 60, "minute", "minutes") : plural(l.site_window_seconds, "second", "seconds");
+    return "Questions are shared across the whole site: up to " + l.site_starts_per_window + " every " + span + ".";
+  }
   function languageEnabled() { return !!(window.IALanguage && catalog.language && catalog.language.enabled === true && catalog.language.schema_version === 'ia-language/1'); }
   async function languagePost(action, body) {
     const r = await fetch('/api/language/' + action, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     let data = null; try { data = await r.json(); } catch (_) { /* handled as unavailable */ }
     return {http:r.status, data};
   }
-  function cancelLanguage(message) {
+  function cancelLanguage(message, recover) {
     const job = languageJob;
     if (!job) return;
     languageJob = null;
@@ -257,19 +317,30 @@
     clearTimeout(job.timer);
     clearTimeout(job.deadlineTimer);
     if (job.pending) languagePost('cancel', {schema_version:'ia-language/1', request_id:job.request_id}).catch(() => {});
-    languageResult = message ? {status:'notice', message} : null;
+    languageResult = message ? {status: recover ? 'error' : 'notice', message} : null;
+    lockQuestion();
   }
   function currentLanguage(job, body) {
     return languageJob === job && !job.cancelled && window.IALanguage.matches(body, job, languageContext(), state.runtime.release_id);
   }
+  // A reply can arrive while staff are typing. Commit the focused field first so the re-render keeps it.
+  function flushActive() {
+    const el = document.activeElement;
+    if (!el || !el.closest || !el.closest(".ia-tray") || el.id === "ia-chk-new") return;
+    if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && ["text", "number", "date"].includes(el.type))) el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  // While a question is being asked its text is read-only (still readable and focusable): an edit there used to cancel a
+  // request that may already be charged. Derived only from the live job, so every finish, error and cancel path unlocks it.
+  function lockQuestion() { const q = $('#ia-question-text'); if (q) q.readOnly = !!(languageJob && languageJob.pending); }
   async function askLanguage(text) {
     if (!catalog.language || catalog.language.enabled !== true || !window.IALanguage) return;
     if (!text.trim() || Array.from(text).length > 500) { alertUser('Enter a question of up to 500 characters.'); return; }
     if (state.pending) { alertUser('Wait for the current request to finish or cancel it first.'); return; }
-    cancelLanguage(); lastQuestion = text;
+    cancelLanguage(); lastQuestion = text; notice = '';
     const job = {request_id:ids.uuid(), context:languageContext(), context_digest:null, pending:true, cancelled:false, started:Date.now(), timer:null, polls:0};
-    languageJob = job; languageResult = {status:'pending',message:'Preparing a proposal. Nothing has been applied or run.'};
-    job.deadlineTimer = setTimeout(() => { if (languageJob === job && job.pending) { cancelLanguage('The question timed out. Use Typed request or guided controls; your work is unchanged.'); render(); } }, 25000);
+    languageJob = job; languageResult = {status:'pending',message:'Reading your question… Nothing has run yet.'}; lockQuestion();
+    job.deadlineTimer = setTimeout(() => { if (languageJob === job && job.pending) { flushActive(); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); } }, deadlineMs());
     render();
     const body = {schema_version:'ia-language/1',request_id:job.request_id,context:job.context,utterance:text};
     try {
@@ -279,15 +350,23 @@
         if (reply.http === 202) languagePost('cancel',{schema_version:'ia-language/1',request_id:job.request_id}).catch(() => {});
         return;
       }
-      if (reply.http !== 202 || !currentLanguage(job,reply.data)) throw new Error(reply.http === 429 && reply.data && reply.data.code === 'shared_demonstration_rate_limit' ? 'rate_limited' : 'unavailable');
+      if (reply.http !== 202 || !currentLanguage(job,reply.data)) {
+        const err = new Error(reply.http === 429 && reply.data && reply.data.code === 'shared_demonstration_rate_limit' ? 'rate_limited' : 'unavailable');
+        // A refused start states the server's own policy text; nothing about remaining questions is invented.
+        err.serverMessage = reply.data && typeof reply.data.message === 'string' && reply.data.code ? reply.data.message : '';
+        throw err;
+      }
       job.context_digest = reply.data.context_digest;
       scheduleLanguagePoll(job);
     } catch (e) {
       if (languageJob !== job) return;
-      clearTimeout(job.deadlineTimer); job.pending = false;
-      languageResult = {status:'error',message:(e && e.message === 'rate_limited' ? 'The shared limit of 3 language questions every 5 minutes across the site is reached. Try again in a few minutes. ' : 'Language question unavailable. ') + 'Use Typed request or guided controls; your work is unchanged.'}; render();
+      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive();
+      const limited = e && e.message === 'rate_limited';
+      languageResult = {status:'error', limited, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site is reached. Try again in a few minutes.' : 'Language question unavailable.'),
+        after:(limited && languagePolicy() ? languagePolicy() + ' This page cannot see how many questions remain or when the next one opens. ' : '') + 'Your question is kept in the box above and your work is unchanged.'}; render(); focusQuestionResult();
     }
   }
+  function focusQuestionResult() { if (userInComposer()) { const r = $('#ia-question-result'); if (r && !r.hidden) r.focus(); } }
   function scheduleLanguagePoll(job) {
     const delays = [500,1000,2000];
     const delay = delays[Math.min(job.polls++,delays.length-1)];
@@ -295,18 +374,110 @@
   }
   async function pollLanguage(job) {
     if (languageJob !== job) return;
-    if (Date.now() - job.started >= 25000) { cancelLanguage('The question timed out. Use Typed request or guided controls; your work is unchanged.'); render(); return; }
+    if (Date.now() - job.started >= deadlineMs()) { flushActive(); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); return; }
     try {
       const reply = await languagePost('status',{schema_version:'ia-language/1',request_id:job.request_id});
       if (languageJob !== job) return;
       if (reply.http !== 200 || !currentLanguage(job,reply.data)) throw new Error('unavailable');
       if (reply.data.status === 'pending') { scheduleLanguagePoll(job); return; }
-      clearTimeout(job.deadlineTimer); job.pending = false; languageResult = reply.data; render(); $('#ia-question-result').focus();
+      // Staff text still being typed is committed before the answer renders or runs, so it is kept and counted by the review rules.
+      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(); languageResult = reply.data;
+      if (askOnce(job, reply.data)) return;
+      render(); focusQuestionResult();
     } catch (_) {
       if (languageJob !== job) return;
-      cancelLanguage('Language question unavailable. Use Typed request or guided controls; your work is unchanged.'); render();
+      flushActive(); cancelLanguage('Language question unavailable. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult();
     }
   }
+
+  // ------------------------------------------------------------------ One Ask
+  // Why a validated proposal needs a person to check it before it runs. Empty when it can run at once.
+  function reviewReasons(result, job) {
+    const reasons = [], plan = result.normalized_plan, ctx = job.context, held = ctx.confirmed_plan || ctx.draft_plan, b = C.active(state);
+    if (state.pending) reasons.push('Another request is still running.');
+    if (!C.proposeChange(state, { plan: state.draft }).noop) reasons.push('Your plan has unapplied edits, and this proposal would replace them.');
+    window.IALanguage.runBlockers(lastQuestion, held, plan).forEach((x) => reasons.push(
+      x.code === 'own_district' ? 'The question says “my district”. The app does not know which district is yours, so check that ' + districtLabel(plan.district) + ' is the one you mean.'
+      : x.code === 'primary_changed' ? 'It would change the district for all findings from ' + districtLabel(x.from) + ' to ' + districtLabel(x.to) + '. A question that names another district may mean it as a comparison, so the app does not switch districts on its own. To work on ' + districtLabel(x.to) + ', choose Run this proposal or pick it under District first. To compare, ask again naming both districts, for example “Compare ' + districtLabel(x.from) + ' with ' + districtLabel(x.to) + '”.'
+      : 'It compares with ' + geoLabel(x.geography) + ', but the question does not name that district with House or Senate.'));
+    const change = C.proposeChange(state, { plan: plan });
+    if (change.branch_limit) reasons.push('This case already holds four contexts. Download the case' + (C.staffExportPreview(state).length ? ' with staff notes' : '') + ', then remove one under Save or reopen the case.');
+    else if (change.fork && state.case.branches.length === C.LIMITS.branches - 1) reasons.push('This would open the last of four contexts in this case. After it, a question that changes the plan needs a context removed first.');
+    else if (change.fork && change.parked.length) reasons.push('This context has staff notes or checklist entries; review how they are kept before a new context opens.');
+    else if (change.fork && (b.selected_claim_refs.length || b.selected_action_ref)) reasons.push('This context has brief selections; review how they are kept before a new context opens.');
+    return reasons;
+  }
+  // A supported, unambiguous proposal that leaves earlier work untouched runs at once through the same plan route.
+  function askOnce(job, result) {
+    if (!result || result.status !== 'propose' || !result.normalized_plan || (result.intent !== 'create_plan' && result.intent !== 'replace_plan')) return false;
+    if (!currentLanguage(job, result)) return false;
+    const issues = [];
+    if (!C.validPlan(result.normalized_plan, 'plan', issues) || !(state.runtime.recipe_versions || []).includes(result.normalized_plan.issue_id + '/1')) return false;
+    const reasons = reviewReasons(result, job);
+    if (reasons.length) { result.review = reasons; return false; }
+    runProposal(job, result, false);
+    return true;
+  }
+  // reviewed: staff chose Run after checking; a change that opens a new context still shows its context review.
+  function runProposal(job, result, reviewed) {
+    if (state.pending) { alertUser('Wait for the current request to finish or cancel it first.'); return; }
+    const plan = JSON.parse(JSON.stringify(result.normalized_plan));
+    const focus = window.IALanguage.requestedFocus(result, job.context && job.context.focused_step_id);
+    pendingAnswer = { kind: 'answer', question: lastQuestion, plan: plan, step_ids: focus.step_ids, only: focus.only, fallback: !!focus.fallback, branch_id: null,
+      origin_branch_id: C.active(state).branch_id, prev_draft: JSON.parse(JSON.stringify(state.draft)) };
+    cancelLanguage();
+    state = Object.assign({}, state, { draft: plan });
+    clearAlert();
+    const p = C.proposeChange(state, { plan: plan });
+    if (p.noop && C.currentResults(state)) {
+      pendingAnswer.branch_id = C.active(state).branch_id; settleAnswer();
+      notice = 'Your question matches the plan already run, so its findings are shown without running again.'; const inComposer = userInComposer(); render(); if (inComposer) focusAnswer(); return;
+    }
+    if (reviewed) { applyPlan(); return; }
+    commit(p);
+  }
+  function settleAnswer() {
+    const b = C.active(state);
+    answerBasis = pendingAnswer && pendingAnswer.branch_id === b.branch_id && C.canonical(b.plan) === C.canonical(pendingAnswer.plan) && C.currentResults(state) ? pendingAnswer : null;
+    pendingAnswer = null;
+    return !!answerBasis;
+  }
+  function answerCurrent(res) {
+    const a = answerBasis, b = C.active(state);
+    return a && res && a.branch_id === b.branch_id && C.canonical(b.plan) === C.canonical(a.plan) ? a : null;
+  }
+  function focusAnswer() { const h3 = $('#ia-answer-h'); if (h3) h3.focus(); }
+  function openAdvanced(focusSummary) { const d = $('#ia-advanced'); d.open = true; if (focusSummary) d.querySelector('summary').focus(); }
+
+  // Deterministic next steps after a refusal or a failed question: findings already run in this context, or
+  // existing guided controls. No model call is made and nothing here answers the original question.
+  function guidedAlternatives() {
+    const res = C.currentResults(state), b = C.active(state), nodes = [];
+    if (res) res.steps.filter((st) => st.status === 'ok' && Array.isArray(st.claim_refs) && st.claim_refs.length && st.operation !== 'administrative_evidence').slice(0, 4).forEach((st) => {
+      const ps = res.plan.steps.find((x) => x.step_id === st.step_id);
+      if (!ps) return;
+      const ms = ps.operation === 'profile' ? (ps.args.metric_ids === null ? ['all 20 measures'] : ps.args.metric_ids.map(metricLabel)) : [];
+      const label = ps.operation === 'profile' ? 'Measures already run for ' + districtLabel(res.plan.district) + ': ' + (ms.length > 2 ? ms.slice(0, 2).join('; ') + ' and ' + (ms.length - 2) + ' more' : ms.join('; '))
+        : ps.operation === 'compare' ? 'Comparison already run: ' + ps.args.metric_ids.map(metricLabel).join('; ') + ' with ' + geoLabel(ps.args.comparison_geography)
+        : ps.operation === 'program_evidence' ? 'Recorded program information: ' + ps.args.program_ids.map(programLabel).join('; ') + ' (not an eligibility finding)'
+        : 'Reviewed outreach hypothesis: ' + programLabel(ps.args.program_id) + ' (not a count of eligible or unenrolled residents)';
+      nodes.push(h('li', {}, btn('Show: ' + label, () => {
+        answerBasis = { kind: 'related', label: label, question: lastQuestion, plan: JSON.parse(JSON.stringify(b.plan)), step_ids: [st.step_id], only: {}, branch_id: b.branch_id };
+        cancelLanguage(); notice = 'Showing findings already run in this context. They do not answer the question you asked.'; render(); focusAnswer();
+      }, { class: 'btn-link ia-alt', id: 'ia-alt-' + st.step_id })));
+    });
+    nodes.push(h('li', {}, btn('Edit the plan yourself (Advanced investigation)', () => { cancelLanguage(); render(); openAdvanced(true); }, { class: 'btn-link ia-alt', id: 'ia-alt-advanced' })));
+    return h('div', { class: 'ia-alternatives' }, h('h3', { class: 'ia-group-title', text: 'What you can do instead' }),
+      h('p', { class: 'hint', text: 'These use evidence and controls already in the app. They do not send another question.' }), h('ul', {}, nodes));
+  }
+  // Plain explanation of a refusal, from the server's typed reason (never from the question text).
+  function refusalText(result) {
+    if (result.status === 'unsupported' && result.reason_code === 'unsupported_operation') return 'This app cannot do what the question asks. It shows published district estimates, comparisons with a county, the State or another district, recorded program information and reviewed outreach hypotheses. It does not determine eligibility, count residents who are eligible but not enrolled, or test whether a difference is statistically significant.';
+    if (result.status === 'unsupported') return 'The bundled evidence does not include what the question asks for. No substitute figure is used: a rate is never shown in place of a count, and household Social Security income is not treated as fixed-income status.';
+    if (result.status === 'uncertain') return 'The question could not be read reliably. Try again naming the district with House or Senate and the measure you want, or use an option below.';
+    return null;
+  }
+
   function renderQuestionScope(enabled) {
     const box = $('#ia-question-scope'), b = C.active(state), ctx = enabled ? languageContext() : null;
     if (!box) return;
@@ -326,7 +497,8 @@
       const c = claimMap(C.currentResults(state)).get(C.refKey(scope.source.claim_ref));
       parts.push(h('span',{text:' · finding: ' + (c ? claimShortName(c) : 'inspected finding')}), ' ', btn('Clear', () => { questionSource = null; render(); }, {class:'btn-link','aria-label':'Clear finding for questions'}));
     }
-    box.hidden = false; fill(box, [h('p',{class:'hint'}, ...parts)]);
+    const full = state.case.branches.length >= C.LIMITS.branches;
+    box.hidden = false; fill(box, [h('p',{class:'hint'}, ...parts), full ? h('p',{class:'hint ia-limit-note', text:'This case holds four contexts. A question that changes the plan will be held until you remove a context under Save or reopen the case, and it still uses one of the site’s shared questions.'}) : null]);
   }
   function renderLanguage() {
     const enabled = !!(window.IALanguage && catalog.language && catalog.language.enabled === true && catalog.language.schema_version === 'ia-language/1');
@@ -335,35 +507,50 @@
     $('#ia-question-form').hidden = !enabled;
     $('#ia-question-preview').hidden = !enabled;  // Shown only while language questions are actually on.
     $('#ia-language-off').hidden = enabled;
-    $('#ia-question-privacy').textContent = enabled ? 'The answer is a proposed plan you can review. The figures come only from the bundled data when you run it; nothing changes until you choose.' : '';
+    // The always-visible notice and the sent-data detail are fixed copy in the page; this adds how a question runs and
+    // the question policy the server states in its catalog.
+    $('#ia-question-flow').textContent = enabled ? ['A clear, supported question runs at once on the bundled data. A proposal that would change your district, add a district comparison you did not name with House or Senate, or affect earlier work is shown for review first.', languagePolicy()].filter(Boolean).join(' ') : '';
     if (languageJob && !window.IALanguage.same(languageJob.context, languageContext())) cancelLanguage('The question scope or plan changed, so the question and its preview were cancelled.');
     renderQuestionScope(enabled);
-    $('#ia-question-cancel').hidden = !(languageJob && languageJob.pending);
+    const pending = !!(languageJob && languageJob.pending);
+    lockQuestion();
+    $('#ia-question-cancel').hidden = !pending;
+    $('#ia-question-submit').setAttribute('aria-disabled', pending ? 'true' : 'false');
+    $('#ia-question-submit').textContent = pending ? 'Asking…' : 'Ask';
     const result = languageResult, box = $('#ia-question-result');
     if (!result) { fill(box, []); return; }
-    const nodes = [h('p',{text:result.message || (result.status === 'propose' ? 'Proposed interpretation; nothing has been applied or run.' : 'Use the guided controls to continue.')})];
+    const refusal = refusalText(result);
+    const nodes = [h('p',{class: result.status === 'pending' ? 'loading' : null, text: refusal || result.message || (result.status === 'propose' ? 'Proposed interpretation; nothing has been applied or run.' : 'Use the guided controls to continue.')})];
+    if (result.after) nodes.push(h('p',{class:'hint',text:result.after}));
     if (result.status === 'propose') {
       const np = result.normalized_plan;
+      if (Array.isArray(result.review) && result.review.length) nodes.splice(0, 1, h('h3',{class:'ia-group-title',text:'Check this before it runs'}), h('ul',{class:'ia-review-reasons'},result.review.map((r) => h('li',{text:r}))));
       if (np && np.district && Array.isArray(np.steps)) {
         nodes.push(h('h4',{text:'Proposed plan · ' + districtLabel(np.district)}),
           h('ol',{class:'ia-proposal-steps'},np.steps.map(st => h('li',{text:(OP_LABEL[st.operation] || humanWords(st.operation)) + ': ' + stepScope(st)}))));
       }
-      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('h4',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + plain(d.before), 'to ' + plain(d.after)].filter(Boolean).join(' · ')}))));
+      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('details',{id:'ia-proposal-diff'},h('summary',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + plain(d.before), 'to ' + plain(d.after)].filter(Boolean).join(' · ')})))));
       if (Array.isArray(result.inherited_fields) && result.inherited_fields.length) {
         const context = languageJob && languageJob.context, confirmed = context && context.confirmed_plan;
-        nodes.push(h('h4',{text:'Inherited from your confirmed context'}), h('ul',{},result.inherited_fields.map(key => h('li',{text:fieldLabel(key) + ': ' + plain(key === 'focus' ? context.focused_step_id : confirmed && confirmed[key])}))));
+        nodes.push(h('h4',{text:'Inherited from your confirmed context'}), h('ul',{},result.inherited_fields.map(key => h('li',{text:fieldLabel(key) + ': ' + (key === 'focus' ? 'the step you chose to ask about' : valueText(key, confirmed && confirmed[key]))}))));
       }
       if (result.intent === 'inspect_source') {
         const refs = Array.isArray(result.source_inspection_refs) ? result.source_inspection_refs : [];
         nodes.push(h('p',{text:'Choose a source to inspect. This does not change the plan.'}),...refs.filter(r => r && typeof r.source_id === 'string').map(r => h('button',{type:'button',class:'btn-link source-btn','data-source-id':r.source_id,'data-finding-id':r.finding_id || '',text:'Inspect source: ' + srcLabel(r.source_id)})));
       } else if (result.normalized_plan) {
-        nodes.push(btn('Use this proposal in the draft', () => {
-          if (!languageJob || !currentLanguage(languageJob, result)) { cancelLanguage('The context changed. Ask again or use guided controls.'); render(); return; }
+        const usable = () => {
+          if (!languageJob || !currentLanguage(languageJob, result)) { cancelLanguage('The context changed. Ask again or use guided controls.'); render(); return false; }
           const issues = [];
-          if (!C.validPlan(result.normalized_plan,'plan',issues) || !(state.runtime.recipe_versions || []).includes(result.normalized_plan.issue_id + '/1')) { cancelLanguage('This proposal is unavailable in the current release. Use guided controls.'); render(); return; }
-          state = Object.assign({},state,{draft:JSON.parse(JSON.stringify(result.normalized_plan))});
-          cancelLanguage(); notice = 'Proposal placed in the draft. Choose Apply plan to run it and see the findings.'; render();
-        },{class:'btn btn-primary'}), ' ', btn('Discard proposal', () => {cancelLanguage();render();}));
+          if (!C.validPlan(result.normalized_plan,'plan',issues) || !(state.runtime.recipe_versions || []).includes(result.normalized_plan.issue_id + '/1')) { cancelLanguage('This proposal is unavailable in the current release. Use guided controls.'); render(); return false; }
+          return true;
+        };
+        nodes.push(h('div',{class:'btn-row'},
+          btn('Run this proposal', () => { if (usable()) runProposal(languageJob, result, true); }, {class:'btn btn-primary', id:'ia-proposal-run', disabled: !!state.pending}),
+          btn('Use this proposal in the draft', () => {
+            if (!usable()) return;
+            state = Object.assign({},state,{draft:JSON.parse(JSON.stringify(result.normalized_plan))});
+            cancelLanguage(); notice = 'Proposal placed in the draft under Advanced investigation. Edit it if you wish, then choose Apply plan.'; render(); openAdvanced(false); $('#ia-apply').focus();
+          },{id:'ia-proposal-draft'}), btn('Discard proposal', () => {cancelLanguage();render();},{id:'ia-proposal-discard'})));
       }
     }
     if (result.status === 'clarify' && Array.isArray(result.choices)) {
@@ -374,16 +561,128 @@
         // District/chamber: the choice is written into the question as a visible canonical prefix; nothing is sent and
         // the plan is not edited. Confirmed/draft: the next question uses that plan; neither plan changes and nothing runs.
         if ((choice.field === 'district' || choice.field === 'chamber') && window.IALanguage.withChoice(lastQuestion, choice) !== lastQuestion.replace(/^(?:(?:House|Senate) \d{1,2}|In the (?:House|Senate)): /, ''))
-          apply = () => { $('#ia-question-text').value = window.IALanguage.withChoice(lastQuestion, choice); return 'Added “' + choice.label + '” to your question. Choose Ask question to send it.'; };
+          apply = () => { $('#ia-question-text').value = window.IALanguage.withChoice(lastQuestion, choice); return 'Added “' + choice.label + '” to your question. Choose Ask to send it.'; };
         else if (choice.field === 'control_conflict' && (choice.value === 'confirmed' || choice.value === 'draft'))
           apply = () => { questionBasis = window.IALanguage.makeBasis(state, C.active, choice.value); $('#ia-question-text').value = lastQuestion;
             return choice.value === 'confirmed' ? 'The next question uses your confirmed plan. Your draft edits are kept.' : 'The next question uses your unapplied draft. Your confirmed findings are unchanged.'; };
         const label = choice.field === 'referent' && sourceLabels[choice.label] ? srcLabel(choice.label) : String(choice.label);
         if (!apply && choice.field === 'referent') return h('li',{text:label});
-        return h('li',{},apply ? btn('Use ' + label,() => {cancelLanguage();notice=apply();render();$('#ia-question-text').focus();}) : label + ' — choose this in the guided controls.');
+        return h('li',{},apply ? btn('Use ' + label,() => {cancelLanguage();notice=apply();render();$('#ia-question-text').focus();}) : label + ' — choose this under Advanced investigation.');
       })));
     }
+    if (result.status === 'unsupported' || result.status === 'uncertain' || result.status === 'error' || result.status === 'expired') nodes.push(guidedAlternatives());
     fill(box,nodes);
+  }
+
+  // The finding(s) the latest executed question asked for, first, with measure, value, uncertainty, area,
+  // period and a direct source action. Values are the server's canonical fields shown as text; nothing is computed.
+  function answerItem(c, st, opts) {
+    const id = 'ia-c-' + st.step_id + '-' + c.claim_ref.semantic_hash.slice(7, 19), m = c.metric || {};
+    const level = typeof c.moe_confidence_level === 'number' ? Math.round(c.moe_confidence_level * 100) + '% ' : '';
+    const moe = (x, unit) => /^±/.test(String(x || '')) ? moeWithUnit(x, unit) : x ? String(x) : null;
+    const sideMoe = (x) => /^±/.test(String(x.moe_display || '')) ? ' (' + level + 'margin of error ' + moeWithUnit(x.moe_display, x.unit || c.unit) + ')' : x.moe_display ? ' (margin of error not published as a number: ' + x.moe_display + ')' : '';
+    const side = (x) => x ? shortGeo(x.geography && x.geography.label) + ': ' + valueWithUnit(x.estimate_display, x.unit || c.unit) + sideMoe(x) : '';
+    let head, value = null, sub = null, text = null;
+    if (c.kind === 'statistic') {
+      head = (m.label || 'Statistic') + ' · ' + shortGeo(c.geography && c.geography.label);
+      value = valueWithUnit(c.estimate_display, c.unit);
+      sub = /^±/.test(String(c.moe_display || '')) ? level + 'margin of error ' + moe(c.moe_display, c.unit) : c.moe_display ? 'Margin of error not published as a number: ' + c.moe_display : null;
+    } else if (c.kind === 'comparison') {
+      head = (m.label || 'Comparison') + ' · ' + shortGeo(c.left && c.left.geography && c.left.geography.label) + ' compared with ' + shortGeo(c.right && c.right.geography && c.right.geography.label);
+      value = side(c.left) + '  ·  ' + side(c.right);
+      sub = c.difference ? 'Point difference ' + c.difference.display + ' ' + c.difference.unit + '. No statistical significance test is performed.' : 'Not differenced: ' + plain(c.not_differenced_reason);
+    } else { head = claimShortName(c); text = typeof c.text === 'string' ? c.text : null; }
+    const facts = [c.kind === 'statistic' && c.unit ? 'Unit: ' + c.unit : null, periodText(c.period) ? 'Period: ' + periodText(c.period) : null, c.universe ? 'Universe: ' + c.universe : null].filter(Boolean).join(' · ');
+    const refs = (Array.isArray(c.source_inspection_refs) ? c.source_inspection_refs : []).filter((r) => r && typeof r.source_id === 'string').slice(0, 1);
+    const on = C.active(state).selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref));
+    return h('div', { class: 'ia-answer-item' },
+      h('p', { class: 'ia-answer-measure', text: head }),
+      value ? h('p', { class: 'ia-answer-value' }, h('strong', { text: value })) : null,
+      sub ? h('p', { class: 'ia-answer-moe', text: sub }) : null,
+      text ? h('p', { class: 'ia-answer-text', text: text }) : null,
+      facts ? h('p', { class: 'ia-answer-facts', text: facts }) : null,
+      c.annotation_meaning ? h('p', { class: 'ia-limit', text: 'Note: ' + c.annotation_meaning }) : null,
+      opts && opts.select ? h('label', { class: 'ia-check ia-select', for: 'ia-rel-sel-' + c.claim_ref.semantic_hash.slice(7, 19) },
+        h('input', { type: 'checkbox', id: 'ia-rel-sel-' + c.claim_ref.semantic_hash.slice(7, 19), checked: on, 'aria-label': 'Select for brief: ' + head,
+          on: { change: (e) => set(C.toggleClaim(state, c.claim_ref, e.target.checked), e.target.checked ? 'Finding selected for the brief.' : 'Finding removed from the brief selection.') } }), ' Select for brief') : null,
+      h('p', { class: 'ia-answer-tools' },
+        refs.map((r) => h('button', { type: 'button', class: 'btn-link source-btn', 'data-source-id': r.source_id, 'data-finding-id': typeof r.finding_id === 'string' ? r.finding_id : c.claim_ref.finding_id, text: 'Inspect source: ' + srcLabel(r.source_id),
+          on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } })),
+        refs.length ? ' · ' : null,
+        btn('Show in findings', () => { const el = document.getElementById(id); if (el) el.focus(); }, { class: 'btn-link', id: 'ia-answer-go-' + c.claim_ref.semantic_hash.slice(7, 19) }),
+        on ? h('span', { class: 'badge badge-info', text: 'In brief' }) : null));
+  }
+  // When the answer has more findings than one page holds, say which ones the brief starts with.
+  const focusNote = (rec) => rec.requested > rec.claims.length ? " Your answer has " + rec.requested + " findings; the brief starts with " + plural(rec.claims.length, "finding", "findings") + " so it can fit one page. Select others under Findings and evidence; the fit is measured when the brief is created." : "";
+  // Notes for the kinds of finding shown: survey estimates, administrative counts, program information.
+  function answerCaptions(list) {
+    const kinds = new Set(list.map((c) => c.kind)), out = [];
+    if (kinds.has('statistic') || kinds.has('comparison')) out.push('Survey estimates are published ACS 2020–2024 figures with 90% margins of error, shown as recorded. A comparison makes no statistical significance test.');
+    if (kinds.has('administrative_context')) out.push('Administrative counts are recorded state, county or island figures with their own period and coverage; they are not district counts or eligibility figures.');
+    if (kinds.has('program_relevance') || kinds.has('outreach_hypothesis')) out.push('Program information and outreach hypotheses are recorded references for agency follow-up; agencies decide eligibility.');
+    out.push('Other findings from this plan are listed below.');
+    return out;
+  }
+  // The answer's own brief action, with what it selects, whether that brief exists, and why no agency action is attached.
+  function answerBriefAction() {
+    const b = C.active(state), rec = briefFocus, dirty = !C.proposeChange(state, { plan: state.draft }).noop;
+    const on = rec.claims.length === b.selected_claim_refs.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && C.actionKey(rec.action || null) === C.actionKey(b.selected_action_ref || null);
+    const made = on && C.printStatus(state).ok;
+    const what = (made ? 'Shown under One-page brief. It uses ' : 'Uses ') + rec.claims.map(claimShortName).join('; ') +
+      (rec.card ? ' and the agency verification step for ' + programLabel(rec.card.program_id) : '') + '.' +
+      (rec.action_note === 'no_matching_action' ? ' No agency action is added: no single agency action matches this answer.' : '') + focusNote(rec) +
+      (dirty ? ' Apply or discard the plan edits first; the brief uses applied results only.' : '');
+    return h('div', { class: 'ia-answer-brief' }, btn(made ? 'Brief from this answer created' : 'Create brief from this answer', () => createRecommended(), { class: 'btn btn-primary', id: 'ia-answer-brief', disabled: made || !!state.pending || dirty, 'aria-describedby': 'ia-answer-brief-what' }),
+      h('p', { class: 'hint', id: 'ia-answer-brief-what', text: what }));
+  }
+  // The metadata identifies an answer only when the focus (a changed, added, narrowed, kept or only step) resolves to a
+  // single finding. Several findings are never guessed between: they are shown as related findings to choose from.
+  function ambiguousFocus(a, res) { return !!(a && C.focusedFindings(res, a.step_ids, a.only).length > 1); }
+  function renderAnswer(res) {
+    const box = $('#ia-answer'), a = answerCurrent(res);
+    box.hidden = !a;
+    if (!a) { fill(box, []); return; }
+    const steps = res.steps.filter((st) => a.step_ids.includes(st.step_id));
+    const stepOf = (c) => steps.find((st) => (st.claim_refs || []).some((r) => C.refKey(r) === C.refKey(c.claim_ref)));
+    const lead = C.focusedFindings(res, a.step_ids, a.only).map((c) => ({ c: c, st: stepOf(c) })).filter((x) => x.st);
+    // A requested comparison leads, then measures, then references; order within each kind follows the plan.
+    const rank = (x) => (x.c.kind === 'comparison' ? 0 : x.c.kind === 'statistic' ? 1 : 2);
+    lead.sort((x, y) => rank(x) - rank(y));
+    const failed = steps.filter((st) => st.status !== 'ok'), related = a.kind === 'related';
+    // A whole-plan proposal that singles out no step (for example an unchanged multi-step plan): the plan's own findings,
+    // in plan order, labelled as related findings and not as an answer, each with its source and a selection control.
+    const ambiguous = !related && steps.length > 0 && ambiguousFocus(a, res);
+    const broad = !related && (!steps.length || ambiguous), claimsOf = claimMap(res), seen = new Set();
+    const inFocus = ambiguous ? new Set(C.focusedFindings(res, a.step_ids, a.only).map((c) => C.refKey(c.claim_ref))) : null;
+    const relatedItems = broad ? res.plan.steps.filter((ps) => !ambiguous || a.step_ids.includes(ps.step_id)).map((ps) => res.steps.find((st) => st.step_id === ps.step_id)).filter((st) => st && st.status === 'ok')
+      .flatMap((st) => (st.claim_refs || []).map((r) => claimsOf.get(C.refKey(r))).filter((c) => c && (!inFocus || inFocus.has(C.refKey(c.claim_ref))) && !seen.has(C.refKey(c.claim_ref)) && seen.add(C.refKey(c.claim_ref))).map((c) => ({ c: c, st: st }))) : [];
+    // A newer question is shown above; this answer stays labelled with the question it belongs to.
+    const earlier = !related && !!languageResult && a.question !== lastQuestion;
+    fill(box, [
+      h('h3', { id: 'ia-answer-h', class: 'ia-answer-title', tabindex: '-1', text: (related ? 'Related evidence' : broad ? 'Related findings' : earlier ? 'Answer to your earlier question' : 'Answer') + ' · ' + districtLabel(res.plan.district) }),
+      h('p', { class: 'ia-answer-q' }, related ? 'Related evidence, not an answer to your question “' + a.question + '”' : 'You asked: “' + a.question + '”'),
+      related ? h('p', { class: 'ia-answer-q', text: 'Shown: ' + a.label }) : null,
+      broad ? h('p', { class: 'ia-answer-gap', text: ambiguous
+        ? 'Not a completed answer: your question ran as a step with several findings for ' + districtLabel(res.plan.district) + ', and the proposal did not single out which one answers it. Those findings are below in plan order. Select the one you mean, then create the brief from your selection; no further question is sent.'
+        : 'Not a completed answer: your question ran as the whole plan for ' + districtLabel(res.plan.district) + ', and the proposal did not single out which finding answers it. The plan’s findings are below in plan order. Select the one you mean, then create the brief from your selection; no further question is sent.' }) : null,
+      ...relatedItems.slice(0, 7).map((x) => answerItem(x.c, x.st, { select: true })),
+      relatedItems.length > 7 ? h('details', { id: 'ia-answer-more' }, h('summary', { text: 'Show ' + plural(relatedItems.length - 7, 'more related finding', 'more related findings') }),
+        ...relatedItems.slice(7).map((x) => answerItem(x.c, x.st, { select: true }))) : null,
+      broad && relatedItems.length ? h('div', { class: 'ia-answer-brief' }, btn('Create brief from my selection', () => {
+        const b = C.active(state), r = C.currentResults(state), block = briefBlock(b, r, !!state.pending, !C.proposeChange(state, { plan: state.draft }).noop, C.activeStaff(state), C.reviewCurrent(state), C.pendingReview(state));
+        if (block) { notice = block; render(); $("#ia-brief-reason").focus(); return; }
+        createBrief(false);
+      }, { class: 'btn btn-primary', id: 'ia-answer-own-brief', disabled: !C.active(state).selected_claim_refs.length || !!state.pending }),
+        h('p', { class: 'hint', text: C.active(state).selected_claim_refs.length ? plural(C.active(state).selected_claim_refs.length, 'finding is', 'findings are') + ' selected. The fit to one page is measured when the brief is created.' : 'Select at least one finding above first.' })) : null,
+      ...(broad ? [] : lead.slice(0, 3)).map((x) => answerItem(x.c, x.st)),
+      !broad && lead.length > 3 ? h('p', { class: 'hint', text: plural(lead.length - 3, 'more finding from this question is', 'more findings from this question are') + ' listed under Findings and evidence.' }) : null,
+      ...failed.map((st) => h('div', { class: 'notice notice-unsupported' }, h('p', { text: 'Not answered: ' + (st.message || 'this step did not produce a result.') }), h('p', { class: 'hint', text: 'No substitute figure was used. See this step under Findings and evidence for choices.' }))),
+      steps.length && !lead.length && !failed.length ? h('p', { class: 'muted', text: 'This step ran and found nothing to report for this district.' }) : null,
+      ...answerCaptions((broad ? relatedItems : lead).map((x) => x.c)).map((t) => h('p', { class: 'hint', text: t })),
+      briefFocus && !related && !broad ? answerBriefAction() : null,   // never an answer brief for related findings
+      h('details', { id: 'ia-answer-how' }, h('summary', { text: 'How this was run (' + plural(res.plan.steps.length, 'step', 'steps') + ')' }),
+        h('ol', {}, res.plan.steps.map((st) => h('li', { text: (OP_LABEL[st.operation] || humanWords(st.operation)) + ': ' + stepScope(st) + (!broad && a.step_ids.includes(st.step_id) ? ' — asked for' : '') }))),
+        h('p', { class: 'hint', text: 'Change the steps under Advanced investigation.' }))]);
   }
 
   // ------------------------------------------------------------------ plan editing
@@ -457,7 +756,7 @@
         a.metric_ids === null ? null : multi(id + "-metrics", "Measures shown", metrics, a.metric_ids, 20, (v) => re({ metric_ids: v }))];
     }
     if (s.operation === "compare") {
-      const geos = (catalog.geographies || []).map((g) => [g.geography_id, g.label]).concat((catalog.unavailable_geographies || []).map((g) => [g.geography_id, g.label + " (no statistics in this data)"]));
+      const geos = (catalog.geographies || []).map((g) => [g.geography_id, placeDisplay(g.label)]).concat((catalog.unavailable_geographies || []).map((g) => [g.geography_id, placeDisplay(g.label) + " (no statistics in this data)"]));
       return [multi(id + "-metrics", "Measures compared", metrics, a.metric_ids, 4, (v) => re({ metric_ids: v, comparison_geography: a.comparison_geography })),
         single(id + "-geo", "Comparison geography", geos, a.comparison_geography, (v) => re({ metric_ids: a.metric_ids, comparison_geography: v })),
         h("p", { class: "fine", text: "A separate comparison never changes a hypothesis's own State reference. No statistical difference test is performed." })];
@@ -495,8 +794,14 @@
     const opened = Array.from(document.querySelectorAll("#ia-workspace details[open]"), (d) => d.id).filter(Boolean);
     const b = C.active(state), res = C.currentResults(state), busy = !!state.pending;
     const dirty = !C.proposeChange(state, { plan: state.draft }).noop;
+    const ans = answerCurrent(res);
+    briefFocus = ans && ans.kind === "answer" && ans.step_ids.length && !ambiguousFocus(ans, res) ? C.focusedBrief(res, ans.step_ids, ans.only) : null;
     $("#ia-status").textContent = busy ? (PENDING_LABEL[state.pending.kind] || "Working…") : notice;
     $("#ia-cancel").hidden = !busy;
+    // While a confirmed case-file import replays, the outgoing case's controls are inert: anything typed now would be
+    // replaced with the case. They return when the import opens, fails or is cancelled. Cancel request stays usable.
+    const importPaused = !!(state.pending && state.pending.kind === "import");
+    ["#ia-question", ".ia-grid", "#ia-brief"].forEach((sel) => { const el = document.querySelector(sel); if (el) { el.inert = importPaused; if (importPaused) el.setAttribute("aria-busy", "true"); else el.removeAttribute("aria-busy"); } });
 
     // context bar: the draft controls, then one line naming what the results below describe
     const d = state.draft.district, dsel = $("#ia-district");
@@ -517,6 +822,9 @@
     $("#ia-context-apply").hidden = !dirty || busy;
 
     renderLanguage();
+    renderAnswer(res);
+    $("#ia-issue-help").textContent = state.draft.issue_id === "custom" ? "Custom keeps the current steps so you can edit them under Advanced investigation. Remove any you do not need." : "";
+    $("#ia-advanced-sum").textContent = plural(state.draft.steps.length, "step", "steps") + (dirty ? " · unapplied edits" : "") + " · edit steps and scope";
     renderInterpretation();
     renderSteps(dirty, busy);
     renderPreview();
@@ -529,13 +837,6 @@
     syncMapText(b);
     opened.forEach((id) => { const d = document.getElementById(id); if (d) d.open = true; });
     if (keep) { const el = document.getElementById(keep); if (el && el !== document.activeElement) el.focus(); }
-  }
-
-  // A reply can arrive while staff are typing. Commit the focused field first so the re-render keeps it.
-  function flushActive() {
-    const el = document.activeElement;
-    if (!el || !el.closest || !el.closest(".ia-tray") || el.id === "ia-chk-new") return;
-    if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && ["text", "number", "date"].includes(el.type))) el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   function renderInterpretation() {
@@ -589,7 +890,9 @@
     const box = $("#ia-preview");
     box.hidden = !preview;
     if (!preview) { fill(box, []); return; }
+    $("#ia-advanced").open = true;   // the context review sits with the plan; it is never left in a closed panel
     const p = preview, kinds = p.kinds.map((k) => CHANGE_LABEL[k] || k).join(", ");
+    if (p.draft_key === undefined) p.draft_key = C.canonical(state.draft);   // the draft this review was opened against
     fill(box, [h("h3", { text: "Review this context change" }),
       h("p", { text: "This changes the " + kinds + ". The current context stays saved exactly as it is (see Save or reopen the case), and a new context opens for the change." }),
       h("ul", {},
@@ -598,8 +901,17 @@
         p.kinds.includes("program") || p.kinds.includes("response") ? h("li", { text: "A different agency action never inherits done marks or notes from the earlier one." }) : null),
       p.branch_limit ? h("p", { class: "alert", text: "This case already holds four contexts. Download the case with staff notes, then remove a context under Save or reopen the case before applying." }) : null,
       h("div", { class: "btn-row" },
-        btn("Apply change and run", () => { commit(p); }, { class: "btn btn-primary", id: "ia-preview-confirm", disabled: p.branch_limit }),
-        btn("Keep current context", () => { preview = null; notice = "No change applied. Your edits remain in the draft plan."; render(); $("#ia-apply").focus(); }, { id: "ia-preview-cancel" }))]);
+        btn("Apply change and run", () => {
+          if (C.canonical(state.draft) !== p.draft_key) { preview = null; pendingAnswer = null; notice = "The plan was edited after this review opened, so the reviewed change was not applied. Your newer edits are kept in the draft; choose Apply plan to review them."; render(); $("#ia-apply").focus(); return; }
+          commit(p);
+        }, { class: "btn btn-primary", id: "ia-preview-confirm", disabled: p.branch_limit }),
+        btn("Keep current context", () => {
+          // The plan from before the question comes back only while the draft is still exactly the question's proposal.
+          const pa = pendingAnswer, prev = pa && pa.prev_draft && pa.plan && C.canonical(state.draft) === C.canonical(pa.plan) ? pa.prev_draft : null;
+          preview = null; pendingAnswer = null;
+          if (prev) state = Object.assign({}, state, { draft: prev });
+          notice = prev ? "No change applied. The proposal was not used, and your plan is as it was before the question." : "No change applied. Your edits remain in the draft plan.";
+          render(); $("#ia-apply").focus(); }, { id: "ia-preview-cancel" }))]);
   }
 
   // Exact evidence identities select an established replay route; unknown snapshots are not guessed.
@@ -628,8 +940,8 @@
     if (e.code === "brief_overflow") {
       const dt = e.detail || {};
       if (typeof dt.estimated_units === "number" && typeof dt.budget_units === "number" && dt.budget_units > 0) nodes.push(h("p", { text: "That estimate is about " + Math.max(1, Math.round((dt.estimated_units / dt.budget_units - 1) * 100)) + "% over one page. It guides shortening; the printed layout is checked again after the brief is created." }));
-      nodes.push(h("p", { text: "Nothing was cropped or shrunk. Choose exactly what to leave out, then choose Create one-page brief again. Left-out text stays in the editor and can be included again." }));
-      nodes.push(choiceList(C.shorteningChoices(state), "ia-short-", "#ia-error-h"));
+      nodes.push(h("p", { text: "Nothing was cropped or shrunk. Choose exactly what to leave out, then create the brief again. Left-out text stays in the editor and can be included again." }));
+      nodes.push(recommendRecovery("ia-short-recommend"), choiceList(C.shorteningChoices(state), "ia-short-", "#ia-error-h"));
     } else if (e.code === "snapshot_unavailable" || e.code === "version_mismatch") {
       nodes.push(h("p", { text: "The saved case and this context are unchanged. A verified brief or print needs the matching version of the app. You can keep working in another context or start a new plan." }));
       if (C.active(state).snapshot_id !== state.runtime.snapshot_id) nodes.push(replayHelp(C.active(state).snapshot_id));
@@ -649,7 +961,18 @@
     fill(box, nodes);
   }
 
-  const shortGeo = (label) => String(label || "").replace(/ \(boundary session \d{4}\)$/, "").replace(/^House District /, "House ").replace(/^Senate District /, "Senate ");
+  // Overflow recovery beside the warning: the recommended selection, when it differs from the current one.
+  function recommendRecovery(id) {
+    const rec = briefFocus || C.recommendedBrief(C.currentResults(state)), b = C.active(state), key = (r) => C.refKey(r);
+    if (!rec.claims.length) return null;
+    const sameClaims = rec.claims.length === b.selected_claim_refs.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => key(r) === key(c.claim_ref)));
+    const sameAction = !rec.action || (b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action));
+    if (sameClaims && sameAction) return null;
+    return h("div", { class: "ia-recover" }, btn(briefFocus ? "Create brief from this answer instead" : "Create recommended brief instead", () => createRecommended(), { class: "btn btn-primary", id: id }),
+      h("p", { class: "hint", text: "Replaces the current selection with the " + (briefFocus ? "answer's findings" : "recommended findings") + " and agency action, sized to fit one page. Your title, summary and next steps are kept; a note on a finding that is left out waits for your review." }));
+  }
+
+  const shortGeo = (label) => placeDisplay(label || "").replace(/ \(boundary session \d{4}\)$/, "").replace(/^House District /, "House ").replace(/^Senate District /, "Senate ");
   function valueWithUnit(display, unit) {
     display = String(display == null ? "" : display); unit = String(unit || "");
     if (unit === "percent") return /%$/.test(display) ? display : display + "%";
@@ -763,7 +1086,7 @@
       ["Recorded statement", c.kind === "statistic" && typeof c.text === "string" ? c.text : null],
       ["Label", c.label],
       ["Measure", m.label], ["Universe", c.universe], ["Unit", c.unit], ["Period", periodText(c.period)],
-      ["Area", g.label || null],
+      ["Area", g.label ? placeDisplay(g.label) : null],
       ["Published value and margin", moeText(c)],
       ["Note on the value", c.annotation_meaning || c.annotation || c.moe_annotation],
       ["District", side(c.left)], ["Compared with", side(c.right)],
@@ -796,7 +1119,8 @@
         (o.state_reference.difference ? "; point difference " + o.state_reference.difference.display + " " + o.state_reference.difference.unit : "") : "");
     return h("div", { class: "ia-outreach" },
       h("p", { class: "ia-claim-text", id: id + "-text" }, h("strong", { text: (c.label || "Outreach hypothesis") + "." }), " " + ((c.program || {}).name || "") + " · " + shortGeo(c.geography && c.geography.label)),
-      obs.length ? h("div", {}, h("h4", { class: "ia-sub", text: "Observed area conditions (survey estimates, not program need)" }), h("ul", {}, obs.map((o) => h("li", { text: line(o) })))) : null,
+      obs.length ? h("div", {}, h("h4", { class: "ia-sub", text: "Observed area conditions (survey estimates, not program need)" }), h("ul", {}, obs.map((o) => h("li", { text: line(o) }))),
+        h("p", { class: "hint", text: "A hypothesis always uses its program’s complete reviewed measure set and State reference, even when a profile step shows fewer measures." })) : null,
       c.program_connection && c.program_connection.text ? h("div", {}, h("h4", { class: "ia-sub", text: "Program context" }), h("p", { text: c.program_connection.text })) : null,
       Array.isArray(c.unknowns) && c.unknowns.length ? h("div", {}, h("h4", { class: "ia-sub", text: "Unknowns the agency determines" }), h("ul", {}, c.unknowns.map((u) => h("li", { text: plain(u) })))) : null,
       c.next_step ? h("div", {}, h("h4", { class: "ia-sub", text: "Next step" }), h("p", { text: c.next_step })) : null,
@@ -814,7 +1138,7 @@
     // Name each source button by what it supports; the same document can back different values.
     const srcName = (r) => {
       const dep = r.finding_id && r.finding_id !== c.claim_ref.finding_id ? Array.from(claims.values()).find((x) => x.claim_ref.finding_id === r.finding_id) : null;
-      const what = dep && dep.metric ? " — " + (dep.geography && dep.geography.label ? dep.geography.label.replace(/ \(boundary session \d{4}\)$/, "") + ", " : "") + dep.metric.label : "";
+      const what = dep && dep.metric ? " — " + (dep.geography && dep.geography.label ? placeDisplay(dep.geography.label).replace(/ \(boundary session \d{4}\)$/, "") + ", " : "") + dep.metric.label : "";
       return srcLabel(r.source_id) + (what || " — " + name);
     };
     const meta = [periodText(c.period), c.universe ? "Universe: " + c.universe : null].filter(Boolean).join(" · ");
@@ -842,10 +1166,10 @@
     limitFreq = new Map();
     res.claims.forEach((c) => (Array.isArray(c.limitations) ? c.limitations : []).forEach((l) => limitFreq.set(l, (limitFreq.get(l) || 0) + 1)));
     limitMax = Math.max(0, ...limitFreq.values());
-    const rec = recommendedBrief(res), key = rec.claims[0];
+    const rec = recommendedBrief(res), ans = answerCurrent(res), key = ans ? null : rec.claims[0];
     const start = key ? h("div", { class: "ia-start", id: "ia-start" }, h("h3", { class: "ia-group-title", text: "Start here" }),
       h("p", { text: findingText(key) }),
-      rec.claims.length > 1 || rec.card ? h("p", { class: "hint", text: "The recommended brief adds " + rec.claims.slice(1).map(claimShortName).concat(rec.card ? ["the agency verification step for " + programLabel(rec.card.program_id) + ", which prints the program's recorded referral, open questions and sources"] : []).join("; ") + ". Use recommended brief in the Brief panel, or select findings below; the program reference and every other finding stay available." }) : null) : null;
+      rec.claims.length > 1 || rec.card ? h("p", { class: "hint", text: "The recommended brief adds " + rec.claims.slice(1).map(claimShortName).concat(rec.card ? ["the agency verification step for " + programLabel(rec.card.program_id) + ", which prints the program's recorded referral, open questions and sources"] : []).join("; ") + ". Choose Create recommended brief in the Brief panel, or select findings below; the program reference and every other finding stay available." }) : null) : null;
     const nodes = [start, h("p", { class: "hint", text: "Findings for " + districtLabel(res.plan.district) + " from the last applied plan." + (dirty ? " The draft has unapplied edits; these findings do not include them yet." : "") + " Select findings for the brief: up to 8 can be selected; one-page fit is measured when you create the brief." })];
     res.steps.forEach((s, i) => {
       const refs = Array.isArray(s.claim_refs) ? s.claim_refs : [];
@@ -860,7 +1184,9 @@
             const usable = s.operation === "compare" ? geos.filter((g) => typeof g === "string") : [];
             return usable.length ? h("div", { class: "btn-row" }, usable.map((g, k) => btn("Compare with " + geoLabel(g) + " instead", () => {
               const st = state.draft.steps.find((x) => x.step_id === s.step_id);
-              if (st) editDraft(C.rescopeStep(state.draft, s.step_id, { metric_ids: st.args.metric_ids, comparison_geography: g }), "Comparison geography changed in the draft. Choose Apply plan to run it.");
+              if (!st) return;
+              editDraft(C.rescopeStep(state.draft, s.step_id, { metric_ids: st.args.metric_ids, comparison_geography: g }), "Comparison geography changed in the draft. Choose Apply plan to run it.");
+              openAdvanced(false); $("#ia-apply").focus();
             }, { id: "ia-next-" + s.step_id + "-" + j + "-" + k })))
               : h("p", { class: "hint", text: plain(a && (a.label || a)) });
           })) : null,
@@ -888,6 +1214,9 @@
     if (!res || !res.responses.length) { fill(box, [h("p", { class: "muted", text: res ? "This plan has no program step, so there is no agency action to choose. A brief without one is valid; add a Program reference step to see options." : "Agency options appear after the plan runs." })]); return; }
     const claims = claimMap(res);
     const pick = (ref) => {
+      // An action change re-applies the applied plan, so unapplied plan edits are protected: nothing changes until
+      // they are applied or discarded (the radios re-render to the action actually chosen).
+      if (!C.proposeChange(state, { plan: state.draft }).noop) { render(); alertUser("Apply or discard the plan edits first; changing the agency action uses the applied plan. Nothing was changed."); return; }
       const r = C.chooseAction(state, ref);
       if (r.error) return alertUser(r.error.message);
       if (r.proposal.noop) return;
@@ -943,6 +1272,7 @@
     if (busy) return "Wait for the current request to finish, or cancel it.";
     if (!res) return "Run the plan first: choose Apply plan.";
     if (dirty) return "Apply or discard the plan edits first; the brief uses applied results only.";
+    if (parked.some((i) => i.orphan_reason)) return "A staff note on a removed finding is waiting for review. Select that finding again and copy the note back, or discard it, under “Staff notes waiting for review” first; until then it is not in the brief or in a case file.";
     if (!b.selected_claim_refs.length) return "Select at least one finding under Findings and evidence.";
     if (state.last_error && state.last_error.code === "brief_overflow") return "Too long for one page: choose what to leave out under Findings and evidence, then create the brief again.";
     if (!staff.empty && !reviewed) return parked.length ? "Copy or leave each item in “Staff notes waiting for review” first, then mark staff notes reviewed." : "Check the staff notes and checklist below, then choose Mark staff notes reviewed.";
@@ -950,38 +1280,71 @@
   }
 
   function recommendedBrief(res) { return C.recommendedBrief(res); }
+  // What "Create recommended brief" selects: the answer-focused brief when the current answer singles out
+  // findings, otherwise the investigation's recommended brief.
+  const currentRecommendation = (res) => briefFocus || recommendedBrief(res);
+  // Selects the recommended findings and agency action. True when the selection is complete now; false when a
+  // context review or a rerun is needed first (it is then shown) or nothing could be selected.
   function useRecommended() {
-    const res = C.currentResults(state), rec = recommendedBrief(res);
-    if (!rec.claims.length) return;
+    const res = C.currentResults(state), rec = currentRecommendation(res);
+    if (!rec.claims.length) return false;
+    // A selected finding with a staff note is never dropped by a shortcut: the note would leave the brief and every
+    // case file. Staff keep it with "Create brief from my selection" or remove the finding or note themselves.
+    const notes = C.active(state).staff_edits.finding_notes || {};
+    const noted = C.active(state).selected_claim_refs.filter((r) => notes[r.semantic_hash] && !rec.claims.some((c) => C.refKey(c.claim_ref) === C.refKey(r)));
+    if (noted.length) {
+      notice = "Nothing was changed: " + plural(noted.length, "selected finding has", "selected findings have") + " a staff note and " + (noted.length === 1 ? "is" : "are") + " not in this brief. To keep the note, choose Create brief from my selection. To use this brief instead, first remove that finding or its note under Selected findings.";
+      render(); $("#ia-brief-reason").focus(); return false;
+    }
     const want = new Set(rec.claims.map((c) => C.refKey(c.claim_ref)));
     let next = state;
-    for (const r of C.active(next).selected_claim_refs.slice()) if (!want.has(C.refKey(r))) { const o = C.toggleClaim(next, r, false); if (o.error) return alertUser(o.error.message); next = o.state; }
-    for (const c of rec.claims) { const o = C.toggleClaim(next, c.claim_ref, true); if (o.error) return alertUser(o.error.message); next = o.state; }
+    for (const r of C.active(next).selected_claim_refs.slice()) if (!want.has(C.refKey(r))) { const o = C.toggleClaim(next, r, false); if (o.error) { alertUser(o.error.message); return false; } next = o.state; }
+    for (const c of rec.claims) { const o = C.toggleClaim(next, c.claim_ref, true); if (o.error) { alertUser(o.error.message); return false; } next = o.state; }
     state = next;
     const b = C.active(state);
-    if (rec.action && !(b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action))) {
-      const r = C.chooseAction(state, rec.action);
-      if (r.error) return alertUser(r.error.message);
-      if (r.proposal.fork) { preview = r.proposal; notice = "Recommended findings selected. Review the agency action change below."; render(); $("#ia-preview").focus(); return; }
-      if (!r.proposal.noop) { const c = C.confirmChange(state, r.proposal, ids); if (c.error) return alertUser(c.error.message); state = c.state; if (c.forked) { notice = "Recommended findings and agency action selected."; runActive(); return; } }
+    // The recommendation's action, including "no agency action", replaces a different chosen action through the
+    // ordinary action-change review; a recommendation without an action never keeps an unrelated earlier choice.
+    if (C.actionKey(rec.action || null) !== C.actionKey(b.selected_action_ref || null)) {
+      const r = C.chooseAction(state, rec.action || null);
+      if (r.error) { alertUser(r.error.message); return false; }
+      const again = briefFocus ? "Create brief from this answer" : "Create recommended brief";
+      // An agency action change that opens a new context keeps the identical plan: the answer moves with it and is
+      // shown again only when the new context's replayed results arrive for that same plan.
+      const carry = () => {
+        const a = answerCurrent(res);
+        if (a && r.proposal.kinds.length === 1 && r.proposal.kinds[0] === "response" && C.canonical(r.proposal.plan) === C.canonical(a.plan) && C.active(state).snapshot_id === state.runtime.snapshot_id)
+          pendingAnswer = { kind: a.kind, question: a.question, plan: a.plan, step_ids: a.step_ids.slice(), only: a.only || {}, fallback: !!a.fallback, branch_id: null, rebind: true };
+      };
+      if (r.proposal.fork) { carry(); preview = r.proposal; notice = "Findings selected. Review the agency action change below; after it runs, choose " + again + " again."; render(); $("#ia-preview").focus(); return false; }
+      if (!r.proposal.noop) { const c = C.confirmChange(state, r.proposal, ids); if (c.error) { alertUser(c.error.message); return false; } state = c.state; if (c.forked) { carry(); notice = "Findings and agency action selected in a new context. Choose " + again + " again when its results load."; runActive(); return false; } }
     }
-    notice = "Recommended findings" + (rec.action ? " and agency action" : "") + " selected. Add a short summary if you wish, then choose Create one-page brief.";
-    render();
+    return true;
   }
-
+  // One action: select the recommended evidence and agency action, then create the brief and show it.
+  function createRecommended() {
+    // Unapplied plan edits are never replaced: the brief uses applied results only, so ask for Apply or Discard first.
+    const dirty = !C.proposeChange(state, { plan: state.draft }).noop;
+    if (state.pending || dirty) { notice = state.pending ? "Wait for the current request to finish, or cancel it." : "Apply or discard the plan edits first; the brief uses applied results only. Nothing was selected."; render(); $("#ia-brief-reason").focus(); return; }
+    if (!useRecommended()) return;
+    if (state.last_error && state.last_error.code === "brief_overflow") state = Object.assign({}, state, { last_error: null });
+    const b = C.active(state), res = C.currentResults(state), staff = C.activeStaff(state);
+    const block = briefBlock(b, res, !!state.pending, !C.proposeChange(state, { plan: state.draft }).noop, staff, C.reviewCurrent(state), C.pendingReview(state));
+    if (block) { notice = "Recommended findings" + (b.selected_action_ref ? " and agency action" : "") + " selected. " + block; render(); $("#ia-brief-reason").focus(); return; }
+    createBrief(false);
+  }
   function renderTray(b, res, busy, dirty) {
     const claims = claimMap(res), ex = new Set(state.exclusions[b.branch_id] || []);
     const notes = (b.staff_edits.finding_notes || {});
     const nSel = b.selected_claim_refs.length;
     $("#ia-tray-count").textContent = nSel ? plural(nSel, "finding", "findings") + " selected" + (b.selected_action_ref ? " · agency action chosen." : " · no agency action.") : "No findings selected yet.";
-    $("#ia-tray-capacity").textContent = "With an agency action, one printed page usually has room for one comparison or about two short measure findings, plus a short title, summary and next step. The recommended brief is sized for that. Program reference tiles, extra findings and longer notes may not fit; the fit is measured when you create the brief.";
-    const rec = res && !busy && !dirty ? recommendedBrief(res) : { claims: [] };
-    const recOn = rec.claims.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && rec.claims.length === nSel && (!rec.action || (b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action)));
+    $("#ia-tray-capacity").textContent = "You can select up to 8 findings. What fits on one printed page depends on the findings, their sources, the agency action and your title and notes; the recommended brief is sized to fit, and the fit is measured when the brief is created.";
+    const rec = res && !busy && !dirty ? currentRecommendation(res) : { claims: [] }, focused = rec === briefFocus;
+    const recOn = rec.claims.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && rec.claims.length === nSel && C.actionKey(rec.action || null) === C.actionKey(b.selected_action_ref || null);
     $("#ia-recommend").hidden = !rec.claims.length;
-    $("#ia-recommend-btn").disabled = !!recOn;
-    $("#ia-recommend-btn").className = nSel ? "btn" : "btn btn-primary";
-    $("#ia-recommend-btn").textContent = recOn ? "Recommended brief selected" : "Use recommended brief";
-    $("#ia-recommend-what").textContent = rec.claims.length ? "Selects " + rec.claims.map((c) => (KIND_LABEL[c.kind] || humanWords(c.kind)).toLowerCase() + ": " + claimShortName(c)).join("; ") + (rec.card ? "; agency action: verify " + programLabel(rec.card.program_id) + " with the agency" : "") + (nSel && !recOn ? ". Replaces the current selection." : ".") : "";
+    const recMade = !!recOn && C.printStatus(state).ok;
+    $("#ia-recommend-btn").disabled = recMade;
+    $("#ia-recommend-btn").textContent = recMade ? (focused ? "Brief from this answer created" : "Recommended brief created") : focused ? "Create brief from this answer" : "Create recommended brief";
+    $("#ia-recommend-what").textContent = (focused ? "Focused on your question. " : "") + (rec.claims.length ? (recMade ? "Shown under One-page brief. It uses " : "Selects ") + rec.claims.map((c) => (KIND_LABEL[c.kind] || humanWords(c.kind)).toLowerCase() + ": " + claimShortName(c)).join("; ") + (rec.card ? "; agency action: verify " + programLabel(rec.card.program_id) + " with the agency" : rec.action_note === "no_matching_action" ? "; no agency action (no single agency action matches this answer)" : "") + (recMade ? "." : ", then creates the brief." + (nSel && !recOn ? " Replaces the current selection." : "")) + (focused ? focusNote(rec) : "") : "");
     fill($("#ia-selected"), nSel ? b.selected_claim_refs.map((r, i) => {
       const c = claims.get(C.refKey(r)), sid = "ia-sel-" + r.semantic_hash.slice(7, 19);
       return h("li", { id: sid }, h("span", { class: "tray-label", text: findingText(c) }),
@@ -1013,10 +1376,23 @@
     const shown = new Set(templates.map((t) => t.item_id));
     // Staff entries stay visible and editable even with no agency step selected.
     const loose = C.CHECK_IDS.filter((k) => edits.has(k) && !shown.has(k)), free = C.CHECK_IDS.slice(3).find((k) => !edits.has(k));
+    // Unfinished text in the add-item box is not staff data yet: it is kept per case and context in page memory only
+    // (never committed, never shown in another context, not in a case file until added). The field on screen is
+    // filed under the context it was typed in before the box is rebuilt for the current context.
+    const drafts = addDrafts, draftKey = state.case.case_id + "|" + b.branch_id, onScreen = $("#ia-chk-new");
+    if (onScreen && onScreen.draftKey) { if (onScreen.value) drafts.set(onScreen.draftKey, onScreen.value); else drafts.delete(onScreen.draftKey); }
     const add = h("input", { type: "text", id: "ia-chk-new", maxlength: 120, "aria-describedby": "ia-chk-new-max" });
+    add.draftKey = draftKey;
+    add.value = drafts.get(draftKey) || "";
     fill(check, [card ? h("p", {}, h("strong", { text: programLabel(card.program_id) }), " — office checklist for this agency action") : h("p", { class: "muted", text: "No agency action selected, so no template checklist applies. You can still add custom items and office tracking as staff contributions." }),
       templates.length || loose.length ? h("ol", { class: "ia-checklist" }, templates.map((t) => item(t.item_id, String(t.text || ""))), loose.map((k) => item(k, ""))) : null,
-      free ? h("div", { class: "field ia-add-item" }, h("div", { class: "field-head" }, h("label", { for: "ia-chk-new", text: "Add a custom checklist item" }), h("span", { class: "limit", id: "ia-chk-new-max", text: "up to 3 items · 120 characters" })), h("div", { class: "ia-inline-row" }, add, btn("Add item", () => { if (add.value.trim()) set(C.setChecklist(state, free, { text: add.value.trim() }), "Custom item added as a staff contribution."); }, { id: "ia-chk-add" }))) : null]);
+      free ? h("div", { class: "field ia-add-item" }, h("div", { class: "field-head" }, h("label", { for: "ia-chk-new", text: "Add a custom checklist item" }), h("span", { class: "limit", id: "ia-chk-new-max", text: "up to 3 items · 120 characters · saved only after Add item" })), h("div", { class: "ia-inline-row" }, add, btn("Add item", () => {
+        const text = add.value.trim(); if (!text) return;
+        const r = C.setChecklist(state, free, { text: text });
+        if (r.error) { set(r); return; }   // the typed text stays in the box (filed under its own context)
+        add.value = ""; drafts.delete(draftKey);
+        set(r, "Custom item added as a staff contribution.");
+      }, { id: "ia-chk-add" }))) : null]);
 
     // staff notes and tracking
     const t = b.tracking || { label: "", baseline: null, as_of: null };
@@ -1040,20 +1416,22 @@
     const parked = C.pendingReview(state), box = state.parked[b.branch_id];
     const sameAction = box && box.origin_action_ref && C.actionKey(box.origin_action_ref) === C.actionKey(b.selected_action_ref);
     fill($("#ia-review"), parked.length ? [h("h3", { class: "ia-group-title", text: "Staff notes waiting for review (" + parked.length + ")" }),
-      h("p", { class: "hint", text: "These entries were written for an earlier context" + (box.kinds.length ? " (changed: " + box.kinds.map((k) => CHANGE_LABEL[k] || k).join(", ") + ")" : "") + ". They are left out of this brief and stay in their original context unless you copy them. Copies remain labeled staff contributions." }),
+      h("p", { class: "hint", text: parked.every((x) => x.orphan_reason) ? "These notes were on findings removed from the selection. They are left out of this brief and are not in any case file while they wait; copy them back or discard them." :
+        "These entries were written for an earlier context" + (box.kinds.length ? " (changed: " + box.kinds.map((k) => CHANGE_LABEL[k] || k).join(", ") + ")" : "") + ". They are left out of this brief and stay in their original context unless you copy them. Copies remain labeled staff contributions." + (parked.some((x) => x.orphan_reason) ? " A note on a removed finding is not in any case file while it waits." : "") }),
       h("ul", { class: "ia-parked" }, parked.map((p, i) => {
         const done = p.kind === "checklist" && p.item.completed && sameAction ? h("input", { type: "checkbox", id: "ia-park-done-" + i }) : null;
         return h("li", {}, h("p", {}, staffLine(p, " (done in the earlier context)")),
           p.kind === "checklist" && p.item.completed && !sameAction ? h("p", { class: "hint", text: "The done mark belongs to a different agency action and is not copied." }) : null,
+          p.orphan_reason ? h("p", { class: "hint", text: "This note was on a finding removed from the selection, and it is not in any case file while it waits. Select that finding again, then copy the note back; or leave it to discard it." }) : null,
           done ? h("label", { class: "ia-check", for: "ia-park-done-" + i }, done, " Also copy the done mark (same agency action)") : null,
           h("div", { class: "btn-row" },
             btn("Copy into this context", () => set(C.copyParked(state, p.key, { include_completion: !!(done && done.checked) }), "Copied as a staff contribution. Review staff notes before creating the brief."), { id: "ia-park-copy-" + i }),
-            btn("Leave in original context", () => set(C.leaveParked(state, p.key), "Left in its original context."), { id: "ia-park-leave-" + i })));
+            btn(p.orphan_reason ? "Discard this note" : "Leave in original context", () => set(C.leaveParked(state, p.key), p.orphan_reason ? "Note discarded at your choice." : "Left in its original context."), { id: "ia-park-leave-" + i })));
       }))] : []);
 
     // brief controls: one primary action with its blocking reason beside it
     const staff = C.activeStaff(state), reviewed = C.reviewCurrent(state), block = briefBlock(b, res, busy, dirty, staff, reviewed, parked);
-    $("#ia-review-state").textContent = staff.empty ? "No staff notes will be sent with this brief." : reviewed ? "Staff notes reviewed for this context and plan. They are sent only when you create the brief and are not stored by the app." : "";
+    $("#ia-review-state").textContent = staff.empty ? "No staff notes will be sent with this brief." : reviewed ? "Staff notes reviewed for this context and plan. They are sent to this app’s server to render the brief; the app does not save or log them." : "";
     $("#ia-review-btn").hidden = staff.empty || reviewed;
     $("#ia-review-btn").disabled = busy || parked.length > 0 || !res;
     $("#ia-brief-btn").disabled = !!block && !(state.last_error && state.last_error.code === "brief_overflow");
@@ -1124,7 +1502,7 @@
     if (!tooLong) { fill(fitBox, []); return; }
     fill(fitBox, [h("h3", { id: "ia-fit-h", tabindex: "-1", text: "Too long for one printed page" }),
       h("p", { text: "Text is not shrunk to fit. Choose what to leave out, then create the brief again. Staff notes left out of the brief stay in the editor and can be included again." }),
-      choiceList(C.shorteningChoices(state), "ia-fit-", "#ia-fit-h")]);
+      recommendRecovery("ia-fit-recommend"), choiceList(C.shorteningChoices(state), "ia-fit-", "#ia-fit-h")]);
   }
 
   // Whether the current brief passed the one-page check (used by printing).
@@ -1139,9 +1517,22 @@
     return "Context " + (i + 1) + ": " + planLabel(p);
   }
 
+  // A note on a removed finding waits for review in this page only: a case file cannot hold it until it is copied back
+  // or left. While any waits (in this or another context), a download "with staff notes" would omit it, so it is held.
+  function staffDownloadBlock() {
+    const n = Object.keys(state.parked || {}).reduce((k, id) => k + state.parked[id].items.filter((i) => i.resolved === null && i.orphan_reason).length, 0);
+    // Unfinished custom checklist text (typed, not added) is in no case file either, so it holds the same guard.
+    const keys = new Set(), onScreen = $("#ia-chk-new"), mine = (k) => k.indexOf(state.case.case_id + "|") === 0;
+    addDrafts.forEach((v, k) => { if (mine(k) && String(v).trim()) keys.add(k); });
+    if (onScreen && onScreen.draftKey && mine(onScreen.draftKey)) { if (String(onScreen.value || "").trim()) keys.add(onScreen.draftKey); else keys.delete(onScreen.draftKey); }
+    const parts = [];
+    if (n) parts.push((n === 1 ? "A staff note on a removed finding is" : n + " staff notes on removed findings are") + " waiting for review. Select the finding again and copy the note back, or discard it, under “Staff notes waiting for review” (restore the context it belongs to if needed).");
+    if (keys.size) parts.push((keys.size === 1 ? "An unfinished custom checklist item is" : keys.size + " unfinished custom checklist items are") + " typed but not added. Choose Add item or clear the text (in the context it was typed in).");
+    return parts.length ? parts.join(" ") + " Until then a download with staff notes would leave " + (n + keys.size === 1 ? "it" : "them") + " out; a case file cannot hold " + (n && keys.size ? "them." : n ? "a waiting note." : "unfinished text.") : null;
+  }
   function renderCase(b, busy) {
     const list = $("#ia-branches");
-    const savedNow = savedDigest === C.canonical(C.exportCase(state, { include_staff_work: true }));
+    const savedNow = !staffDownloadBlock() && savedDigest === C.canonical(C.exportCase(state, { include_staff_work: true }));
     fill(list, state.case.branches.map((br, i) => {
       const on = br.branch_id === b.branch_id, n = C.staffItems(br).length;
       return h("li", { class: on ? "is-selected" : "" },
@@ -1153,14 +1544,16 @@
         br.snapshot_id !== state.runtime.snapshot_id ? replayHelp(br.snapshot_id) : null,
         on ? null : h("div", { class: "ia-branch-tools" },
           btn("Restore", () => restoreContext(br.branch_id), { class: "btn btn-small", id: "ia-restore-" + i, disabled: busy, "aria-label": "Restore context " + (i + 1) + " (" + planLabel(br.plan) + ") by replaying its evidence" }),
-          btn("Remove context", () => set(C.removeBranch(state, br.branch_id, { saved_locally: savedNow }), "Context removed after a full local download."), { class: "btn-link btn-danger", id: "ia-rmbranch-" + i, disabled: busy, "aria-label": "Remove context " + (i + 1) + " (" + planLabel(br.plan) + ") from this page", "aria-describedby": "ia-rmbranch-why-" + i }),
-          h("span", { class: "hint", id: "ia-rmbranch-why-" + i, text: savedNow ? "Saved in your last download with staff notes." : "Removing needs a download with staff notes first." })));
+          btn("Remove context", () => set(C.removeBranch(state, br.branch_id, { saved_locally: savedNow }), "Context removed after a full local download."), { class: "btn-link btn-danger", id: "ia-rmbranch-" + i, disabled: busy || !savedNow, "aria-label": "Remove context " + (i + 1) + " (" + planLabel(br.plan) + ") from this page", "aria-describedby": "ia-rmbranch-why-" + i }),
+          h("span", { class: "hint", id: "ia-rmbranch-why-" + i, text: savedNow ? "Saved in your last download." : "To remove it, first download the case" + (C.staffExportPreview(state).length ? " with staff notes included." : ".") })));
     }));
-    const staffOn = $("#ia-download-staff").checked, pv = $("#ia-staff-preview");
+    const staffOn = $("#ia-download-staff").checked, pv = $("#ia-staff-preview"), held = staffOn ? staffDownloadBlock() : null;
+    $("#ia-download").disabled = !!held;
     pv.hidden = !staffOn;
     if (staffOn) {
       const rows = C.staffExportPreview(state);
-      fill(pv, [h("p", { class: "alert", text: "This file will contain the staff notes below as plain text. It is not encrypted. Anyone who can open the file can read it." }),
+      fill(pv, [held ? h("p", { class: "alert", id: "ia-download-held", text: held }) : null,
+        h("p", { class: "alert", text: "This file will contain the staff notes below as plain text. It is not encrypted. Anyone who can open the file can read it." }),
         rows.length ? h("ul", { class: "ia-staff-list" }, rows.map((r) => h("li", {}, h("strong", { text: contextName(r.branch_id) }), h("ul", {}, r.items.map((it) => h("li", {}, staffLine(it))))))) : h("p", { text: "There is no staff notes, checklist entry or tracking record in this case." })]);
     } else fill(pv, []);
     const ip = $("#ia-import-preview");
@@ -1181,7 +1574,14 @@
         h("label", { class: "ia-check", for: "ia-import-staff" }, accept, " Also open these staff notes (they will need review before any brief)")) : null,
       h("div", { class: "btn-row" },
         p.runtime_match ? btn("Replay and open this case", () => { const r = C.beginImport(state, importing, { accept_staff_work: accept.checked }, ids); if (r.error) return alertUser(r.error.message); state = r.state; notice = "Replaying the file's active plan. Only the plan and references are sent, never the file."; send(r.request); holdFocus(); }, { class: "btn btn-primary", id: "ia-import-go", disabled: busy }) : null,
-        btn(p.runtime_match ? "Cancel" : "Close", () => { importing = null; notice = "Import cancelled. Your current case is unchanged."; render(); $("#ia-import-file").focus(); }, { id: "ia-import-cancel" }))]);
+        btn(p.runtime_match ? "Cancel" : "Close", () => {
+          // After Replay and open, Cancel also cancels the pending replay (as Cancel request does), so the reply is ignored.
+          const replaying = !!(state.pending && state.pending.kind === "import");
+          if (replaying) state = C.cancelPending(state);
+          importing = null;
+          notice = replaying ? "Import cancelled. Your current case is kept and editing is back on; a late reply for the file will be ignored." : "Import cancelled. Your current case is unchanged.";
+          render(); $("#ia-import-file").focus();
+        }, { id: "ia-import-cancel" }))]);
   }
 
   // ------------------------------------------------------------------ map
@@ -1200,7 +1600,7 @@
     const d = b.plan.district;
     fill($("#ia-map-text"), [h("div", {}, h("dt", { text: "District" }), h("dd", { text: districtLabel(d) + ", Hawaiʻi" })),
       h("div", {}, h("dt", { text: "Statistics boundary" }), h("dd", { text: "2024 session" })),
-      h("div", {}, h("dt", { text: "Map boundary shown" }), h("dd", { text: b.plan.map_session + " session" })),
+      h("div", {}, h("dt", { text: "Map boundary shown" }), h("dd", { text: b.plan.map_session + " session (display only)" })),
       h("div", {}, h("dt", { text: "Area for program questions" }), h("dd", { text: b.plan.service_area_id ? AREA_LABEL[b.plan.service_area_id] + " (staff choice, not a geographic finding)" : "None chosen" }))]);
   }
 
@@ -1211,9 +1611,10 @@
     $("#ia-issue").addEventListener("change", (e) => ctx({ issue_id: e.target.value }));
     $("#ia-service").addEventListener("change", (e) => ctx({ service_area_id: e.target.value || null }));
     $("#ia-map-session").addEventListener("change", (e) => ctx({ map_session: Number(e.target.value) }));
-    $("#ia-question-form").addEventListener("submit", (e) => { e.preventDefault(); askLanguage($("#ia-question-text").value); });
+    $("#ia-question-form").addEventListener("submit", (e) => { e.preventDefault(); if (languageJob && languageJob.pending) return; askLanguage($("#ia-question-text").value); });
     $("#ia-question-cancel").addEventListener("click", () => { cancelLanguage('Question cancelled. Your work is unchanged.'); render(); });
-    $("#ia-question-text").addEventListener("input", () => { if (languageJob) { cancelLanguage('Question changed. Ask again when ready.'); render(); } });
+    // Never cancels a pending (possibly charged) question; the box is read-only then. A finished answer is cleared as before.
+    $("#ia-question-text").addEventListener("input", () => { if (languageJob && !languageJob.pending) { cancelLanguage('Question changed. Ask again when ready.'); render(); } });
     $("#ia-ask").addEventListener("submit", (e) => {
       e.preventDefault();
       const text = $("#ia-utterance").value;
@@ -1232,24 +1633,26 @@
     $("#ia-typed").addEventListener("toggle", () => render());
     // The same review-and-run action, placed beside the edited context selects.
     $("#ia-context-apply-btn").addEventListener("click", () => { applyPlan(); if (!preview) holdFocus(); });
-    $("#ia-discard").addEventListener("click", () => { state = Object.assign({}, state, { draft: JSON.parse(JSON.stringify(C.active(state).plan)) }); preview = null; notice = "Draft edits discarded. The plan matches the last applied context."; render(); });
-    $("#ia-cancel").addEventListener("click", () => { state = C.cancelPending(state); notice = "Request cancelled. Any late reply will be ignored. Earlier results are unchanged."; render(); });
+    $("#ia-discard").addEventListener("click", () => { state = Object.assign({}, state, { draft: JSON.parse(JSON.stringify(C.active(state).plan)) }); preview = null; pendingAnswer = null; notice = "Draft edits discarded. The plan matches the last applied context."; render(); });
+    $("#ia-cancel").addEventListener("click", () => { pendingAnswer = null; state = C.cancelPending(state); notice = "Request cancelled. Any late reply will be ignored. Earlier results are unchanged."; render(); });
     $("#ia-review-btn").addEventListener("click", () => {
       if (!set(C.markReviewed(state), "Staff notes marked as reviewed for this context.")) return;
       const b = $("#ia-brief-btn");
       if (b && !b.disabled) b.focus(); else $("#ia-brief-reason").focus();
     });
     $("#ia-brief-btn").addEventListener("click", () => createBrief(false));
-    $("#ia-recommend-btn").addEventListener("click", () => useRecommended());
+    $("#ia-recommend-btn").addEventListener("click", () => createRecommended());
     $("#ia-clean-brief-btn").addEventListener("click", () => createBrief(true));
     $("#ia-print-btn").addEventListener("click", () => { if (C.printStatus(state).ok && briefFits()) window.print(); });
     $("#ia-download-staff").addEventListener("change", render);
     $("#ia-download").addEventListener("click", () => {
+      const held = $("#ia-download-staff").checked ? staffDownloadBlock() : null;
+      if (held) { alertUser(held); return; }
       const staff = $("#ia-download-staff").checked, data = C.exportCase(state, { include_staff_work: staff });
       const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
       const a = h("a", { href: url, download: "haic-case-" + districtLabel(C.active(state).plan.district).toLowerCase().replace(" ", "-") + (staff ? "-with-staff-work" : "") + ".json" });
       document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      if (staff) savedDigest = C.canonical(data);
+      if (staff || !C.staffExportPreview(state).length) savedDigest = C.canonical(C.exportCase(state, { include_staff_work: true }));
       // The page cannot see whether the browser saved the file, so it does not claim that it did.
       notice = (staff ? "Download requested with staff notes as plain, unencrypted text." : "Download requested: plan and references only. No typed request, title, notes, roles, dates, tracking or done marks.") + " Check your browser's downloads to confirm the file was saved.";
       render();
@@ -1259,7 +1662,11 @@
       e.target.value = "";
       if (!file) return;
       if (file.size > C.LIMITS.case_bytes) importing = { ok: false, issues: [{ path: "", code: "too_large", message: "The file is larger than a case file can be (256 KB). It was not read." }] };
-      else { let text = ""; try { text = await file.text(); } catch (err) { text = ""; } importing = C.parseCaseFile(text, state.runtime); }
+      else {
+        let text = ""; try { text = await file.text(); } catch (err) { text = ""; }
+        flushActive();   // staff text typed while the file was being read is committed before the preview re-renders
+        importing = C.parseCaseFile(text, state.runtime);
+      }
       render(); $("#ia-import-preview").focus();
     });
     // Only the reviewed investigation brief prints while this view is open.
@@ -1306,10 +1713,14 @@
     $("#ia-boot").hidden = true; $("#ia-workspace").hidden = false;
     // The map is secondary and starts closed on every screen; its summary line names the district, parts and shading.
     if (first) wire();
+    // Plan editing is secondary while questions are on; with questions off it is the main way to work.
+    if (first) $("#ia-advanced").open = !languageEnabled();
     render(); syncMap(false);
     bootRun = true;
     runActive();
   }
 
+  // Read-only: the applied district of the current context, so Single lookup can start from it. Nothing else is shared.
+  window.IAWorkspace = { district: () => (state ? JSON.parse(JSON.stringify(C.active(state).plan.district)) : null) };
   document.addEventListener("DOMContentLoaded", start);
 })();
