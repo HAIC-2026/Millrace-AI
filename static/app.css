@@ -2929,8 +2929,49 @@ details.ia-plan[open] > summary {
   margin: 0.3rem 0;
 }
 
-#cat-more {
-  margin: 0.5rem 0 0;
+/* Catalog pager: range status and Previous/Next above the table; a pending page dims the rows shown. */
+.cat-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0.4rem 0 0;
+}
+
+.cat-pager #cat-count {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+#cat-error {
+  margin: 0.6rem 0 0;
+}
+
+#cat-table[aria-busy="true"] tbody {
+  opacity: 0.55;
+}
+
+/* Startup failure: one page-level notice with the only Retry for the shared startup. */
+.app-startup {
+  max-width: 1480px;
+  margin: 1rem;
+}
+
+.app-startup-h {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.app-startup p {
+  max-width: 75ch;
+}
+
+@media (min-width: 1512px) {
+  .app-startup {
+    margin: 1rem auto;
+  }
 }
 
 /* ==========================================================================

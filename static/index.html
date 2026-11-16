@@ -22,7 +22,7 @@
       <p>ACS estimates show their period, universe and 90% margin of error. Administrative counts show their period, coverage and source location. Program references show their source and checked date. Sources were retrieved October 30, 2026.</p>
       <p>Statistics are ACS 2020–2024 estimates for the 2024 statistical legislative districts. The 2024 or 2026 map setting changes the boundary drawn, not the statistics. In the current data the 2024 and 2026 boundaries match for all 76 districts.</p>
       <h2 class="app-about-h">Where your work goes</h2>
-      <p>Plans, selections, typed requests and brief edits are sent to this app’s server to calculate results and render the brief. The app does not save or log them. Case files are built and read in your browser; running or reopening a case sends its plan and selections to the server. The hosting services (Cloudflare, a Caddy proxy and AWS) can keep connection logs, including IP addresses.</p>
+      <p>Plans, selections, typed requests and brief edits are sent to this app’s server to calculate results and render the brief. The app does not save or log them. Case files are built and read in your browser; running or reopening a case sends its plan and selections to the server. Data catalog filters and search text are sent to this app’s server in the page request, not to OpenAI. The hosting services (Cloudflare, a Caddy proxy and AWS) can keep connection logs, including IP addresses and requested addresses, which can contain catalog search text.</p>
       <h2 class="app-about-h">Contact</h2>
       <p>Questions or corrections: open an issue at <a href="https://github.com/HAIC-2026/Millrace-AI/issues" target="_blank" rel="noopener noreferrer">github.com/HAIC-2026/Millrace-AI/issues</a> (opens in a new tab; posting requires GitHub sign-in). Do not include resident or confidential details. Team Millrace AI maintains this competition prototype. No agency ownership or service level is claimed.</p>
     </div>
@@ -37,6 +37,13 @@
   <button type="button" role="tab" id="tab-btn-sources" aria-controls="tab-sources" aria-selected="false" tabindex="-1">Sources</button>
   <button type="button" role="tab" id="tab-btn-commands" aria-controls="tab-commands" aria-selected="false" tabindex="-1">Typed request help</button>
 </nav>
+<section id="app-startup" class="notice notice-error app-startup" role="alert" aria-labelledby="app-startup-h" hidden>
+  <h2 id="app-startup-h" class="app-startup-h">Part of the app did not load</h2>
+  <p id="app-startup-msg"></p>
+  <div class="btn-row"><button type="button" id="app-startup-retry" class="btn btn-primary">Retry loading</button></div>
+  <p id="app-startup-progress" class="fine"></p>
+</section>
+<p id="app-live" class="sr-only" role="status"></p>
 
 <div id="tab-investigation" role="tabpanel" aria-labelledby="tab-btn-investigation" class="ia">
   <div id="ia-boot"><p class="loading" role="status">Loading the investigation workspace…</p></div>
@@ -313,12 +320,12 @@
 
 <div id="tab-sources" role="tabpanel" aria-labelledby="tab-btn-sources" class="panel" hidden>
   <h2>Sources</h2>
-  <div id="sources-body"></div>
+  <div id="sources-body"><p class="muted">Loading sources…</p></div>
 </div>
 
 <div id="tab-commands" role="tabpanel" aria-labelledby="tab-btn-commands" class="panel" hidden>
   <h2>Typed request help</h2>
-  <div id="commands-body"></div>
+  <div id="commands-body"><p class="muted">Loading typed request help…</p></div>
 </div>
 
 <dialog id="source-dialog" aria-labelledby="source-title">

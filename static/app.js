@@ -11,14 +11,16 @@
   let catalog = null;
   let cRuntime = null, cMetadata = null, activeRun = null;
   let seq = 0;
+  let ready = false;               // true only after every startup part (data check, catalog, controls, views) loaded
   let resultReference = null;
   let displayed = null;            // client-carried display snapshot after the last successful result
   let edits = {};                  // staff edits for the brief (labeled; never facts)
   const selection = new Map();     // finding_id -> label (insertion order kept)
 
   // ------------------------------------------------------------ helpers
-  async function api(method, url, body, headers) {
+  async function api(method, url, body, headers, signal) {
     const opts = { method, headers: Object.assign({}, headers || {}) };
+    if (signal) opts.signal = signal;
     if (body !== undefined) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -27,12 +29,15 @@
     try {
       resp = await fetch(url, opts);
     } catch (err) {
+      if (err && err.name === "AbortError") return { status: "aborted" };
       return { status: "error", reason: "The server did not respond. Please try again.",
                html: '<section class="notice notice-error" role="alert"><h3>Error</h3><p>The server did not respond. Please try again.</p></section>' };
     }
     try {
-      return await resp.json();
+      const out = await resp.json();
+      return out && typeof out === "object" && !Array.isArray(out) ? out : { status: "error", reason: "Unreadable server response (" + resp.status + ")." };
     } catch (err) {
+      if (err && err.name === "AbortError") return { status: "aborted" };
       return { status: "error", reason: "Unreadable server response (" + resp.status + ")." };
     }
   }
@@ -59,8 +64,16 @@
   }
 
   // ------------------------------------------------------------ controls
+  // Options are rebuilt from the catalog (never appended twice); their listeners are added once.
+  let controlsWired = false;
+  function keepPlaceholder(sel) {
+    const first = sel.options[0];
+    sel.replaceChildren(...(first && first.value === "" ? [first] : []));
+  }
   function buildControls() {
     const tasks = $("#task-options");
+    tasks.replaceChildren();
+    ["#ctl-metric", "#ctl-profile-metrics", "#ctl-geo", "#ctl-program", "#ctl-admin"].forEach((id) => keepPlaceholder($(id)));
     catalog.templates.forEach((t, i) => {
       const id = "task-" + t.task;
       const lab = document.createElement("label");
@@ -94,6 +107,12 @@
       rowOption.title = label;
       $("#ctl-admin").appendChild(rowOption);
     });
+    if (!controlsWired) wireControls();
+    relevantFieldsets();
+  }
+
+  function wireControls() {
+    controlsWired = true;
     $("#ctl-admin").addEventListener("change", administrativeSelectionNote);
     $("#ctl-profile-mode").addEventListener("change", relevantFieldsets);
     // A district, chamber or session chosen here replaces the copied investigation district.
@@ -103,8 +122,7 @@
     $("#ctl-utterance").addEventListener("input", () => {
       if ($("#ctl-utterance").value.trim()) $('input[name="mode"][value="language"]').checked = true;
     });
-    $$('input[name="task"]').forEach((r) => r.addEventListener("change", relevantFieldsets));
-    relevantFieldsets();
+    $("#task-options").addEventListener("change", (ev) => { if (ev.target.name === "task") relevantFieldsets(); });
   }
 
   function administrativeSelectionNote() {
@@ -177,7 +195,7 @@
   const prefillUntouched = () => !!prefill && $("#ctl-chamber").value === prefill.chamber && $("#ctl-code").value === prefill.code && $("#ctl-session").value === "2024";
   function dropPrefill() { prefill = null; const n = $("#lookup-context"); if (n) n.hidden = true; }
   function prefillLookup() {
-    if (!catalog || !window.IAWorkspace) return;
+    if (!ready || !window.IAWorkspace) return;
     if (($("#ctl-chamber").value || $("#ctl-code").value) && !prefillUntouched()) return;
     const d = window.IAWorkspace.district();
     if (!d || !/^(house|senate)$/.test(d.chamber) || !/^\d{3}$/.test(d.code)) return;
@@ -280,6 +298,10 @@
   // ------------------------------------------------------------ run
   async function run(kind, choiceRequest) {
     if (activeRun) return;
+    if (!ready) {
+      show({ status: "error", reason: "Single lookup has not finished loading. Choose Retry loading at the top of the page; your selections are kept." });
+      return;
+    }
     if ($("#brief-editor")) collectEdits();
     seq += 1;
     const mode = choiceRequest ? "guided" : $('input[name="mode"]:checked').value;
@@ -604,41 +626,142 @@
   }
 
   // ------------------------------------------------------------ catalog tab
-  // The observations table (filters first) is placed before the coverage summary. Rows are already in the page;
-  // only the first 50 matching rows are shown at a time, and the filters always search every row.
-  function wireCatalogFilters() {
-    const geo = $("#cat-geo"), q = $("#cat-q"), table = $("#cat-table");
-    if (!geo || !q || !table) return;
+  // The observations table (filters first) is placed before the coverage summary. The page holds one page of
+  // server-rendered rows; geography, measure and search filters are applied by the server to every row before
+  // paging. Only the reply to the latest request is shown; an older request is cancelled. A failed request keeps
+  // the rows already shown and offers Retry. Listeners are delegated on #catalog-body once (wireCatalogEvents).
+  const cat = { applied: null, pending: null, failed: null, matched: 0, total: 0, limit: 50, token: 0, controller: null, timer: null };
+  const fmt = (n) => Number(n).toLocaleString("en-US");
+  const catFilters = () => ({ geography_id: $("#cat-geo").value, metric_id: $("#cat-metric").value, q: $("#cat-q").value.trim() });
+  const sameFilters = (a, b) => !!a && !!b && a.geography_id === b.geography_id && a.metric_id === b.metric_id && a.q === b.q;
+  const filtered = (f) => !!(f && (f.geography_id || f.metric_id || f.q));
+
+  function wireCatalogView() {
+    const table = $("#cat-table");
+    if (!table) return;
     const obs = table.closest("section"), cov = $("#cov-h") && $("#cov-h").closest("section");
     if (obs && cov && obs.parentNode === cov.parentNode) cov.parentNode.insertBefore(obs, cov);
-    const rows = $$("tbody tr", table), STEP = 50;
-    let limit = STEP;
-    const more = document.createElement("button");
-    more.type = "button"; more.className = "btn btn-small"; more.id = "cat-more";
-    table.after(more);
-    const apply = (reset) => {
-      if (reset) limit = STEP;
-      const g = geo.value, s = q.value.trim().toLowerCase();
-      let matched = 0, shown = 0;
-      rows.forEach((tr) => {
-        const ok = (!g || tr.dataset.geo === g) && (!s || tr.textContent.toLowerCase().includes(s));
-        if (ok) matched += 1;
-        tr.hidden = !(ok && matched <= limit);
-        if (!tr.hidden) shown += 1;
-      });
-      text($("#cat-count"), "Showing " + shown + " of " + matched + " matching observations (" + rows.length + " in the catalog).");
-      more.hidden = shown >= matched;
-      more.textContent = "Show " + Math.min(STEP, matched - shown) + " more";
-    };
-    const count = $("#cat-count"); if (count) count.setAttribute("tabindex", "-1");
-    // When the last rows are shown the button hides, so focus moves to the count instead of being lost.
-    more.addEventListener("click", () => { limit += STEP; apply(false); if (more.hidden && count) count.focus(); });
-    geo.addEventListener("change", () => apply(true)); q.addEventListener("input", () => apply(true));
-    apply(true);
+    if (cat.controller) cat.controller.abort();
+    cat.token += 1; cat.controller = null; cat.pending = null; cat.failed = null;
+    cat.total = Number(table.dataset.total) || 0;
+    cat.matched = Number(table.dataset.matched) || 0;
+    cat.limit = Number(table.dataset.limit) || 50;
+    cat.applied = { geography_id: "", metric_id: "", q: "", offset: Number(table.dataset.offset) || 0 };
+    catalogPager();
+  }
+
+  function describeFilters(f) {
+    if (!filtered(f)) return "all statistics";
+    const parts = [];
+    const label = (sel, v) => (Array.from($(sel).options).find((o) => o.value === v) || {}).textContent || v;
+    if (f.geography_id) parts.push("geography " + label("#cat-geo", f.geography_id));
+    if (f.metric_id) parts.push("measure " + label("#cat-metric", f.metric_id));
+    if (f.q) parts.push("search “" + f.q + "”");
+    return parts.join(", ");
+  }
+
+  function catalogPager() {
+    const a = cat.applied, table = $("#cat-table");
+    if (!a || !table) return;
+    const shown = $$("tbody tr:not(.cat-empty)", table).length, m = cat.matched;
+    let msg;
+    if (!m) msg = "No statistics match these filters (" + fmt(cat.total) + " in the catalog).";
+    else msg = "Showing " + fmt(a.offset + 1) + "–" + fmt(a.offset + shown) + " of " + fmt(m) +
+      (filtered(a) ? " matching statistics (" + fmt(cat.total) + " in the catalog)" : " statistics") +
+      ". Page " + fmt(Math.floor(a.offset / cat.limit) + 1) + " of " + fmt(Math.ceil(m / cat.limit)) + ".";
+    text($("#cat-count"), msg);
+    const prev = $("#cat-prev"), next = $("#cat-next"), clear = $("#cat-clear"), had = document.activeElement;
+    prev.disabled = a.offset <= 0;
+    next.disabled = a.offset + shown >= m;
+    clear.disabled = !filtered(a) && !filtered(catFilters());
+    // A button that just became unavailable does not keep (and lose) keyboard focus.
+    if (had === prev && prev.disabled) (next.disabled ? $("#cat-count") : next).focus();
+    else if (had === next && next.disabled) (prev.disabled ? $("#cat-count") : prev).focus();
+    else if (had === clear && clear.disabled) $("#cat-geo").focus();
+  }
+
+  function catalogFailed(target, out) {
+    cat.failed = target;
+    const box = $("#cat-error");
+    const why = out && typeof out.reason === "string" && out.reason ? out.reason : "The server reply could not be read.";
+    const h = document.createElement("h3"); h.textContent = "The statistics did not update";
+    const p = document.createElement("p");
+    p.textContent = why + " The rows below still show " + describeFilters(cat.applied) + ", page " +
+      fmt(Math.floor(cat.applied.offset / cat.limit) + 1) + ". Nothing else on the page changed.";
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.id = "cat-retry"; retry.className = "btn btn-small"; retry.textContent = "Retry";
+    box.replaceChildren(h, p, retry);
+    box.hidden = false;
+    catalogPager();
+  }
+
+  async function catalogRequest(target) {
+    clearTimeout(cat.timer);
+    if (!cat.applied || !SNAPSHOT) return;
+    if (cat.controller) cat.controller.abort();
+    const token = ++cat.token;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    cat.controller = controller; cat.pending = target;
+    const table = $("#cat-table");
+    table.setAttribute("aria-busy", "true");
+    text($("#cat-count"), "Loading statistics…");
+    const params = new URLSearchParams({ offset: String(target.offset), limit: String(cat.limit), snapshot_id: SNAPSHOT });
+    ["geography_id", "metric_id", "q"].forEach((k) => { if (target[k]) params.set(k, target[k]); });
+    const out = await api("GET", "/api/catalog/observations?" + params.toString(), undefined, undefined, controller && controller.signal);
+    if (token !== cat.token) return;               // superseded by a newer request (or the view was rebuilt)
+    cat.controller = null; cat.pending = null;
+    if (!table.isConnected) return;
+    table.removeAttribute("aria-busy");
+    const valid = out && out.status === "ok" && typeof out.rows_html === "string" && Array.isArray(out.finding_ids) &&
+      [out.offset, out.matched, out.total].every(Number.isSafeInteger) && out.offset === target.offset &&
+      sameFilters(out.filters, target);
+    if (!valid) { catalogFailed(target, out); return; }
+    const retryHadFocus = document.activeElement && document.activeElement.id === "cat-retry";
+    $("tbody", table).innerHTML = out.rows_html;
+    cat.applied = Object.assign({}, target); cat.matched = out.matched; cat.total = out.total; cat.failed = null;
+    $("#cat-error").hidden = true; $("#cat-error").replaceChildren();
+    catalogPager();
+    if (retryHadFocus) $("#cat-count").focus();
+  }
+
+  // Page steps start from the page shown, or from a page already requested with the same filters. If the filter
+  // controls no longer match the rows shown (a filter change is pending or failed), those filters apply first.
+  function catalogStep(dir) {
+    if (!cat.applied) return;
+    if (!sameFilters(catFilters(), cat.applied)) { catalogRequest(Object.assign(catFilters(), { offset: 0 })); return; }
+    const base = cat.pending && sameFilters(cat.pending, cat.applied) ? cat.pending : cat.applied;
+    const offset = base.offset + dir * cat.limit;
+    if (offset < 0 || offset >= cat.matched) return;
+    catalogRequest(Object.assign({}, cat.applied, { offset }));
+  }
+
+  function catalogFilterChanged(delay) {
+    clearTimeout(cat.timer);
+    const go = () => { const f = catFilters(); if (!(sameFilters(f, cat.applied) && !cat.pending && !cat.failed)) catalogRequest(Object.assign(f, { offset: 0 })); };
+    if (delay) cat.timer = setTimeout(go, delay); else go();
+    if (cat.applied) $("#cat-clear").disabled = !filtered(cat.applied) && !filtered(catFilters());
+  }
+
+  function wireCatalogEvents() {
+    const body = $("#catalog-body");
+    body.addEventListener("change", (ev) => { if (ev.target.id === "cat-geo" || ev.target.id === "cat-metric") catalogFilterChanged(0); });
+    body.addEventListener("input", (ev) => { if (ev.target.id === "cat-q") catalogFilterChanged(300); });
+    body.addEventListener("keydown", (ev) => { if (ev.target.id === "cat-q" && ev.key === "Enter") { ev.preventDefault(); catalogFilterChanged(0); } });
+    body.addEventListener("click", (ev) => {
+      const id = ev.target.closest("button") && ev.target.closest("button").id;
+      if (id === "cat-prev") catalogStep(-1);
+      else if (id === "cat-next") catalogStep(1);
+      else if (id === "cat-retry" && cat.failed) catalogRequest(cat.failed);
+      else if (id === "cat-clear") {
+        $("#cat-geo").value = ""; $("#cat-metric").value = ""; $("#cat-q").value = "";
+        catalogRequest({ geography_id: "", metric_id: "", q: "", offset: 0 });
+      }
+    });
   }
 
   function renderCommands() {
     const body = $("#commands-body");
+    body.replaceChildren();
     const intro = document.createElement("p");
     intro.textContent = "Typed requests in the single lookup view use only these literal forms for the supported tasks. Anything else returns “Not supported” with supported choices; an incomplete request asks a clarification question. The guided controls do the same tasks without typing.";
     body.appendChild(intro);
@@ -705,21 +828,99 @@
   }
 
   // ------------------------------------------------------------ boot
-  async function boot() {
-    wireTabs();
-    const health = await api("GET", "/api/health");
-    if (health.status !== "ok") {
-      text($("#packet-status"), "The data check did not pass; results cannot be shown.");
-      $("#result").innerHTML = '<section class="notice notice-error" role="alert"><h3>Error</h3><p>The local server is not ready.</p></section>';
-      return;
+  // Page-wide wiring (tabs, source inspection, selection tray, form submit, catalog filters, Retry) happens once at
+  // load and does not depend on the server, so the investigation view's source buttons work even when the catalog
+  // fails. Startup then loads its parts in order: data check, catalog, runtime, lookup controls, views. A part that
+  // loaded is never loaded again; Retry resumes at the part that failed and leaves all work on the page untouched.
+  const startup = { runtime: false, controls: false, views: false, running: null, attempts: 0 };
+  const STARTUP_PARTS = "Single lookup, the Data catalog, Sources and Typed request help";
+
+  function validCatalog(c) {
+    return !!c && c.status !== "error" && Array.isArray(c.templates) && c.templates.length > 0 &&
+      ["metrics", "geographies", "unavailable_geographies", "programs", "districts"].every((k) => Array.isArray(c[k])) &&
+      !!c.commands && Array.isArray(c.commands.forms) && Array.isArray(c.commands.rules) &&
+      typeof c.html === "string" && typeof c.sources_html === "string";
+  }
+
+  function startupError(what, out) {
+    const e = new Error(what);
+    e.detail = out && out.status !== "ok" && typeof out.reason === "string" && out.reason ? out.reason : (what === "data" ? "The data check did not pass." : "The catalog reply was incomplete or unreadable.");
+    e.what = what;
+    return e;
+  }
+
+  function loadStartup() {
+    if (!startup.running) startup.running = startupSteps().finally(() => { startup.running = null; });
+    return startup.running;
+  }
+
+  async function startupSteps() {
+    startup.attempts += 1;
+    const retry = $("#app-startup-retry");
+    if (startup.attempts > 1) {
+      retry.setAttribute("aria-disabled", "true"); text(retry, "Retrying…");
+      text($("#app-startup-progress"), "Loading the parts that are missing…");
     }
-    SNAPSHOT = health.snapshot_id;
-    const runtime = health.runtime || {};
-    catalog = await api("GET", "/api/catalog");
-    text($("#tab-btn-catalog"), catalogTabLabel(catalog));
+    try {
+      if (!SNAPSHOT) {
+        const health = await api("GET", "/api/health");
+        if (!health || health.status !== "ok" || typeof health.snapshot_id !== "string") throw startupError("data", health);
+        SNAPSHOT = health.snapshot_id;
+      }
+      if (!catalog) {
+        const c = await api("GET", "/api/catalog");
+        if (!validCatalog(c)) throw startupError("catalog", c);
+        catalog = c;
+        text($("#tab-btn-catalog"), catalogTabLabel(catalog));
+      }
+      if (!startup.runtime) { await startRuntime(); startup.runtime = true; }
+      if (!startup.controls) { buildControls(); fillDistricts(); startup.controls = true; }
+      if (!startup.views) {
+        $("#catalog-body").innerHTML = catalog.html;
+        $("#sources-body").innerHTML = catalog.sources_html;
+        wireCatalogView();
+        renderCommands();
+        startup.views = true;
+      }
+      startupReady();
+    } catch (err) {
+      startupFailed(err);
+    }
+  }
+
+  function startupReady() {
+    ready = true;
+    const banner = $("#app-startup"), hadFocus = banner.contains(document.activeElement);
+    banner.hidden = true;
+    text($("#packet-status"), "");
+    $("#run-progress").hidden = true; text($("#run-progress"), "");
+    $("#run-btn").disabled = false;
+    if (startup.attempts > 1) text($("#app-live"), "Everything has loaded. " + STARTUP_PARTS + " are ready.");
+    if (hadFocus) { const tab = $('[role="tab"][aria-selected="true"]'); if (tab) tab.focus(); }
+    if (!$("#tab-workflow").hidden) prefillLookup();
+  }
+
+  function startupFailed(err) {
+    ready = false;
+    const dataCheck = err && err.what === "data";
+    const detail = err && err.detail ? err.detail : "Part of the page could not start (" + (err && err.message || "unknown error") + ").";
+    text($("#packet-status"), dataCheck ? "The data check did not pass; results cannot be shown." : "Part of the app did not load.");
+    text($("#app-startup-msg"), (dataCheck ? "The data check did not finish: " : "The catalog did not load: ") + detail + " " +
+      STARTUP_PARTS + " are not available yet. Source inspection and any work already on this page are kept; Retry loads only the parts that are missing.");
+    text($("#app-startup-progress"), startup.attempts > 1 ? "Retry " + (startup.attempts - 1) + " did not succeed." : "");
+    const retry = $("#app-startup-retry");
+    retry.removeAttribute("aria-disabled"); text(retry, "Retry loading");
+    $("#app-startup").hidden = false;
+    const waiting = '<p class="muted">Not loaded yet. Choose Retry loading at the top of the page.</p>';
+    if (!startup.views) ["#catalog-body", "#sources-body", "#commands-body"].forEach((id) => { $(id).innerHTML = waiting; });
+    if (!startup.controls) { $("#run-btn").disabled = true; text($("#run-progress"), "Single lookup did not load. Choose Retry loading at the top of the page."); $("#run-progress").hidden = false; }
+  }
+
+  let cancelWired = false;
+  async function startRuntime() {
     if (catalog.runtime && catalog.runtime.variant === "C") {
       $("#c-runtime-panel").hidden = false;
-      $("#cancel-run").addEventListener("click", cancelRun);
+      if (!cancelWired) { $("#cancel-run").addEventListener("click", cancelRun); cancelWired = true; }
       if (catalog.runtime.execution_kind === "hosted") {
         text($("#c-runtime-status"), catalog.runtime.ready ? "Hosted routing enabled. Guided controls use zero model calls." : "Hosted inference disabled. Guided controls remain available.");
       } else {
@@ -736,14 +937,17 @@
       text($("#c-runtime-status"), cMetadata.status === "ready" ? "Local package available. Model loads when a typed request runs." : cMetadata.status === "absent" ? "No local model installed. Use guided controls." : "Local package unavailable or incompatible. Use guided controls.");
       }
     }
-    buildControls();
-    fillDistricts();
-    $("#catalog-body").innerHTML = catalog.html;
-    $("#sources-body").innerHTML = catalog.sources_html;
-    wireCatalogFilters();
-    renderCommands();
+  }
+
+  function boot() {
+    wireTabs();
     wireDelegation();
+    wireCatalogEvents();
     renderTray();
+    $("#run-btn").disabled = true;
+    text($("#run-progress"), "Loading the lookup controls…"); $("#run-progress").hidden = false;
+    $("#app-startup-retry").addEventListener("click", () => { if (!startup.running && !ready) loadStartup(); });
+    loadStartup();
   }
 
   document.addEventListener("DOMContentLoaded", boot);

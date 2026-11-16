@@ -109,7 +109,7 @@ To check a checkout:
 .venv/bin/python tools/build_release_manifest.py --check
 .venv/bin/python tools/build_candidate_metadata.py --check
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
-node --test tests/test_case_state.cjs tests/test_language_state.cjs
+node --test tests/test_app_startup.cjs tests/test_case_state.cjs tests/test_language_state.cjs
 ```
 
 [The run guide](docs/RUNNING.md) covers settings, Docker, the checks, AI configuration, release identity and source refresh.

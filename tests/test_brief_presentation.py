@@ -67,6 +67,60 @@ class BriefPresentationTests(unittest.TestCase):
         self.assertNotIn(b['district_indicator']['source_title'], ctx)
         self.assertIn('acs2024_5yr', b['html'])  # the Sources list keeps the address
 
+    def test_native_comparison_brief_keeps_population_universe(self):
+        for metric in ('unemployment_rate', 'poverty_rate_65_plus', 'total_population'):
+            with self.subTest(metric=metric):
+                def plan(district):
+                    return {'district': district, 'map_session': 2024, 'issue_id': 'custom',
+                            'service_area_id': None, 'steps': [{'step_id': 's1', 'operation': 'compare',
+                            'args': {'metric_ids': [metric], 'comparison_geography': 'HI-STATE-2024'}}]}
+                r, out = run('house', '028', plan, 'custom/1')
+                comparison = next(c for c in out['claims'] if c['kind'] == 'comparison')
+                r.update(mode='brief', selected_claim_refs=[comparison['claim_ref']], selected_action_ref=None,
+                         staff_edits={}, checklist_edits=[], tracking=None, edits_reviewed_for=None)
+                native = I.handle(r)['brief']
+                self.assertIn('Universe: ' + comparison['universe'] + '.', native['entries'][0]['text'])
+                self.assertIn(comparison['universe'], visible(native['html']))
+                if metric == 'unemployment_rate':
+                    self.assertIn('Civilian labor force age 16 years and over', visible(native['html']))
+
+    def test_comparison_heavy_briefs_refused_before_two_printed_pages(self):
+        # Measured in headless Chrome on US letter (app print stylesheet): the 7 longest House 028 comparisons
+        # print on one page; the 8 longest, the 7 longest with a 400-character summary, or the 4 longest with
+        # every staff field at its maximum need two pages.
+        from districtbrief.case_contract import InvestigationError
+        from districtbrief.investigation import plan_hash
+        mets = [m for m in I.core.metrics
+                if f'HI-HOUSE-028-2024:{m}' in I.core.observations and f'HI-STATE-2024:{m}' in I.core.observations]
+
+        def plan(district):
+            return {'district': district, 'map_session': 2024, 'issue_id': 'custom', 'service_area_id': None,
+                    'steps': [{'step_id': f's{i}', 'operation': 'compare', 'args': {
+                        'metric_ids': mets[i * 3:i * 3 + 3], 'comparison_geography': 'HI-STATE-2024'}}
+                        for i in range((len(mets) + 2) // 3)]}
+        r, out = run('house', '028', plan, 'custom/1')
+        longest = sorted((c for c in out['claims'] if c['kind'] == 'comparison'),
+                         key=lambda c: -len(c['text'] + c['universe']))
+
+        def build(n, edits):
+            b = copy.deepcopy(r)
+            b.update(request_id=str(uuid.uuid4()), mode='brief', selected_claim_refs=[c['claim_ref'] for c in longest[:n]],
+                     selected_action_ref=None, staff_edits=edits, checklist_edits=[], tracking=None,
+                     edits_reviewed_for={'branch_id': r['branch_id'], 'revision': r['revision'],
+                                         'plan_hash': plan_hash(r['plan'])} if edits else None)
+            return I.handle(b)
+        self.assertLessEqual(build(7, {})['brief']['print_units'], 7000)
+        note = {'note': ('Confirm the referral route with the agency and record who called. ' * 8)[:400]}
+        full = {'title': ('District brief for staff review: ' + note['note'])[:90], 'note': note['note'],
+                'next_steps': note['note'][::-1][:300],
+                'finding_notes': {c['claim_ref']['semantic_hash']: note['note'][:160] for c in longest[:4]}}
+        for n, edits in ((8, {}), (7, note), (4, full)):
+            with self.subTest(n=n, staff=bool(edits)):
+                with self.assertRaises(InvestigationError) as exc:
+                    build(n, edits)
+                self.assertEqual(exc.exception.code, 'brief_overflow')
+                self.assertEqual(exc.exception.retry_action, 'shorten_brief')
+
     def test_official_addresses_are_direct_links(self):
         cat = I.core.catalog()
         html = render.sources_html(cat)

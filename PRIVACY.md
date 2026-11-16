@@ -8,7 +8,7 @@ The browser holds cases, selections, staff edits and checklist progress in memor
 
 ## What reaches the server
 
-Each run, replay or brief sends the plan and your selected findings and agency action so the server can calculate results and render the brief; it does not store them. Typed requests reach the server for literal interpretation. Creating or refreshing a brief sends active staff edits and checklist progress. The server renders the brief and does not persist those texts.
+Each run, replay or brief sends the plan and your selected findings and agency action so the server can calculate results and render the brief; it does not store them. Typed requests reach the server for literal interpretation. Data catalog filters and search text reach the server in the request address so it can return matching rows. They are not sent to OpenAI. Creating or refreshing a brief sends active staff edits and checklist progress. The server renders the brief and does not persist those texts.
 
 The server escapes staff text when it renders a brief. A Content Security Policy limits scripts, styles and connections to the app's own origin. Source addresses open the publisher's page in a new browser tab and send no referrer. The app itself never fetches them.
 
@@ -22,7 +22,7 @@ Anonymous session cookies separate requests without authenticating users. Produc
 
 ## Logs
 
-Rotated server metrics record bounded timing, status and operation metadata. Records exclude typed requests, staff work, cookies, session identifiers and IP addresses. Gunicorn access logging is disabled. The hosted app runs behind Cloudflare and a Caddy reverse proxy on AWS. Those layers can keep their own connection logs outside the application. Connection logs can include IP addresses.
+Rotated server metrics record bounded timing, status and operation metadata. Records exclude typed requests, catalog search text, staff work, cookies, session identifiers and IP addresses. Gunicorn access logging is disabled. The hosted app runs behind Cloudflare and a Caddy reverse proxy on AWS. Those layers can keep their own connection logs outside the application. Connection logs can include IP addresses and requested addresses, which can contain catalog filters and search text.
 
 ## Optional language questions
 

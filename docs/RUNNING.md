@@ -41,7 +41,7 @@ The supplied Gunicorn configuration runs a single synchronous worker. Bind Gunic
 .venv/bin/python tools/build_release_manifest.py --check
 .venv/bin/python tools/build_candidate_metadata.py --check
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
-node --test tests/test_case_state.cjs tests/test_language_state.cjs
+node --test tests/test_app_startup.cjs tests/test_case_state.cjs tests/test_language_state.cjs
 ```
 
 | Command | What it checks |
@@ -49,7 +49,7 @@ node --test tests/test_case_state.cjs tests/test_language_state.cjs
 | `build_release_manifest.py --check` | Every file in the checkout is an admitted publication member and matches `RELEASE-MANIFEST.json`. |
 | `build_candidate_metadata.py --check` | The authored metadata matches `candidate-metadata/MANIFEST.json`. |
 | `unittest discover` | All 76 districts, source inspection, claim bindings, case replay, HTTP sessions, packet tamper rejection and the AI preview's server rules. |
-| `node --test` | Case state and staff-context protections, and the question guards, in the browser code. |
+| `node --test` | Case state and staff-context protections, the question guards, and app startup, catalog Retry and pagination, in the browser code. |
 
 The Python suite also runs Node for its recommended-selection test, so install Node before you run the full checks. The app itself does not need Node at run time. The Python suite needs the installed requirements, because one test starts Gunicorn. Case fixtures in `tests/fixtures/` are synthetic test material. They are separate from the runtime facts.
 

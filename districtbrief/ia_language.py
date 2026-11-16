@@ -782,7 +782,7 @@ _NEGATED_BEFORE=re.compile(r"\b(?:no|not|never|without|avoid|exclude|excluding|d
 # Unsupported inference. Operation phrases prove the request on their own. A bare causal/eligibility keyword
 # proves it only inside a closed request form (a question about who/what/whether, or a determine/estimate
 # verb); otherwise it is unproven and the proposal is refused as uncertain, never answered as unsupported.
-_UNSAFE_OPERATION=r'\b(?:resident lookup|names? of residents|participation gap|unmet need|live availability|currently (?:open|available)|predict|forecast)\b'
+_UNSAFE_OPERATION=r'\b(?:resident lookup|names? of residents|participation gap|unmet need|live availability|currently (?:open|available)|predict(?:s|ed|ing|ions?)?|forecast(?:s|ed|ing)?)\b'
 # Statistical-significance wording only (not "the significance of a program"): no significance test is performed, so a
 # clarification never asks for a field as if one were available.
 _SIGNIFICANCE=(r'\bstatistical(?:ly)?\s+signific\w*|\bsignifican(?:ce|t)\s+(?:test\w*|difference\w*|gap\w*)\b|\btest\w*\s+(?:of|for)\s+significance\b'
@@ -794,8 +794,15 @@ _UNSAFE_REQUEST=re.compile(r'\b(?:who|whom|which|what|how many|how much|whether|
     r'|\b(?:determine|check|assess|verify|screen|decide|confirm|estimate|count|calculate|identify|find|list)\b[^.;:!?]{0,40}?\b(?:eligib(?:le|ility)|qualif(?:y|ies)|caus(?:e|ed|es|al))\b'
     r'|\bcaus(?:ed|es)\s+by\b|\bcauses?\s+of\b|\bcausal\s+(?:effect|impact|link|relationship|analysis|inference|explanation)s?\b')
 def _unnegated(pattern,utterance):
+    utterance=utterance.replace('\u2019',"'")  # Curly apostrophe reads as ASCII ("don’t"); same length, so offsets hold.
     return [m for m in re.finditer(pattern,utterance)
             if not _NEGATED_BEFORE.search(utterance[max(0,m.start()-30):m.start()]) and not _NEGATED_AFTER.match(utterance[m.end():])]
+
+def _unsupported_constraint(utterance):
+    """An existing unsupported operation proven by the request, independent of model decision type."""
+    keywords=_unnegated(_UNSAFE_KEYWORD,utterance)
+    return (_unnegated(_UNSAFE_OPERATION,utterance) or _unnegated(_SIGNIFICANCE,utterance)
+            or any(r.start()<=k.start()<r.end() for r in _UNSAFE_REQUEST.finditer(utterance) for k in keywords))
 
 def _measure_referents(utterance,provider_context):
     """Selected aliases whose metric the utterance names: a specific measure pattern/label, else generic poverty."""
@@ -912,10 +919,9 @@ def local_guard(prepared,decision,plan):
     # Unsupported inference is never reinterpreted as independent successful steps. A negated constraint
     # ("no causal claims") states what NOT to do and proves nothing unsupported.
     if plan is not None:
-        keywords=_unnegated(_UNSAFE_KEYWORD,utterance)
-        if _unnegated(_UNSAFE_OPERATION,utterance) or _unnegated(_SIGNIFICANCE,utterance.replace('\u2019',"'")) or any(r.start()<=k.start()<r.end() for r in _UNSAFE_REQUEST.finditer(utterance) for k in keywords):
+        if _unsupported_constraint(utterance):
             raise Recovery('unsupported_explicit_constraint','unsupported',reason='unsupported_operation')
-        if keywords:raise LanguageError('unsupported_inference_unproven')
+        if _unnegated(_UNSAFE_KEYWORD,utterance):raise LanguageError('unsupported_inference_unproven')
     # A non-State-legislative district is outside the admitted geography; never borrow a chamber. It is
     # proven the requested geography only when no State House/Senate district is also named, or when it is
     # the directed comparator; beside a named State district it is unproven and refused as uncertain.
@@ -1194,7 +1200,10 @@ def _convert(prepared,decision,core,stage):
         reason=decision['reason_code']
         if status=='clarify':
             field=decision['clarify_field'];choices=decision['clarify_choices']
-            if _unnegated(_SIGNIFICANCE,prepared['provider_context']['utterance'].lower().replace('\u2019',"'")):
+            # A referent clarification exists only for source inspection, which asks about a figure ("is that a forecast?"):
+            # like the inspect_source proposal it is exempt from operation/eligibility detection; significance still recovers.
+            utterance=prepared['provider_context']['utterance'].lower()
+            if _unnegated(_SIGNIFICANCE,utterance) if field=='referent' else _unsupported_constraint(utterance):
                 raise Recovery('unsupported_explicit_constraint','unsupported',reason='unsupported_operation')
             if field=='district' and choices and all(a in prepared['choices'] and prepared['choices'][a]['field']=='district' for a in choices):
                 ungrounded=grounded_district_choices(prepared,choices)

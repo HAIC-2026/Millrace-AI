@@ -65,6 +65,11 @@ METRIC_DISPLAY = {
 BRIEF_PRINT_BUDGET = 7000  # every measured near-budget fill up to 7800 printed on one page
 STAFF_BLOCK_OVERHEAD = 130
 ENTRY_OVERHEAD = 60
+# A comparison entry (two estimates, difference, test statement, universe and two citations) prints taller
+# than its characters estimate. Conservative allowance measured on comparison-heavy custom briefs (one to
+# eight of the longest comparisons, with and without maximum staff text) in headless Chrome on US letter;
+# 175 would be the bare minimum to refuse four longest comparisons with every staff field at its maximum.
+COMPARISON_OVERHEAD = 185
 TITLE_WEIGHT = 1.6
 SMALL_TEXT_WEIGHT = 0.6
 _WIDE = set("WMmw@%&")
@@ -926,7 +931,9 @@ class Core:
                     if o["state_reference"]:
                         ns += stat_cites(self.stat_finding(f"HI-STATE-2024:{o['finding_id'].rsplit(':', 1)[1]}"))
                 ns += [cite(e["source_id"], e["locator_text"]) for e in prog["evidence"]]
-            entries.append({"finding_id": f["finding_id"], "kind": f["kind"], "text": f["text"],
+            # Comparison summaries omit the structured universe; the standalone brief must retain it.
+            text = f["text"] + (f" Universe: {f['universe']}." if f["kind"] == "comparison" else "")
+            entries.append({"finding_id": f["finding_id"], "kind": f["kind"], "text": text,
                             "citations": sorted(set(ns)), "staff_note": notes.get(f["finding_id"])})
         lims = [L_EDITS]
         for f in findings:
@@ -934,7 +941,8 @@ class Core:
                 if lim not in lims:
                     lims.append(lim)
         staff = {k: edits[k] for k in ("title", "note", "next_steps") if edits.get(k)}
-        units = (sum(print_units(en["text"]) + ENTRY_OVERHEAD for en in entries)
+        units = (sum(print_units(en["text"]) + ENTRY_OVERHEAD + (COMPARISON_OVERHEAD if en["kind"] == "comparison" else 0)
+                     for en in entries)
                  + sum(print_units(en["staff_note"]) + STAFF_BLOCK_OVERHEAD for en in entries if en.get("staff_note"))
                  + sum(print_units(staff[k]) + STAFF_BLOCK_OVERHEAD for k in ("note", "next_steps") if k in staff)
                  + TITLE_WEIGHT * print_units(staff.get("title") or f"District brief: {prof['label']}")

@@ -9,6 +9,7 @@ import os
 import re
 import secrets
 import time
+import unicodedata
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -21,6 +22,7 @@ from districtbrief.case_contract import InvestigationError
 from districtbrief.geography import geometry_payload, indicator_payload
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_profiles import load_profile
+from districtbrief import render
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 65536
@@ -141,6 +143,25 @@ def load_core(input_profile=None, r2_input_dir=None):
     return Core(packet, metadata=metadata)
 
 
+CATALOG_PAGE_FIELDS = frozenset({'offset', 'limit', 'geography_id', 'metric_id', 'q', 'snapshot_id'})
+CATALOG_PAGE_MAX = 100
+
+
+def catalog_fold(text):
+    """Search folding: case, diacritics and the ʻokina/apostrophes are ignored (Hawaiʻi matches Hawaii)."""
+    decomposed = unicodedata.normalize('NFKD', str(text))
+    plain = ''.join(c for c in decomposed if not unicodedata.combining(c) and c not in "\u02bb\u2018\u2019'`")
+    return ' '.join(plain.casefold().split())
+
+
+def catalog_row_text(o, geos, metrics):
+    """The words a catalog row shows: geography, measure, published estimate and MOE, unit and universe.
+    The publisher's ***** MOE marker also matches its on-screen wording, Not published."""
+    moe = o['moe_display'] or ''
+    return ' '.join((geos[o['geography_id']], metrics[o['metric_id']]['label'], o['estimate_display'] or '', moe,
+                     'Not published' if moe == '*****' else '', o['unit'] or '', metrics[o['metric_id']].get('universe') or ''))
+
+
 class Application:
     def __init__(self, state_dir, *, secure_cookie=True, input_profile=None, r2_input_dir=None):
         state_dir = Path(state_dir)
@@ -153,6 +174,7 @@ class Application:
         self.investigation_sessions = {}
         self.secret = secrets.token_bytes(32)
         self.secure_cookie = secure_cookie
+        self._catalog_index = None
         # Development HTTP uses a separate cookie name. Production always uses __Host-.
         self.cookie_name = COOKIE_NAME if secure_cookie else 'haic_session_local'
 
@@ -184,6 +206,46 @@ class Application:
             if self.secure_cookie:
                 cookie += '; Secure'
             return hashlib.sha256(token.encode('ascii')).hexdigest(), cookie
+
+    def catalog_page(self, query_string):
+        """One page of the statistics catalog. Filters and search apply to every observation before paging,
+        in the catalog's own stable order. Read-only and value-free beyond the catalog itself."""
+        cat = self.service.catalog()
+        if self._catalog_index is None:
+            geos = {g['geography_id']: g['label'] for g in cat['geographies']}
+            metrics = {m['metric_id']: m for m in cat['metrics']}
+            self._catalog_index = [(o, catalog_fold(catalog_row_text(o, geos, metrics))) for o in cat['observations']]
+        q = parse_qs(query_string, max_num_fields=len(CATALOG_PAGE_FIELDS), keep_blank_values=True, strict_parsing=bool(query_string))
+        if not set(q) <= CATALOG_PAGE_FIELDS or any(len(v) != 1 for v in q.values()):
+            raise ValueError('Use only offset, limit, geography_id, metric_id, q and snapshot_id, each at most once.')
+        one = {k: v[0] for k, v in q.items()}
+        if 'snapshot_id' in one and one['snapshot_id'] != self.service.snapshot_id:
+            return 409, self.error('The data snapshot changed. Reload the page to see the current catalog.')
+        offset, limit = one.get('offset', '0'), one.get('limit', str(render.CATALOG_PAGE_SIZE))
+        if not re.fullmatch(r'[0-9]{1,6}', offset, flags=re.ASCII) or not re.fullmatch(r'[0-9]{1,3}', limit, flags=re.ASCII):
+            raise ValueError('offset and limit must be whole numbers.')
+        offset, limit = int(offset), int(limit)
+        if not 1 <= limit <= CATALOG_PAGE_MAX:
+            raise ValueError(f'limit must be 1 to {CATALOG_PAGE_MAX}.')
+        geo, metric, text = one.get('geography_id', ''), one.get('metric_id', ''), one.get('q', '')
+        if geo and geo not in {g['geography_id'] for g in cat['geographies']}:
+            raise ValueError('Unknown geography_id.')
+        if metric and metric not in {m['metric_id'] for m in cat['metrics']}:
+            raise ValueError('Unknown metric_id.')
+        if len(text) > render.CATALOG_QUERY_MAX:
+            raise ValueError(f'Search text is limited to {render.CATALOG_QUERY_MAX} characters.')
+        words = catalog_fold(text).split()
+        matched = [o for o, hay in self._catalog_index
+                   if (not geo or o['geography_id'] == geo) and (not metric or o['metric_id'] == metric)
+                   and all(w in hay for w in words)]
+        if offset and offset >= len(matched):
+            raise ValueError('offset is beyond the last matching row.')
+        page = matched[offset:offset + limit]
+        return 200, {'status': 'ok', 'snapshot_id': self.service.snapshot_id, 'total': len(self._catalog_index),
+                     'matched': len(matched), 'offset': offset, 'limit': limit,
+                     'filters': {'geography_id': geo, 'metric_id': metric, 'q': text},
+                     'finding_ids': [o['finding_id'] for o in page], 'rows_html': render.catalog_rows_html(cat, page),
+                     'model_calls': 0}
 
     @staticmethod
     def error(reason):
@@ -235,6 +297,13 @@ class Application:
                 out['investigation'] = self.investigation.bootstrap()
                 out['language'] = self.language.bootstrap()
                 return 200, ct, out
+            if path == '/api/catalog/observations':
+                try:
+                    code, out = self.catalog_page(environ.get('QUERY_STRING', ''))
+                except ValueError as exc:
+                    reason = str(exc) if str(exc).endswith('.') and len(str(exc)) < 120 else 'The catalog page request is malformed.'
+                    return 400, ct, self.route_error(path, reason)
+                return code, ct, out
             if path == '/api/geometry':
                 try:
                     q = parse_qs(environ.get('QUERY_STRING',''), max_num_fields=4, keep_blank_values=True, strict_parsing=True)

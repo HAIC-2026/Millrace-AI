@@ -958,21 +958,39 @@ def result_html(env: dict) -> str:
 
 
 # ------------------------------------------------------------ catalog/source
+CATALOG_PAGE_SIZE = 50
+CATALOG_QUERY_MAX = 100
+
+
+def catalog_rows_html(cat: dict, observations) -> str:
+    """Table rows for one page of catalog observations (the same markup for the first page and later pages)."""
+    geos = {g["geography_id"]: g["label"] for g in cat["geographies"]}
+    metrics = {m["metric_id"]: m for m in cat["metrics"]}
+    rows = "".join(
+        f'<tr data-geo="{e(o["geography_id"])}" data-metric="{e(o["metric_id"])}" data-finding-id="{e(o["finding_id"])}">'
+        f'<td>{e(geos[o["geography_id"]])}</td><th scope="row">{e(metrics[o["metric_id"]]["label"])}</th>'
+        f'<td class="num">{e(o["estimate_display"])}</td><td class="num">{_moe_cell(o["moe_display"])}</td>'
+        f'<td>{e(o["unit"])}</td><td class="universe fine">{e(metrics[o["metric_id"]]["universe"])}</td>'
+        f'<td>{_source_button(o["source_id"], o["finding_id"], context=geos[o["geography_id"]] + ", " + metrics[o["metric_id"]]["label"])}</td></tr>'
+        for o in observations)
+    return rows or '<tr class="cat-empty"><td colspan="7">No statistics match these filters. Choose Clear filters to see every row.</td></tr>'
+
+
 def _count_display(value) -> str:
     return "Unpublished (no value)" if value is None else f"{value:,}"
 
 
 def catalog_html(cat: dict) -> str:
     geos = {g["geography_id"]: g["label"] for g in cat["geographies"]}
-    metrics = {m["metric_id"]: m for m in cat["metrics"]}
     programs = {p["program_id"]: p.get("name") or human_words(p["program_id"]) for p in cat.get("programs") or []}
     geo_opts = "".join(f'<option value="{e(g)}">{e(l)}</option>' for g, l in geos.items())
-    rows = "".join(
-        f'<tr data-geo="{e(o["geography_id"])}" data-metric="{e(o["metric_id"])}">'
-        f'<td>{e(geos[o["geography_id"]])}</td><th scope="row">{e(metrics[o["metric_id"]]["label"])}</th>'
-        f'<td class="num">{e(o["estimate_display"])}</td><td class="num">{_moe_cell(o["moe_display"])}</td>'
-        f'<td>{e(o["unit"])}</td><td class="universe fine">{e(metrics[o["metric_id"]]["universe"])}</td>'
-        f'<td>{_source_button(o["source_id"], o["finding_id"], context=geos[o["geography_id"]] + ", " + metrics[o["metric_id"]]["label"])}</td></tr>' for o in cat["observations"])
+    rows = catalog_rows_html(cat, cat["observations"][:CATALOG_PAGE_SIZE])
+    metric_groups = {}
+    for m in cat["metrics"]:
+        metric_groups.setdefault(m.get("group") or "Measures", []).append(m)
+    metric_opts = "".join(
+        f'<optgroup label="{e(g)}">' + "".join(f'<option value="{e(m["metric_id"])}">{e(m["label"])}</option>' for m in ms)
+        + '</optgroup>' for g, ms in metric_groups.items())
     geo_rows = "".join(
         f'<tr><td>{e(g["label"])}</td><td>{e(g["geoid"])}</td>'
         f'<td>{e(g["observation_count"])}</td></tr>' for g in cat["geographies"])
@@ -1010,11 +1028,24 @@ def catalog_html(cat: dict) -> str:
         '<th scope="col">Observations</th></tr></thead>'
         f'<tbody>{geo_rows}</tbody></table></section>'
         '<section aria-labelledby="obs-h"><h3 id="obs-h">All statistics</h3>'
-        '<div class="filters"><label for="cat-geo">Geography</label>'
+        '<div class="filters cat-filters" role="group" aria-label="Filter all statistics">'
+        '<label for="cat-geo">Geography</label>'
         f'<select id="cat-geo"><option value="">All geographies</option>{geo_opts}</select>'
-        '<label for="cat-q">Measure contains</label><input id="cat-q" type="search">'
-        '<span id="cat-count" class="fine" aria-live="polite"></span></div>'
-        '<table class="data-table" id="cat-table"><thead><tr><th scope="col">Geography</th>'
+        '<label for="cat-metric">Measure</label>'
+        f'<select id="cat-metric"><option value="">All measures</option>{metric_opts}</select>'
+        '<label for="cat-q">Search text</label>'
+        f'<input id="cat-q" type="search" maxlength="{CATALOG_QUERY_MAX}" autocomplete="off" aria-describedby="cat-q-help">'
+        '<button type="button" id="cat-clear" class="btn btn-small">Clear filters</button></div>'
+        f'<p id="cat-q-help" class="fine">Filters and search cover all {e(f"{cat_count:,}")} statistics, not only the rows shown. '
+        'Search matches geography, measure, estimate, margin of error, unit and universe text. '
+        'Search text goes to this app’s server, not to OpenAI.</p>'
+        '<div class="cat-pager"><p id="cat-count" class="fine" role="status" aria-live="polite" tabindex="-1"></p>'
+        '<div class="btn-row"><button type="button" id="cat-prev" class="btn btn-small">Previous page</button>'
+        '<button type="button" id="cat-next" class="btn btn-small">Next page</button></div></div>'
+        '<div id="cat-error" class="notice notice-error" role="alert" tabindex="-1" hidden></div>'
+        f'<table class="data-table" id="cat-table" data-total="{len(cat["observations"])}" '
+        f'data-matched="{len(cat["observations"])}" data-offset="0" data-limit="{CATALOG_PAGE_SIZE}">'
+        '<thead><tr><th scope="col">Geography</th>'
         '<th scope="col">Measure</th><th scope="col">Estimate</th><th scope="col">90% MOE</th>'
         '<th scope="col">Unit</th><th scope="col">Universe</th><th scope="col">Source</th></tr></thead>'
         f'<tbody>{rows}</tbody></table></section>'
