@@ -3209,6 +3209,13 @@ details.ia-plan[open] > summary {
   }
 
   /* Step ribbon: a quiet single line of jump links to the numbered sections. */
+  #ia-workspace,
+  #ia-evidence-h,
+  #ia-responses-h,
+  #ia-tray-h {
+    scroll-margin-top: 1rem;
+  }
+
   .ia-flow {
     grid-column: 1 / -1;
     margin: 0 0 0.6rem;

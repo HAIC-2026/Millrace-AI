@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:063848ef7d2d992e34173606f6f7d33427ec1974a9262cf47255d164cbde6245",
+  "source_identity": "sha256:420db36d81b5e21a0e1fde856ebba915bffef815eb5bf6fb452a1d218c19aae9",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -326,8 +326,8 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 76258,
-      "sha256": "82901307eb2339257190fdd9f8c8e8698cd03f7b3e9e5bb4b6acc693f3516bea"
+      "bytes": 76361,
+      "sha256": "e6f92a55da2d53406094b4e358eecab505a0ccfb9e9b6739065cc1d8d2c2d86f"
     },
     {
       "path": "static/app.js",
@@ -341,8 +341,8 @@
     },
     {
       "path": "static/index.html",
-      "bytes": 24967,
-      "sha256": "97524ab12d6493ee47c74226dbce1908f8bf93641370a287ca5c5a859852b6f8"
+      "bytes": 24981,
+      "sha256": "731a6bee9fb034291001f8595162ae7f5196aaa44bbf64e7402d88dd4126fbb6"
     },
     {
       "path": "static/investigation.js",
