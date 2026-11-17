@@ -48,10 +48,10 @@ class CompletionChecks(unittest.TestCase):
   plan=recipe({'state_fips':'15','chamber':'house','code':'013','boundary_session':2024});r=self.request(plan);out=self.inv.handle(r)
   chosen=out['claims'][0]['claim_ref'];r.update(mode='brief',selected_claim_refs=[chosen],selected_action_ref=None,staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
   with patch.object(self.core.geo,'geometry_equal_across_sessions',return_value=False):brief=self.inv.handle(r)['brief']
-  self.assertFalse(brief['district_indicator']['geometry_compatible']);self.assertIn('remains unshaded',brief['html']);self.assertEqual(len(brief['entries']),1);self.assertEqual(brief['entries'][0]['finding_id'],chosen['finding_id'])
+  self.assertFalse(brief['district_indicator']['geometry_compatible']);self.assertIn('differs from the 2024 district boundary and remains unshaded',brief['html']);self.assertIn('2024 estimate band',brief['html']);self.assertEqual(len(brief['entries']),1);self.assertEqual(brief['entries'][0]['finding_id'],chosen['finding_id'])
   self.assertEqual(brief['district_indicator']['snapshot_id'],r['snapshot_id']);self.assertEqual(brief['district_indicator']['session'],r['plan']['map_session'])
   data=copy.deepcopy(brief);data['district_indicator'].update(estimate=None,annotation='N',margin_of_error=None,moe_annotation='*****')
-  text=render.indicator_context_text(data);self.assertIn('display class unavailable',text);self.assertIn('90% MOE unavailable',text);self.assertNotIn('all people 0%',text)
+  text=render.indicator_context_text(data);self.assertIn('2024 estimate band unavailable',text);self.assertIn('90% MOE unavailable',text);self.assertNotIn('all people 0%',text)
  def test_language_disabled_ingress_and_static(self):
   with tempfile.TemporaryDirectory() as d:
    app=Application(d,secure_cookie=False)

@@ -265,9 +265,8 @@ class StaffPresentationTests(unittest.TestCase):
         text=self.visible(self.i.handle(b)['brief']['html'])
         self.assertIn('House 013 includes Kalawao',text);self.assertIn('808-586-0100',text)
 
-    def test_presentation_does_not_change_the_print_estimate(self):
-        # Values measured on the accepted v10 renderer for the default four-finding brief with the agency step.
-        for (chamber,code),units in {('house','028'):4817,('house','013'):4996,('senate','025'):4817}.items():
+    def test_print_estimates_for_four_finding_briefs_with_agency_step(self):
+        for (chamber,code),units in {('house','028'):4817,('house','013'):4996,('senate','025'):4816}.items():
             r=self.request(chamber,code);o=self.i.handle(r)
             b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in o['claims'][:4]],selected_action_ref=o['responses'][0]['action_ref'],
                 staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)

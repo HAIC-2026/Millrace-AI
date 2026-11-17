@@ -620,13 +620,20 @@ def indicator_context_text(brief):
     label = ('0–<5%' if value < 5 else '5–<10%' if value < 10 else '10–<15%' if value < 15 else '15–<20%' if value < 20 else '20% or more') if numeric else 'unavailable'
     estimate = f"{value:g}%" if numeric else 'unavailable'
     moe = f"±{indicator['margin_of_error']:g} percentage points (90% MOE)" if indicator['margin_of_error'] is not None else '90% MOE unavailable'
-    geometry = ('Displayed boundary matches the 2024 statistical geometry.' if indicator['geometry_compatible'] else 'Displayed 2026 boundary differs from the 2024 statistical geometry and remains unshaded.')
-    return (f"District map context: poverty rate, all people {estimate}; {moe}; display class {label}. "
+    if indicator['session'] == 2024:
+        geometry = 'The map uses the 2024 district boundary.'
+    elif indicator['geometry_compatible']:
+        geometry = 'The 2026 map uses the same district boundary as in 2024.'
+    else:
+        geometry = 'The 2026 map boundary differs from the 2024 district boundary and remains unshaded.'
+    band = 'display class' if indicator['geometry_compatible'] else '2024 estimate band'
+    return (f"District map context: {geometry} "
+            f"Poverty rate, all people {estimate}; {moe}; {band} {label}. "
             f"{indicator['period']['label']}; universe: {indicator['universe']}. "
             f"{indicator['publisher']}, {indicator['source_title']}. "
             "Illustrative bins: 0–<5%, 5–<10%, 10–<15%, 15–<20%, 20% or more. "
             "Bins are display intervals, not policy thresholds or statistical tests. "
-            "One district cannot establish rank, significance, eligibility or causality. " + geometry)
+            "One district cannot establish rank, significance, eligibility or causality.")
 
 
 def indicator_context_html(brief):
@@ -634,7 +641,7 @@ def indicator_context_html(brief):
     worded without repeating the section heading."""
     text = indicator_context_text(brief)
     if not text:return ''
-    text = text.replace("District map context: poverty rate", "Poverty rate", 1)
+    text = text.removeprefix("District map context: ")
     # Printed wording only: the source is named by the citation and the Sources list, so it is not repeated
     # inline, and the bin caveat joins the bin list. The fit estimate keeps the longer text (conservative).
     source = f"{brief['district_indicator']['publisher']}, {brief['district_indicator']['source_title']}. "
@@ -863,14 +870,12 @@ def brief_doc_html(brief: dict) -> str:
         '<footer class="brief-foot">Programs are informational; the administering agency determines '
         'eligibility. Outreach items are hypotheses, not measured gaps.</footer>')
     title_label = f' <span class="staff-label">({e(lbl)})</span>' if brief["title_is_staff_edit"] else ""
-    map_session = brief.get("map_session", 2024)
     return (
         f'<article id="brief-doc" class="brief-doc" data-brief-id="{e(brief["brief_id"])}">'
         f'<header class="brief-head"><h2>{e(brief["title"])}{title_label}</h2>'
         f'<p class="brief-meta">{e(brief["geography"]["label"])}'
         + (f' · Issue: {e(_ISSUE_NAMES[brief.get("recipe_version")])}' if brief.get("recipe_version") in _ISSUE_NAMES else "")
         + ' · Statistics use 2024 district boundaries'
-        + (f'; map shows the {e(map_session)} boundary' if map_session != 2024 else "")
         + ' · Facts from bundled public sources listed below</p></header>'
         + (f'<section class="staff-edit"><h3>Staff summary <span class="staff-label">({e(lbl)})</span></h3>'
            f'<p>{e(staff["note"])}</p></section>' if staff.get("note") else "")

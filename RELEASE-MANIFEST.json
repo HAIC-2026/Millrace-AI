@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:664c18beee6725aaf06d56c91e68128a95705d474d9ed6271f16cff37d035fc6",
+  "source_identity": "sha256:fffc05d29d0c729f60b19cdc7a9061891d374e816dfcb11b65c9cf0e1d6b1ea8",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -191,8 +191,8 @@
     },
     {
       "path": "districtbrief/render.py",
-      "bytes": 72653,
-      "sha256": "c98b9778330427c3667b8c24149ccc7cfd328f86257fa0e202fa81100873e9da"
+      "bytes": 72713,
+      "sha256": "ded4e4014783768286b72c7c3940fc1f1ff6e54b40f88e77993cefbc1aa1c512"
     },
     {
       "path": "districtbrief/resolve.py",
@@ -326,13 +326,13 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 77281,
-      "sha256": "703535b8cb4024d726b9490b97a121254be433c85e6dfd2e408f7d60ac1fbee5"
+      "bytes": 77405,
+      "sha256": "3f99c58054c05381bba4c7548ef57004174824c1cfcba8bdd93762ca7e35eaeb"
     },
     {
       "path": "static/app.js",
-      "bytes": 53119,
-      "sha256": "81d902f57a935d467f057e5655f69e28dd6e2be58b2f568be20f59df3349e145"
+      "bytes": 53400,
+      "sha256": "eb1e4c24dec8e76403c2daaff2f4b6a28d13ef4d8f7413bef46075ab4445cef4"
     },
     {
       "path": "static/case_state.js",
@@ -341,13 +341,13 @@
     },
     {
       "path": "static/index.html",
-      "bytes": 25702,
-      "sha256": "66a5353bd09915b38dc43c2ddad49026ade222bcfe553ea2edd918a91c89079f"
+      "bytes": 26065,
+      "sha256": "3a5cae4a6ddb6b26d8fb24a89469c22aa38c360775b1962b2bfcd229728d114e"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 172112,
-      "sha256": "b985d0f93844a9c5339ea89ffa9edfc63b1ffdc413ca4572ca47329c2e20fb2b"
+      "bytes": 172574,
+      "sha256": "5bc3666e0b6673372a7e439c9176a2d3a03ed2d0db0cdaba04fc5010ee708031"
     },
     {
       "path": "static/language_state.js",
@@ -436,8 +436,8 @@
     },
     {
       "path": "tests/test_brief_presentation.py",
-      "bytes": 8085,
-      "sha256": "5d999f6433259918c507da5f216c275e4b5f18229647c88f25a90874abaf7c4a"
+      "bytes": 8398,
+      "sha256": "701c714d7deb37018de989e492d853197dd9a03bd6d77a449bfa96064e9cc9df"
     },
     {
       "path": "tests/test_case_replay.py",
@@ -446,8 +446,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 139551,
-      "sha256": "3ba52141f1529d258e4b49ff27ef092ac32488ee272c08e81adada7e0b8b8439"
+      "bytes": 139899,
+      "sha256": "cf53d2e37f7e6e91c5349d934eb1c79da147c0f89e1debb410861ddf4e6a2b2c"
     },
     {
       "path": "tests/test_catalog_pagination.py",
@@ -461,8 +461,8 @@
     },
     {
       "path": "tests/test_completion.py",
-      "bytes": 8497,
-      "sha256": "9a1b455e3367d6df0738c36a6ab47703d48d09384156610c760d9596eed75ab5"
+      "bytes": 8596,
+      "sha256": "2e9563bc4d0bdf277ec9029455f8d15eb8f4bd3f696d1b4504a72d85a57a621b"
     },
     {
       "path": "tests/test_focused_brief.py",
@@ -641,8 +641,8 @@
     },
     {
       "path": "tests/test_investigation.py",
-      "bytes": 42974,
-      "sha256": "9f2f28af3bc2dab6705f7728a34f280251f2e7b73ac099c009d2ffd82f864a92"
+      "bytes": 42871,
+      "sha256": "fc30a6fcbc49121b384e9fd72730113d306357e309d57d1423e7425b4503ad96"
     },
     {
       "path": "tests/test_lane_p_backend_20261116.py",

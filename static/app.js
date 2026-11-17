@@ -612,6 +612,13 @@
 
   function wireTabs() {
     const tabs = $$('[role="tab"]');
+    $("#ia-question-result").addEventListener("click", (ev) => {
+      if (ev.target.id !== "ia-quota-lookup") return;
+      $('input[name="mode"][value="guided"]').checked = true;
+      const lookup = $("#tab-btn-workflow");
+      selectTab(lookup);
+      lookup.focus();
+    });
     tabs.forEach((b, i) => {
       b.addEventListener("click", () => selectTab(b));
       b.addEventListener("keydown", (ev) => {

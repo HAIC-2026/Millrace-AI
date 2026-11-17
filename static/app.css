@@ -2707,6 +2707,14 @@ p.page-foot {
   font-size: 1.05rem;
 }
 
+.ia-ask-example {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  margin-top: 0.5rem;
+}
+
 .ia-question #ia-question-privacy {
   max-width: 75ch;
   margin: 0.35rem 0 0;

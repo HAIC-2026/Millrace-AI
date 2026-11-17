@@ -1656,21 +1656,22 @@ function pendingQuestionHarness(state, startReply, statusReply) {
   const vm = require("node:vm");
   const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
   const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
-  const listener = part('$("#ia-question-text").addEventListener("input", ', "\n");
+  const listener = part('$("#ia-question-text").addEventListener("input", ', "\n    });") + "\n    });";
   const code = part("  function cancelLanguage(message, recover) {", "  // ------------------------------------------------------------------ One Ask") +
     "\n  var onQuestionInput = null; const $real = $; " + listener.replace('$("#ia-question-text").addEventListener("input", ', "onQuestionInput = (").replace(/\);\s*$/, ");");
   const text = { id: "ia-question-text", readOnly: false, value: "How many adults 65 and older live in House 28?" };
+  const example = { disabled: false };
   const posts = [], renders = [], timers = [];
   const ctx = { C, state, languageJob: null, languageResult: null, lastQuestion: "", notice: "", Date, Error,
     catalog: { language: { enabled: true } }, window: { IALanguage: { matches: () => true } }, ids: { uuid: () => "q-1" },
-    document: { activeElement: text }, $: (sel) => (sel === "#ia-question-text" ? text : { hidden: true, focus() {} }),
+    document: { activeElement: text }, $: (sel) => (sel === "#ia-question-text" ? text : sel === "#ia-question-example" ? example : { hidden: true, focus() {} }),
     languageContext: () => ({}), deadlineMs: () => 25000, languagePolicy: () => "", alertUser: (m) => { throw new Error("alert " + m); },
     userInComposer: () => false, askOnce: () => false,
     setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {},
     render: () => renders.push({ readOnly: text.readOnly, value: text.value, pending: !!(ctx.languageJob && ctx.languageJob.pending) }),
     languagePost: async (action, body) => { posts.push(action); if (action === "start") return startReply(); if (action === "status") return statusReply(body); return { http: 200, data: {} }; } };
   vm.createContext(ctx); vm.runInContext(code, ctx);
-  return { ctx, text, posts, renders, timers, input: () => vm.runInContext("onQuestionInput()", ctx),
+  return { ctx, text, example, posts, renders, timers, input: () => vm.runInContext("onQuestionInput()", ctx),
     ask: () => vm.runInContext("askLanguage", ctx)(text.value), poll: () => vm.runInContext("pollLanguage(languageJob)", ctx) };
 }
 
@@ -1683,6 +1684,7 @@ test("a pending question is read-only, typing never cancels it, and every finish
   await t.ask();
   assert.deepEqual(t.renders[0], { readOnly: true, value: question, pending: true }, "locked while the question is being read");
   assert.equal(t.text.readOnly, true);
+  assert.equal(t.example.disabled, true, "example cannot replace a pending question");
   const job = t.ctx.languageJob; t.input();
   assert.equal(t.ctx.languageJob, job, "typing during a pending question keeps the same request");
   assert.equal(job.pending, true); assert.deepEqual(t.posts, ["start"], "no cancel was sent for a possibly charged request");
@@ -1691,6 +1693,8 @@ test("a pending question is read-only, typing never cancels it, and every finish
   assert.equal(t.text.readOnly, false, "unlocked when the answer arrives"); assert.equal(t.text.value, question);
   assert.deepEqual(t.posts, ["start", "status"]);
   t.input(); assert.equal(t.ctx.languageJob, null); assert.deepEqual(t.posts, ["start", "status"], "clearing a finished answer sends nothing");
+  assert.equal(t.example.disabled, true, "example cannot replace a draft");
+  t.text.value = ""; t.input(); assert.equal(t.example.disabled, false);
   // 3. Poll failure: unlocked, question kept.
   t = pendingQuestionHarness(s, accepted, () => { throw new Error("network"); });
   await t.ask(); assert.equal(t.text.readOnly, true); await t.poll();

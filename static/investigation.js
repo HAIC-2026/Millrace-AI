@@ -366,7 +366,11 @@
 
   // While a question is being asked its text is read-only (still readable and focusable): an edit there used to cancel a
   // request that may already be charged. Derived only from the live job, so every finish, error and cancel path unlocks it.
-  function lockQuestion() { const q = $('#ia-question-text'); if (q) q.readOnly = !!(languageJob && languageJob.pending); }
+  function lockQuestion() {
+    const q = $('#ia-question-text');
+    q.readOnly = !!(languageJob && languageJob.pending);
+    $('#ia-question-example').disabled = q.readOnly || !!q.value.trim();
+  }
   async function askLanguage(text) {
     if (!catalog.language || catalog.language.enabled !== true || !window.IALanguage) return;
     if (!text.trim() || Array.from(text).length > 500) { alertUser('Enter a question of up to 500 characters.'); return; }
@@ -396,8 +400,8 @@
       if (languageJob !== job) return;
       clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(false);
       const limited = e && e.message === 'rate_limited';
-      languageResult = {status:'error', limited, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site is reached. Try again in a few minutes.' : 'Language question unavailable.'),
-        after:(limited && languagePolicy() ? languagePolicy() + ' This page cannot see how many questions remain or when the next one opens. ' : '') + 'Your question is kept in the box above and your work is unchanged.'}; render(); focusQuestionResult();
+      languageResult = {status:'error', limited, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site has been reached.' : 'Language question unavailable.'),
+        after:limited ? 'Your question is still in the box above. Choose a task and district in Single lookup.' : 'Your question is still in the box above.'}; render(); focusQuestionResult();
     }
   }
   function focusQuestionResult() { if (userInComposer()) { const r = $('#ia-question-result'); if (r && !r.hidden) r.focus(); } }
@@ -558,6 +562,7 @@
     const refusal = refusalText(result);
     const nodes = [h('p',{class: result.status === 'pending' ? 'loading' : null, text: refusal || result.message || (result.status === 'propose' ? 'Proposed interpretation; nothing has been applied or run.' : 'Use the guided controls to continue.')})];
     if (result.after) nodes.push(h('p',{class:'hint',text:result.after}));
+    if (result.limited) nodes.push(h('button', { type:'button', class:'btn btn-primary', id:'ia-quota-lookup', text:'Open Single lookup' }));
     if (result.status === 'propose') {
       const np = result.normalized_plan;
       if (Array.isArray(result.review) && result.review.length) nodes.splice(0, 1, h('h3',{class:'ia-group-title',text:'Check this before it runs'}), h('ul',{class:'ia-review-reasons'},result.review.map((r) => h('li',{text:r}))));
@@ -1745,12 +1750,22 @@
     $("#ia-service").addEventListener("change", (e) => ctx({ service_area_id: e.target.value || null }));
     $("#ia-map-session").addEventListener("change", (e) => ctx({ map_session: Number(e.target.value) }));
     $("#ia-question-form").addEventListener("submit", (e) => { e.preventDefault(); if (languageJob && languageJob.pending) return; askLanguage($("#ia-question-text").value); });
+    $("#ia-question-example").addEventListener("click", (e) => {
+      const q = $("#ia-question-text");
+      if (q.readOnly || q.value.trim()) return;
+      q.value = e.currentTarget.dataset.exampleQuestion;
+      q.focus();
+      q.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     $("#ia-question-cancel").addEventListener("click", () => {
       if (document.activeElement === $("#ia-question-cancel")) $("#ia-question-text").focus();
       cancelLanguage('Question cancelled. Your work is unchanged.'); render();
     });
     // Never cancels a pending (possibly charged) question; the box is read-only then. A finished answer is cleared as before.
-    $("#ia-question-text").addEventListener("input", () => { if (languageJob && !languageJob.pending) { cancelLanguage('Question changed. Ask again when ready.'); render(); } });
+    $("#ia-question-text").addEventListener("input", () => {
+      lockQuestion();
+      if (languageJob && !languageJob.pending) { cancelLanguage('Question changed. Ask again when ready.'); render(); }
+    });
     $("#ia-ask").addEventListener("submit", (e) => {
       e.preventDefault();
       const text = $("#ia-utterance").value;

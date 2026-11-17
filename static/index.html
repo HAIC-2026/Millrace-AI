@@ -62,11 +62,16 @@
       <form id="ia-question-form" hidden>
         <label for="ia-question-text">Ask about a district measure, a comparison with a county or the State, a program reference or a source</label>
         <div class="ia-ask-row">
-          <textarea id="ia-question-text" rows="2" maxlength="500" aria-describedby="ia-question-privacy" placeholder="For example: How many adults 65 and older live in House 28?"></textarea>
+          <textarea id="ia-question-text" rows="2" maxlength="500" aria-describedby="ia-question-privacy" placeholder="Type a district question"></textarea>
           <div class="ia-ask-actions">
             <button type="submit" id="ia-question-submit" class="btn btn-primary">Ask</button>
             <button type="button" id="ia-question-cancel" class="btn" hidden>Cancel question</button>
           </div>
+        </div>
+        <div class="ia-ask-example">
+          <button type="button" id="ia-question-example" class="btn btn-small" aria-describedby="ia-question-example-help"
+            data-example-question="How many adults 65 and older live in House 28?">Fill in House 28 example</button>
+          <span id="ia-question-example-help" class="hint">Fills an empty box. Choose Ask to send.</span>
         </div>
         <p id="ia-question-privacy" class="ia-ask-notice">Your question is sent to OpenAI as typed. Leave out names, case details and anything confidential.</p>
         <details id="ia-question-detail" class="ia-ask-detail">

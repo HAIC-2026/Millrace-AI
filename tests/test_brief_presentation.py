@@ -66,6 +66,10 @@ class BriefPresentationTests(unittest.TestCase):
             self.assertIn(fact, ctx)
         self.assertNotIn(b['district_indicator']['source_title'], ctx)
         self.assertIn('acs2024_5yr', b['html'])  # the Sources list keeps the address
+        self.assertIn('Statistics use 2024 district boundaries', b['html'])
+        self.assertIn('The 2026 map uses the same district boundary as in 2024.', ctx)
+        b['district_indicator']['session'] = 2024
+        self.assertIn('The map uses the 2024 district boundary.', render.indicator_context_text(b))
 
     def test_native_comparison_brief_keeps_population_universe(self):
         for metric in ('unemployment_rate', 'poverty_rate_65_plus', 'total_population'):
