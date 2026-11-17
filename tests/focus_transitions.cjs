@@ -91,9 +91,9 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
     await p.waitForTimeout(40);
     assert.deepEqual(await p.locator("#ia-note").evaluate(el => [el.selectionStart, el.selectionEnd, el.selectionDirection]), [2, 8, "backward"]);
     await p.locator("#ia-title").fill("No delayed focus steal");
-    await p.evaluate(() => { document.querySelector("#ia-note").focus(); document.querySelector("#ia-question-text").focus(); });
+    await p.evaluate(() => { document.querySelector("#ia-note").focus(); document.querySelector("#ia-download").focus(); });
     await p.waitForTimeout(40);
-    assert.equal((await focus(p)).id, "ia-question-text");
+    assert.equal((await focus(p)).id, "ia-download");
     // A click action must see the state committed during blur, including staff text in the download.
     await p.locator("#ia-title").fill("Title committed before click");
     await p.locator("#ia-download-staff").check();
@@ -107,6 +107,26 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
     assert.equal(branch.staff_edits.next_steps, "Pointer next steps");
     assert.ok(branch.selected_claim_refs.length > 0);
     await proof(p, "staff-saved-work", { selected, savedStaff: branch.staff_edits });
+    // A deferred label commit must merge the baseline/date change with the current tracking record.
+    if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+    for (const target of ["Tab", "ia-track-base", "ia-track-date"]) {
+      const label = "Referral sessions arranged " + target;
+      await p.locator("#ia-track-label").fill(label);
+      if (target === "Tab") await p.keyboard.press("Tab");
+      else await p.locator("#" + target).click({ delay: 150 });
+      await p.waitForTimeout(40);
+      assert.equal((await focus(p)).id, target === "Tab" ? "ia-track-base" : target);
+      assert.equal(await p.locator("#ia-track-label").inputValue(), label);
+      await p.locator("#ia-track-base").fill("12");
+      await p.locator("#ia-track-date").fill("2026-11-16");
+      await p.locator("#ia-download").focus();
+      const trackingDownload = p.waitForEvent("download");
+      await p.locator("#ia-download").click();
+      const trackingFile = await trackingDownload;
+      const trackingCase = JSON.parse(fs.readFileSync(await trackingFile.path(), "utf8"));
+      assert.deepEqual(trackingCase.branches[0].tracking, { label, baseline: 12, as_of: "2026-11-16" });
+      await proof(p, "tracking-" + target, { savedTracking: trackingCase.branches[0].tracking });
+    }
   } finally { await p.close(); }
 });
 
@@ -162,7 +182,7 @@ test("lookup Run retains focus, blocks duplicate submission and releases busy st
     await p.locator("#run-btn").focus();
     await p.keyboard.press("Enter");
     await p.waitForFunction(() => document.querySelector("#run-btn").getAttribute("aria-busy") === "true");
-    const pending = { ariaDisabled: await p.locator("#run-btn").getAttribute("aria-disabled"), disabled: await p.locator("#run-btn").evaluate(el => el.disabled), focus: await focus(p) };
+    const pending = { ariaDisabled: await p.locator("#run-btn").getAttribute("aria-disabled"), disabled: await p.locator("#run-btn").evaluate(el => el.disabled), cursor: await p.locator("#run-btn").evaluate(el => getComputedStyle(el).cursor), focus: await focus(p) };
     await proof(p, "lookup-pending", pending);
     await p.keyboard.press("Enter");
     await p.keyboard.press("Space");
@@ -171,6 +191,7 @@ test("lookup Run retains focus, blocks duplicate submission and releases busy st
     assert.equal(pending.ariaDisabled, "true");
     assert.equal(pending.disabled, false);
     assert.equal(pending.focus.id, "run-btn");
+    assert.equal(pending.cursor, "not-allowed");
     assert.equal(resolves, 1);
     assert.equal((await focus(p)).id, "run-btn");
     assert.equal(await p.locator("#run-btn").getAttribute("aria-disabled"), null);

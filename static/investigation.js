@@ -1448,7 +1448,7 @@
 
     // staff notes and tracking
     const t = b.tracking || { label: "", baseline: null, as_of: null };
-    const track = (patch, defer) => { const n = Object.assign({}, t, patch); set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
+    const track = (patch, defer) => { const n = Object.assign({ label: "", baseline: null, as_of: null }, C.active(state).tracking, patch); set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
     const excl = (key) => (ex.has(key) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, key, false)), { class: "btn-link", id: "ia-incl-" + key })) : null);
     const food = b.plan.issue_id === "food_assistance_outreach";
     fill($("#ia-staff"), [
