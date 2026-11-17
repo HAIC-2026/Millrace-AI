@@ -127,6 +127,35 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
       assert.deepEqual(trackingCase.branches[0].tracking, { label, baseline: 12, as_of: "2026-11-16" });
       await proof(p, "tracking-" + target, { savedTracking: trackingCase.branches[0].tracking });
     }
+    // Native typing commits a number on blur; the first Tab or pointer action must reach the date.
+    await p.locator("#ia-track-base").focus();
+    await p.keyboard.press("ControlOrMeta+A");
+    await p.keyboard.type("13");
+    await p.keyboard.press("Tab");
+    await p.waitForTimeout(40);
+    assert.equal((await focus(p)).id, "ia-track-date");
+    assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
+    assert.equal(await p.locator("#ia-track-base").inputValue(), "13");
+    await proof(p, "tracking-number-tab", {});
+    await p.locator("#ia-track-base").focus();
+    await p.keyboard.press("ControlOrMeta+A");
+    await p.keyboard.type("12");
+    await p.locator("#ia-track-date").click({ delay: 150 });
+    await p.waitForTimeout(40);
+    assert.equal((await focus(p)).id, "ia-track-date");
+    assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
+    await proof(p, "tracking-number-first-click", {});
+    await p.keyboard.press("ArrowUp");
+    const revisedDate = await p.locator("#ia-track-date").inputValue();
+    assert.notEqual(revisedDate, "2026-11-16");
+    const finalTrackingDownload = p.waitForEvent("download");
+    await p.locator("#ia-download").click();
+    await p.waitForTimeout(40);
+    assert.equal((await focus(p)).id, "ia-download");
+    const finalTrackingFile = await finalTrackingDownload;
+    const finalTrackingCase = JSON.parse(fs.readFileSync(await finalTrackingFile.path(), "utf8"));
+    assert.deepEqual(finalTrackingCase.branches[0].tracking, { label: "Referral sessions arranged ia-track-date", baseline: 12, as_of: revisedDate });
+    await proof(p, "tracking-number-date-saved", { savedTracking: finalTrackingCase.branches[0].tracking });
   } finally { await p.close(); }
 });
 

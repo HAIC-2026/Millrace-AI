@@ -1460,8 +1460,8 @@
         food && !b.tracking ? btn("Use SNAP information-request tracking", () => set(C.setTracking(state, {label:"Office requests for SNAP information",baseline:null,as_of:null}), "Tracking added as a staff contribution; baseline is not recorded.")) : null,
         textField("ia-track-label", "Measure label", t.label, 80, (v, defer) => track({ label: v }, defer)),
         h("div", { class: "ia-inline" },
-          h("div", { class: "field" }, h("label", { for: "ia-track-base", text: "Office baseline" }), h("input", { type: "number", id: "ia-track-base", min: 0, max: 1000000000, step: 1, value: t.baseline === null ? "" : String(t.baseline), on: { change: (e) => track({ baseline: e.target.value === "" ? null : Number(e.target.value) }) } })),
-          h("div", { class: "field" }, h("label", { for: "ia-track-date", text: food ? "Review date" : "As of" }), h("input", { type: "date", id: "ia-track-date", value: t.as_of || "", on: { change: (e) => track({ as_of: e.target.value || null }) } }))), excl("tracking")),
+          h("div", { class: "field" }, h("label", { for: "ia-track-base", text: "Office baseline" }), h("input", { type: "number", id: "ia-track-base", min: 0, max: 1000000000, step: 1, value: t.baseline === null ? "" : String(t.baseline), on: { change: (e) => track({ baseline: e.target.value === "" ? null : Number(e.target.value) }, document.activeElement !== e.target) } })),
+          h("div", { class: "field" }, h("label", { for: "ia-track-date", text: food ? "Review date" : "As of" }), h("input", { type: "date", id: "ia-track-date", value: t.as_of || "", on: { change: (e) => track({ as_of: e.target.value || null }, document.activeElement !== e.target) } }))), excl("tracking")),
     ]);
 
     // parked staff work
