@@ -161,7 +161,7 @@
     textRenderPending = true;
     setTimeout(() => {
       if (!textRenderPending || pointerDown) return;
-      flushActive(); // retain anything already typed in the next field before rebuilding it
+      flushActive(false); // retain text in the next field; a focused native date is still being edited
       if (textRenderPending) render();
     }, 0);
   }
@@ -192,14 +192,14 @@
     try {
       resp = await fetch("/api/investigation", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(request) });
     } catch (e) {
-      flushActive();
+      flushActive(false);
       return finish(C.applyTransportFailure(state, request.request_id, "network"));
     }
     try { body = await resp.json(); } catch (e) { body = null; }
     if (resp.status === 403) {
       // Session or origin check failed: renew the session cookie, keep all local work, ask for a retry.
       try { await fetch("/api/health", { credentials: "same-origin" }); } catch (e) { /* retry stays available */ }
-      flushActive();
+      flushActive(false);
       return finish(C.applyTransportFailure(state, request.request_id, "session"));
     }
     let planHash = null;
@@ -211,7 +211,7 @@
     // Staff text still being typed belongs to the context on screen now, so it is committed there before the reply
     // is applied (a restore or import may switch the active context). request_id is the originating request, checked
     // against the pending one after all async work above.
-    flushActive();
+    flushActive(false);
     const result = C.applyResponse(state, body, { http_status: resp.status, plan_hash: planHash, request_id: request.request_id });
     finish(result);
     answerAfterRun(result);
@@ -351,10 +351,11 @@
     return languageJob === job && !job.cancelled && window.IALanguage.matches(body, job, languageContext(), state.runtime.release_id);
   }
   // A reply can arrive while staff are typing. Commit the focused field first so the re-render keeps it.
-  function flushActive() {
+  // Background replies collect text, but a native date's year segment remains provisional until exit/save.
+  function flushActive(commitDates = true) {
     const el = document.activeElement;
     if (!el || !el.closest || !el.closest(".ia-tray") || el.id === "ia-chk-new") return;
-    if (el.commitDate) return el.commitDate();
+    if (el.commitDate) return commitDates ? el.commitDate() : undefined;
     if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && ["text", "number", "date"].includes(el.type))) el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
@@ -368,7 +369,7 @@
     cancelLanguage(); lastQuestion = text; notice = '';
     const job = {request_id:ids.uuid(), context:languageContext(), context_digest:null, pending:true, cancelled:false, started:Date.now(), timer:null, polls:0};
     languageJob = job; languageResult = {status:'pending',message:'Reading your question… Nothing has run yet.'}; lockQuestion();
-    job.deadlineTimer = setTimeout(() => { if (languageJob === job && job.pending) { flushActive(); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); } }, deadlineMs());
+    job.deadlineTimer = setTimeout(() => { if (languageJob === job && job.pending) { flushActive(false); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); } }, deadlineMs());
     render();
     const body = {schema_version:'ia-language/1',request_id:job.request_id,context:job.context,utterance:text};
     try {
@@ -388,7 +389,7 @@
       scheduleLanguagePoll(job);
     } catch (e) {
       if (languageJob !== job) return;
-      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive();
+      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(false);
       const limited = e && e.message === 'rate_limited';
       languageResult = {status:'error', limited, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site is reached. Try again in a few minutes.' : 'Language question unavailable.'),
         after:(limited && languagePolicy() ? languagePolicy() + ' This page cannot see how many questions remain or when the next one opens. ' : '') + 'Your question is kept in the box above and your work is unchanged.'}; render(); focusQuestionResult();
@@ -402,19 +403,19 @@
   }
   async function pollLanguage(job) {
     if (languageJob !== job) return;
-    if (Date.now() - job.started >= deadlineMs()) { flushActive(); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); return; }
+    if (Date.now() - job.started >= deadlineMs()) { flushActive(false); cancelLanguage('The question timed out. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult(); return; }
     try {
       const reply = await languagePost('status',{schema_version:'ia-language/1',request_id:job.request_id});
       if (languageJob !== job) return;
       if (reply.http !== 200 || !currentLanguage(job,reply.data)) throw new Error('unavailable');
       if (reply.data.status === 'pending') { scheduleLanguagePoll(job); return; }
       // Staff text still being typed is committed before the answer renders or runs, so it is kept and counted by the review rules.
-      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(); languageResult = reply.data;
+      clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(false); languageResult = reply.data;
       if (askOnce(job, reply.data)) return;
       render(); focusQuestionResult();
     } catch (_) {
       if (languageJob !== job) return;
-      flushActive(); cancelLanguage('Language question unavailable. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult();
+      flushActive(false); cancelLanguage('Language question unavailable. Your work is unchanged; use an option below or Advanced investigation.', true); render(); focusQuestionResult();
     }
   }
 
@@ -1320,16 +1321,36 @@
     return h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { for: id, text: label }), h("span", { class: "limit", id: id + "-max", text: "up to " + max + " characters" })), el);
   }
 
+  const dateContext = () => { const b = C.active(state); return C.canonical([state.case.case_id, b.branch_id, b.plan, b.selected_action_ref]); };
+  function fillDateFields(box, nodes) {
+    const active = document.activeElement;
+    // Replacing or detaching a native date resets its internal segment, even if value/focus are restored.
+    // Keep only its containing field section while the rest of the reply renders. A date commit or
+    // context change rebuilds it; leaving an unchanged date needs no additional render.
+    if (active && active.commitDate && box.contains(active) && active.dateContext === dateContext()) {
+      const wanted = h("div", {}, nodes);
+      // Tracking's status text can change after a number/text commit. Update it without touching
+      // the native editor or queuing a needless rebuild as focus enters another field.
+      ["#ia-tracking-summary", "#ia-tracking > p.hint"].forEach((sel) => {
+        const current = box.querySelector(sel), next = wanted.querySelector(sel);
+        if (current && next) current.textContent = next.textContent;
+      });
+      return;
+    }
+    fill(box, nodes);
+  }
   function dateInput(id, value, onCommit) {
     const el = h("input", { type: "date", id, value: value || "" });
+    el.dateContext = dateContext();
     let committed = el.value;
     const commit = () => {
+      if (el.dateContext !== dateContext()) return true;
       if (el.value === committed) return true;
       committed = el.value;
       return onCommit(committed || null, document.activeElement !== el);
     };
     // Native date editors emit change for partial year segments. Keep them provisional until
-    // blur or an explicit flush; validating/rebuilding here would interrupt the remaining keys.
+    // blur or an explicit save flush; validating/rebuilding here would interrupt the remaining keys.
     el.commitDate = commit;
     el.addEventListener("change", (ev) => { if (!ev.isTrusted || document.activeElement !== el) commit(); });
     el.addEventListener("blur", commit);
@@ -1454,7 +1475,7 @@
     const add = h("input", { type: "text", id: "ia-chk-new", maxlength: 120, "aria-describedby": "ia-chk-new-max" });
     add.draftKey = draftKey;
     add.value = drafts.get(draftKey) || "";
-    fill(check, [card ? h("p", {}, h("strong", { text: programLabel(card.program_id) }), " — office checklist for this agency action") : h("p", { class: "muted", text: "No agency action selected, so no template checklist applies. You can still add custom items and office tracking as staff contributions." }),
+    fillDateFields(check, [card ? h("p", {}, h("strong", { text: programLabel(card.program_id) }), " — office checklist for this agency action") : h("p", { class: "muted", text: "No agency action selected, so no template checklist applies. You can still add custom items and office tracking as staff contributions." }),
       templates.length || loose.length ? h("ol", { class: "ia-checklist" }, templates.map((t) => item(t.item_id, String(t.text || ""))), loose.map((k) => item(k, ""))) : null,
       free ? h("div", { class: "field ia-add-item" }, h("div", { class: "field-head" }, h("label", { for: "ia-chk-new", text: "Add a custom checklist item" }), h("span", { class: "limit", id: "ia-chk-new-max", text: "up to 3 items · 120 characters · saved only after Add item" })), h("div", { class: "ia-inline-row" }, add, btn("Add item", () => {
         const text = add.value.trim(); if (!text) return;
@@ -1469,7 +1490,7 @@
     const track = (patch, defer) => { const n = Object.assign({ label: "", baseline: null, as_of: null }, C.active(state).tracking, patch); return set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
     const excl = (key) => (ex.has(key) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, key, false)), { class: "btn-link", id: "ia-incl-" + key })) : null);
     const food = b.plan.issue_id === "food_assistance_outreach";
-    fill($("#ia-staff"), [
+    fillDateFields($("#ia-staff"), [
       textField("ia-title", "Brief title", b.staff_edits.title, 90, (v, defer) => set(C.setStaffText(state, "title", v), null, defer)), excl("title"),
       textField("ia-note", "Summary", b.staff_edits.note, 400, (v, defer) => set(C.setStaffText(state, "note", v), null, defer), true), excl("note"),
       textField("ia-next", "Next steps", b.staff_edits.next_steps, 300, (v, defer) => set(C.setStaffText(state, "next_steps", v), null, defer), true), excl("next_steps"),
@@ -1767,7 +1788,7 @@
       if (file.size > C.LIMITS.case_bytes) importing = { ok: false, issues: [{ path: "", code: "too_large", message: "The file is larger than a case file can be (256 KB). It was not read." }] };
       else {
         let text = ""; try { text = await file.text(); } catch (err) { text = ""; }
-        flushActive();   // staff text typed while the file was being read is committed before the preview re-renders
+        flushActive(false);   // collect staff text while retaining any focused native date edit
         importing = C.parseCaseFile(text, state.runtime);
       }
       render(); $("#ia-import-preview").focus();

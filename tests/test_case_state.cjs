@@ -1358,7 +1358,7 @@ function languageCompletionHarness(state, reply, opts) {
   const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
   const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
   const code = part("  function focusQuestionResult()", "  // ------------------------------------------------------------------ One Ask") +
-    part("  function flushActive() {", "  async function askLanguage(text) {") + part("  // True while keyboard focus is still in the question area", "  function finish(result) {");
+    part("  function flushActive(", "  async function askLanguage(text) {") + part("  // True while keyboard focus is still in the question area", "  function finish(result) {");
   const log = [], focused = [];
   // A Summary field in the Brief panel holding unfinished text (its change handler is the field's commit).
   const input = { tagName: "TEXTAREA", id: "ia-note", isConnected: true, value: "Unfinished staff summary",
@@ -1537,7 +1537,7 @@ test("unfinished custom checklist text belongs to the context it was typed in", 
   const nodes = new Map(), buttons = new Map(), alerts = [];
   const ctx = { C, state: run(C.createState(RUNTIME, ids)), addDrafts: new Map(), programLabel: (x) => x, $: (sel) => nodes.get(sel),
     h: (tag, attrs, ...kids) => { const n = { tag, attrs, kids, value: "" }; if (attrs && attrs.id) nodes.set("#" + attrs.id, n); return n; },
-    btn: (label, fn, attrs) => { buttons.set(attrs.id, fn); return { label }; }, fill: (el, kids) => { el.kids = kids; },
+    btn: (label, fn, attrs) => { buttons.set(attrs.id, fn); return { label }; }, fillDateFields: (el, kids) => { el.kids = kids; },
     set: (r) => { if (r.error) { alerts.push(r.error.message); ctx.render(); return false; } ctx.state = r.state; ctx.render(); return true; } };
   vm.createContext(ctx);
   vm.runInContext("function renderCustom(){const b=C.active(state),card=null,check={},templates=[],loose=[],free=C.CHECK_IDS.slice(3).find(k=>!b.checklist_edits.some(e=>e.item_id===k));" + ui.slice(start, end) + "}" +

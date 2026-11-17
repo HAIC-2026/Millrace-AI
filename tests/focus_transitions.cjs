@@ -136,6 +136,7 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
     assert.equal((await focus(p)).id, "ia-track-date");
     assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
     assert.equal(await p.locator("#ia-track-base").inputValue(), "13");
+    assert.match(await p.locator("#ia-tracking > p.hint").textContent(), /Baseline: 13 as of 2026-11-16/);
     await proof(p, "tracking-number-tab", {});
     await p.locator("#ia-track-base").focus();
     await p.keyboard.press("ControlOrMeta+A");
@@ -145,6 +146,7 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
     assert.equal((await focus(p)).id, "ia-track-date");
     assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
     await proof(p, "tracking-number-first-click", {});
+    assert.match(await p.locator("#ia-tracking > p.hint").textContent(), /Baseline: 12 as of 2026-11-16/);
     await p.keyboard.press("ArrowUp");
     const revisedDate = await p.locator("#ia-track-date").inputValue();
     assert.notEqual(revisedDate, "2026-11-16");
@@ -220,6 +222,187 @@ test("native date segments commit on leaving or explicit save without interrupti
     assert.equal(invalidDownloads, 0);
   } finally { await p.close(); }
 });
+
+// Gate local plan replies and language protocol fixtures so date keys straddle a known render.
+// The language matrix does not consume the real provider fixture's shared three-question allowance.
+async function holdDateReply(p, kind) {
+  let release, received;
+  const gate = new Promise(resolve => { release = resolve; });
+  const ready = new Promise(resolve => { received = resolve; });
+  if (kind === "language") {
+    const catalog = await (await p.request.get(new URL("/api/catalog", base).href)).json();
+    let envelope, polls = 0;
+    await p.route("**/api/language/*", async route => {
+      const request = route.request().postDataJSON();
+      if (route.request().url().endsWith("/start")) {
+        const c = request.context;
+        envelope = { schema_version: "ia-language/1", request_id: request.request_id, context: c,
+          context_digest: "sha256:" + "a".repeat(64), tokens: { schema_version: "ia-language/1", release_id: catalog.investigation.release_id,
+            ...Object.fromEntries(["case_id", "branch_id", "revision", "snapshot_id", "operation_version", "recipe_version"].map(k => [k, c[k]])) } };
+        return route.fulfill({ status: 202, json: { ...envelope, status: "pending" } });
+      }
+      if (route.request().url().endsWith("/cancel")) return route.fulfill({ json: { ...envelope, status: "cancelled" } });
+      if (++polls === 1) return route.fulfill({ json: { ...envelope, status: "pending" } });
+      received();
+      await gate;
+      return route.fulfill({ json: { ...envelope, status: "clarify", message: "Choose a program.", clarify_field: "program", choices: [] } });
+    });
+    await p.locator("#ia-question-text").fill("Food assistance in House 28.");
+    await p.locator("#ia-question-submit").click();
+  } else {
+    await p.route("**/api/investigation", async route => {
+      if (route.request().postDataJSON().mode !== "run") return route.continue();
+      const response = await route.fetch();
+      received();
+      await gate;
+      await route.fulfill({ response });
+    });
+    await p.locator("#ia-apply").evaluate(el => el.click());
+  }
+  let timer;
+  try { await Promise.race([ready, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Date race reply was not reached")), 10000); })]); }
+  finally { clearTimeout(timer); }
+  return release;
+}
+async function prepareAsyncDate(p, id) {
+  await recommend(p);
+  await p.locator("#ia-tracking-summary").click();
+  await p.locator("#ia-download-staff").check();
+  await p.locator("#ia-track-label").fill("Async date entry");
+  await p.locator("#ia-title").focus();
+  await p.waitForTimeout(40);
+  await p.locator("#" + id).fill("");
+}
+async function savedDate(p, id) {
+  const pending = p.waitForEvent("download");
+  await p.locator("#ia-download").click();
+  const file = await pending;
+  const branch = JSON.parse(fs.readFileSync(await file.path(), "utf8")).branches[0];
+  return id === "ia-track-date" ? branch.tracking.as_of : branch.checklist_edits.find(x => x.item_id === "agency_route")?.due_date;
+}
+for (const kind of ["run", "language", "cancel-run", "cancel-language"]) {
+  for (const id of ["ia-track-date", "ia-chk-agency_route-due"]) {
+    for (const [stage, first, rest, provisional] of [
+      ["year-one-digit", "11162", "026", "0002-11-16"],
+      ["year-three-digits", "1116202", "6", "0202-11-16"],
+      ["full-date", "11162026", "", "2026-11-16"],
+    ]) {
+      test("background " + kind + " preserves native " + id + " " + stage, { skip: kind.includes("language") && process.env.FOCUS_TEST_MOCK_ASK !== "1" }, async () => {
+        const p = await page();
+        let release;
+        try {
+          await prepareAsyncDate(p, id);
+          release = await holdDateReply(p, kind.includes("language") ? "language" : "run");
+          await p.locator("#" + id).focus();
+          await p.waitForTimeout(40);
+          await p.evaluate(id => { window.focusRaceDate = document.getElementById(id); }, id);
+          await p.keyboard.type(first);
+          assert.equal(await p.locator("#" + id).inputValue(), provisional);
+          if (kind.startsWith("cancel-")) {
+            await p.locator(kind === "cancel-run" ? "#ia-cancel" : "#ia-question-cancel").evaluate(el => el.click());
+          }
+          release();
+          await p.waitForFunction(kind.includes("language")
+            ? () => document.querySelector("#ia-question-cancel").hidden
+            : () => document.querySelector("#ia-cancel").hidden);
+          if (kind === "cancel-run") await p.waitForFunction(() => /late reply.*ignored/.test(document.querySelector("#ia-status").textContent));
+          if (kind === "cancel-language") await p.waitForTimeout(100); // the cancelled language job ignores its held status reply
+          const atReply = await p.evaluate(id => ({
+            sameElement: document.getElementById(id) === window.focusRaceDate,
+            connected: window.focusRaceDate.isConnected,
+            focus: document.activeElement.id,
+            value: document.getElementById(id).value,
+            alert: !document.querySelector("#ia-alert").hidden,
+          }), id);
+          await proof(p, "date-race-" + kind + "-" + id + "-" + stage, { atReply });
+          assert.deepEqual(atReply, { sameElement: true, connected: true, focus: id, value: provisional, alert: false });
+          if (kind.includes("language")) assert.match(await p.locator("#ia-question-result").textContent(), kind.startsWith("cancel-") ? /Question cancelled/ : /Choose|choice|program/i);
+          if (rest) await p.keyboard.type(rest);
+          assert.equal(await p.locator("#" + id).inputValue(), "2026-11-16", "the next key must continue the native year segment");
+          await p.keyboard.press("Tab");
+          await p.waitForTimeout(40);
+          assert.notEqual((await focus(p)).tag, "BODY");
+          assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
+          assert.equal(await savedDate(p, id), "2026-11-16");
+          assert.equal(await p.evaluate(() => window.focusRaceDate.isConnected), false, "leaving refreshes the deferred date section");
+        } finally { if (release) release(); await p.close(); }
+      });
+    }
+  }
+}
+
+for (const id of ["ia-track-date", "ia-chk-agency_route-due"]) {
+  test("real field exit strictly validates unfinished invalid " + id, async () => {
+    const p = await page();
+    try {
+      await prepareAsyncDate(p, id);
+      await p.locator("#" + id).focus();
+      await p.keyboard.type("11162");
+      assert.equal(await p.locator("#ia-alert").evaluate(el => el.hidden), true);
+      await p.locator("#ia-download").focus(); // explicitly leave the native editor, including its year segment
+      await p.waitForTimeout(40);
+      assert.notEqual((await focus(p)).id, id);
+      assert.equal(await p.locator("#ia-alert").evaluate(el => el.hidden), false);
+      assert.match(await p.locator("#ia-alert").textContent(), /real YYYY-MM-DD date/);
+      await proof(p, "invalid-date-exit-" + id, {});
+    } finally { await p.close(); }
+  });
+  for (const action of ["ia-download", "ia-brief-btn", "ia-recommend-btn"]) {
+    test("explicit " + action + " rejects unfinished invalid " + id, async () => {
+      const p = await page();
+      try {
+        await prepareAsyncDate(p, id);
+        await p.locator("#ia-review-btn").click();
+        assert.equal(await p.locator("#" + action).isEnabled(), true);
+        await p.locator("#" + id).focus();
+        await p.keyboard.type("11162");
+        let downloads = 0, requests = 0;
+        p.on("download", () => { downloads += 1; });
+        p.on("request", r => { if (new URL(r.url()).pathname === "/api/investigation") requests += 1; });
+        // Activate without a focus change: the explicit action must perform strict collection itself.
+        await p.locator("#" + action).evaluate(el => el.click());
+        await p.waitForTimeout(40);
+        assert.equal((await focus(p)).id, "ia-alert");
+        assert.match(await p.locator("#ia-alert").textContent(), /real YYYY-MM-DD date/);
+        assert.equal(downloads, 0);
+        assert.equal(requests, 0);
+        await proof(p, "invalid-date-" + id + "-" + action, { downloads, requests });
+      } finally { await p.close(); }
+    });
+  }
+}
+
+for (const change of ["district", "action"]) {
+  test("a new " + change + " context does not inherit the active provisional date", async () => {
+    const p = await page();
+    try {
+      await prepareAsyncDate(p, "ia-track-date");
+      await p.locator("#ia-track-date").focus();
+      await p.keyboard.type("1116202");
+      await p.evaluate(() => { window.focusRaceDate = document.querySelector("#ia-track-date"); });
+      if (change === "district") {
+        await p.locator("#ia-district").selectOption("house:013");
+        await p.locator("#ia-apply").evaluate(el => el.click());
+      } else await p.locator("#ia-act-none").evaluate(el => { el.checked = true; el.dispatchEvent(new Event("change", { bubbles: true })); });
+      await p.locator("#ia-preview-confirm").click();
+      await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+      assert.equal(await p.evaluate(() => window.focusRaceDate.isConnected), false);
+      if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+      assert.equal(await p.locator("#ia-track-date").inputValue(), "");
+      const pending = p.waitForEvent("download");
+      await p.locator("#ia-download").click();
+      const file = await pending;
+      const saved = JSON.parse(fs.readFileSync(await file.path(), "utf8"));
+      const active = saved.branches.find(b => b.branch_id === saved.active_branch_id);
+      assert.equal(saved.branches.length, 2);
+      assert.equal(active.tracking, null);
+      assert.equal(active.checklist_edits.some(x => x.due_date), false);
+      if (change === "district") assert.equal(active.plan.district.code, "013");
+      else assert.equal(active.selected_action_ref, null);
+      await proof(p, "date-context-" + change, { activeTracking: active.tracking, contexts: saved.branches.length });
+    } finally { await p.close(); }
+  });
+}
 
 test("question cancellation returns to question and late completion respects moved focus", { skip: process.env.FOCUS_TEST_MOCK_ASK !== "1" }, async () => {
   const p = await page();
