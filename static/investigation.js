@@ -19,6 +19,7 @@
   // current results are exactly the plan the question produced, in the context where it ran.
   let answerBasis = null, pendingAnswer = null;
   let notice = "";
+  let pointerDown = false, textRenderPending = false;
   let bootRun = false;          // the automatic first run after loading: focus stays where the page starts              // polite status line
 
   function h(tag, attrs) {
@@ -156,11 +157,19 @@
   }
 
   // ------------------------------------------------------------------ state plumbing
-  function set(result, okMessage) {
+  function renderAfterTextCommit() {
+    textRenderPending = true;
+    setTimeout(() => {
+      if (!textRenderPending || pointerDown) return;
+      flushActive(); // retain anything already typed in the next field before rebuilding it
+      if (textRenderPending) render();
+    }, 0);
+  }
+  function set(result, okMessage, deferRender) {
     if (result.error) { if (result.state) state = result.state; alertUser(result.error.message); render(); return false; }
     if (result.state) state = result.state;
     if (okMessage) notice = okMessage;
-    render();
+    if (deferRender) renderAfterTextCommit(); else render();
     return true;
   }
   function alertUser(message) {
@@ -807,7 +816,9 @@
   // ------------------------------------------------------------------ render
   function render() {
     if (!state) return;
-    const keep = document.activeElement && document.activeElement.id;
+    textRenderPending = false;
+    const focused = document.activeElement, keep = focused && focused.id;
+    const selection = focused && typeof focused.selectionStart === "number" ? [focused.selectionStart, focused.selectionEnd, focused.selectionDirection] : null;
     // Opened detail panels stay open across re-renders.
     const opened = Array.from(document.querySelectorAll("#ia-workspace details[open]"), (d) => d.id).filter(Boolean);
     const b = C.active(state), res = C.currentResults(state), busy = !!state.pending;
@@ -854,7 +865,13 @@
     renderCase(b, busy);
     syncMapText(b);
     opened.forEach((id) => { const d = document.getElementById(id); if (d) d.open = true; });
-    if (keep) { const el = document.getElementById(keep); if (el && el !== document.activeElement) el.focus(); }
+    if (keep) {
+      const el = document.getElementById(keep);
+      if (el && el !== document.activeElement) {
+        el.focus();
+        if (selection && el.setSelectionRange) el.setSelectionRange(...selection);
+      }
+    }
   }
 
   function renderInterpretation() {
@@ -1296,7 +1313,9 @@
   function textField(id, label, value, max, onCommit, area) {
     const el = h(area ? "textarea" : "input", Object.assign({ id: id, maxlength: max, "aria-describedby": id + "-max" }, area ? { rows: 3 } : { type: "text" }));
     el.value = value || "";
-    el.addEventListener("change", () => onCommit(el.value));
+    // A native change fires during blur, while activeElement is BODY. Commit state now, but let
+    // Tab or a pointer finish moving focus before rebuilding the fields. flushActive stays synchronous.
+    el.addEventListener("change", () => onCommit(el.value, document.activeElement !== el));
     return h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { for: id, text: label }), h("span", { class: "limit", id: id + "-max", text: "up to " + max + " characters" })), el);
   }
 
@@ -1385,7 +1404,7 @@
           btn("Move up", () => set(C.moveSelection(state, r, -1)), { class: "btn-link", id: sid + "-up", disabled: i === 0, "aria-label": "Move finding " + (i + 1) + " up" }),
           btn("Move down", () => set(C.moveSelection(state, r, 1)), { class: "btn-link", id: sid + "-down", disabled: i === b.selected_claim_refs.length - 1, "aria-label": "Move finding " + (i + 1) + " down" }),
           btn("Remove", () => set(C.toggleClaim(state, r, false), "Finding removed from the brief selection."), { class: "btn-link btn-danger", id: sid + "-rm", "aria-label": "Remove finding " + (i + 1) + " from brief" })),
-        textField(sid + "-note", "Staff note on: " + claimShortName(c), notes[r.semantic_hash], 160, (v) => set(C.setFindingNote(state, r.semantic_hash, v))));
+        textField(sid + "-note", "Staff note on: " + claimShortName(c), notes[r.semantic_hash], 160, (v, defer) => set(C.setFindingNote(state, r.semantic_hash, v), null, defer)));
     }) : [h("li", { class: "muted", text: "Use “Select for brief” on a finding." })]);
     const retired = state.retired[b.branch_id] || [];
     fill($("#ia-retired"), retired.length ? [h("p", { class: "hint", text: plural(retired.length, "saved selection was", "saved selections were") + " not reselected:" }), h("ul", { class: "hint" }, retired.map((r) => h("li", { text: r.claim_ref ? savedFindingName(r.claim_ref) + ": " + droppedReason(r, res) : "The agency action chosen earlier: it is not offered for this plan, so it was not reselected." })))] : []);
@@ -1397,9 +1416,9 @@
       const e = edits.get(idKey) || {}, pid = "ia-chk-" + idKey;
       return h("li", Object.assign({ class: "ia-check-item", role: "group" }, templateText ? { "aria-labelledby": pid + "-what" } : { "aria-label": "Checklist item: " + (e.text || checkLabel(idKey)) }),
         templateText ? h("p", { class: "ia-template", id: pid + "-what", text: templateText }) : null,
-        textField(pid + "-text", templateText ? "Staff wording (optional)" : idKey.startsWith("custom") ? "Custom item" : "Staff entry: " + checkLabel(idKey).toLowerCase(), e.text, 120, (v) => set(C.setChecklist(state, idKey, { text: v }))),
+        textField(pid + "-text", templateText ? "Staff wording (optional)" : idKey.startsWith("custom") ? "Custom item" : "Staff entry: " + checkLabel(idKey).toLowerCase(), e.text, 120, (v, defer) => set(C.setChecklist(state, idKey, { text: v }), null, defer)),
         h("div", { class: "ia-inline" },
-          textField(pid + "-owner", "Staff role", e.owner_role, 80, (v) => set(C.setChecklist(state, idKey, { owner_role: v }))),
+          textField(pid + "-owner", "Staff role", e.owner_role, 80, (v, defer) => set(C.setChecklist(state, idKey, { owner_role: v }), null, defer)),
           h("div", { class: "field" }, h("label", { for: pid + "-due", text: "Date" }), h("input", { type: "date", id: pid + "-due", value: e.due_date || "", on: { change: (ev) => set(C.setChecklist(state, idKey, { due_date: ev.target.value || null })) } }))),
         h("label", { class: "ia-check", for: pid + "-done" }, h("input", { type: "checkbox", id: pid + "-done", checked: e.completed === true, on: { change: (ev) => set(C.setChecklist(state, idKey, { completed: ev.target.checked })) } }), " Staff marked done (not a verified fact)"),
         ex.has("checklist:" + idKey) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, "checklist:" + idKey, false)), { class: "btn-link", id: pid + "-incl" })) : null);
@@ -1429,17 +1448,17 @@
 
     // staff notes and tracking
     const t = b.tracking || { label: "", baseline: null, as_of: null };
-    const track = (patch) => { const n = Object.assign({}, t, patch); set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n)); };
+    const track = (patch, defer) => { const n = Object.assign({}, t, patch); set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
     const excl = (key) => (ex.has(key) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, key, false)), { class: "btn-link", id: "ia-incl-" + key })) : null);
     const food = b.plan.issue_id === "food_assistance_outreach";
     fill($("#ia-staff"), [
-      textField("ia-title", "Brief title", b.staff_edits.title, 90, (v) => set(C.setStaffText(state, "title", v))), excl("title"),
-      textField("ia-note", "Summary", b.staff_edits.note, 400, (v) => set(C.setStaffText(state, "note", v)), true), excl("note"),
-      textField("ia-next", "Next steps", b.staff_edits.next_steps, 300, (v) => set(C.setStaffText(state, "next_steps", v)), true), excl("next_steps"),
-      h("details", { id: "ia-tracking", class: "ia-tracking", open: !!b.tracking }, h("summary", { text: "Office tracking (optional)" + (b.tracking ? " · recorded" : "") }),
+      textField("ia-title", "Brief title", b.staff_edits.title, 90, (v, defer) => set(C.setStaffText(state, "title", v), null, defer)), excl("title"),
+      textField("ia-note", "Summary", b.staff_edits.note, 400, (v, defer) => set(C.setStaffText(state, "note", v), null, defer), true), excl("note"),
+      textField("ia-next", "Next steps", b.staff_edits.next_steps, 300, (v, defer) => set(C.setStaffText(state, "next_steps", v), null, defer), true), excl("next_steps"),
+      h("details", { id: "ia-tracking", class: "ia-tracking", open: !!b.tracking }, h("summary", { id: "ia-tracking-summary", text: "Office tracking (optional)" + (b.tracking ? " · recorded" : "") }),
         h("p", { class: "hint", text: food ? "Optional office count of requests for SNAP information from the date tracking begins. Baseline: " + (t.baseline === null ? "not recorded" : t.baseline) + ". This is not a count of eligible or unserved residents, participation, a population rate or program impact. Do not enter resident details." : "A staff record such as “agency/partner referral sessions arranged”. Baseline: " + (t.baseline === null ? "not supplied" : t.baseline + (t.as_of ? " as of " + t.as_of : "")) + ". Never a verified dataset baseline. Do not enter resident details." }),
         food && !b.tracking ? btn("Use SNAP information-request tracking", () => set(C.setTracking(state, {label:"Office requests for SNAP information",baseline:null,as_of:null}), "Tracking added as a staff contribution; baseline is not recorded.")) : null,
-        textField("ia-track-label", "Measure label", t.label, 80, (v) => track({ label: v })),
+        textField("ia-track-label", "Measure label", t.label, 80, (v, defer) => track({ label: v }, defer)),
         h("div", { class: "ia-inline" },
           h("div", { class: "field" }, h("label", { for: "ia-track-base", text: "Office baseline" }), h("input", { type: "number", id: "ia-track-base", min: 0, max: 1000000000, step: 1, value: t.baseline === null ? "" : String(t.baseline), on: { change: (e) => track({ baseline: e.target.value === "" ? null : Number(e.target.value) }) } })),
           h("div", { class: "field" }, h("label", { for: "ia-track-date", text: food ? "Review date" : "As of" }), h("input", { type: "date", id: "ia-track-date", value: t.as_of || "", on: { change: (e) => track({ as_of: e.target.value || null }) } }))), excl("tracking")),
@@ -1661,13 +1680,23 @@
 
   // ------------------------------------------------------------------ wiring
   function wire() {
+    // Replacing a pointer's target before release would swallow its click. State is already committed;
+    // refresh after the click, or after Tab's focus transition when no pointer is pressed.
+    document.addEventListener("pointerdown", () => { pointerDown = true; }, true);
+    ["pointerup", "pointercancel", "blur"].forEach((type) => window.addEventListener(type, () => {
+      pointerDown = false;
+      if (textRenderPending) renderAfterTextCommit();
+    }));
     const ctx = (patch) => editDraft(C.setContext(state.draft, patch), "Context edited. Choose Review and apply these changes to review and run it.");
     $("#ia-district").addEventListener("change", (e) => { const v = String(e.target.value).split(":"); if (v.length === 2) ctx({ district: { chamber: v[0], code: v[1] } }); });
     $("#ia-issue").addEventListener("change", (e) => ctx({ issue_id: e.target.value }));
     $("#ia-service").addEventListener("change", (e) => ctx({ service_area_id: e.target.value || null }));
     $("#ia-map-session").addEventListener("change", (e) => ctx({ map_session: Number(e.target.value) }));
     $("#ia-question-form").addEventListener("submit", (e) => { e.preventDefault(); if (languageJob && languageJob.pending) return; askLanguage($("#ia-question-text").value); });
-    $("#ia-question-cancel").addEventListener("click", () => { cancelLanguage('Question cancelled. Your work is unchanged.'); render(); });
+    $("#ia-question-cancel").addEventListener("click", () => {
+      if (document.activeElement === $("#ia-question-cancel")) $("#ia-question-text").focus();
+      cancelLanguage('Question cancelled. Your work is unchanged.'); render();
+    });
     // Never cancels a pending (possibly charged) question; the box is read-only then. A finished answer is cleared as before.
     $("#ia-question-text").addEventListener("input", () => { if (languageJob && !languageJob.pending) { cancelLanguage('Question changed. Ask again when ready.'); render(); } });
     $("#ia-ask").addEventListener("submit", (e) => {

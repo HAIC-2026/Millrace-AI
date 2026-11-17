@@ -332,7 +332,7 @@
     activeRun = runToken;
     const current = () => activeRun === runToken && !runToken.cancelled;
     const runBtn = $("#run-btn");
-    runBtn.disabled = true; runBtn.setAttribute("aria-busy", "true");
+    runBtn.setAttribute("aria-disabled", "true"); runBtn.setAttribute("aria-busy", "true");
     const isC = catalog.runtime && catalog.runtime.variant === "C";
     const progress = $("#run-progress");
     if (isC) { $("#c-feedback").hidden = true; $("#c-feedback").innerHTML = ""; progress.hidden = false; text(progress, "Resolving…"); $("#cancel-run").hidden = false; }
@@ -366,7 +366,7 @@
       if (!current()) return;
       if (first.header_html && !runToken.hosted && (!isC || (first.status !== "error" && first.status !== "resolved"))) $("#res-header").innerHTML = first.header_html;
       if (first.model_usage) text($("#model-calls"), first.model_usage.model_calls == null ? "unknown" : String(first.model_usage.model_calls));
-      if (first.status !== "resolved") { show(first); return; }
+      if (first.status !== "resolved") { show(first, document.activeElement === runBtn); return; }
       if (isC) text(progress, "Running " + first.resolution.operation + "…");
       else $("#result").innerHTML = '<p class="loading">Running ' + escapeText(first.resolution.operation) + "…</p>";
       if (!current()) return;
@@ -378,7 +378,7 @@
         if (env.header_html) $("#res-header").innerHTML = env.header_html;
         else if (isC && first.header_html) $("#res-header").innerHTML = first.header_html;
       }
-      show(env);
+      show(env, document.activeElement === runBtn);
       if (env.status === "ok" && env.resolution) {
         const r = env.resolution, a = r.args || {};
         applyToControls({
@@ -397,17 +397,17 @@
       if (current()) {
         if (runToken.hosted) {
           text($("#c-runtime-status"), "Hosted request failed. Previous results remain available. Run again or use guided controls.");
-          show({status:"error", reason:"Hosted request could not continue. Previous results and selections are retained."});
+          show({status:"error", reason:"Hosted request could not continue. Previous results and selections are retained."}, document.activeElement === runBtn);
         } else {
         text($("#c-runtime-status"), "Local inference failed. Run again to start a fresh worker, or use guided controls.");
-        show({status:"error", reason:error.code === "timeout" ? "Local inference exceeded its deadline and the worker was stopped. No analytical request was dispatched." : "Local model could not run: " + error.message});
+        show({status:"error", reason:error.code === "timeout" ? "Local inference exceeded its deadline and the worker was stopped. No analytical request was dispatched." : "Local model could not run: " + error.message}, document.activeElement === runBtn);
         }
       }
     } finally {
       if (activeRun === runToken) {
         activeRun = null;
         $("#cancel-run").hidden = true; progress.hidden = true;
-        runBtn.disabled = false; runBtn.removeAttribute("aria-busy");
+        runBtn.removeAttribute("aria-disabled"); runBtn.removeAttribute("aria-busy");
       }
     }
   }
@@ -460,7 +460,7 @@
     const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML;
   }
 
-  function show(env) {
+  function show(env, focusNotice = true) {
     const cError = catalog && catalog.runtime && catalog.runtime.variant === "C" &&
       (env.status === "error" || (catalog.runtime.execution_kind === "hosted" && env.status !== "ok"));
     const result = $(cError ? "#c-feedback" : "#result");
@@ -475,7 +475,7 @@
         $("#run-btn").focus();
       });
       result.appendChild(recovery);
-      recovery.focus();
+      if (focusNotice) recovery.focus();
       return;
     }
     syncCheckboxes();
@@ -493,7 +493,7 @@
       }
       $("#print-brief").addEventListener("click", () => { if (!fits) return; logEvent("print"); window.print(); });
     }
-    if (env.status === "clarification" || env.status === "unsupported" || env.status === "error") {
+    if (focusNotice && (env.status === "clarification" || env.status === "unsupported" || env.status === "error")) {
       const first = $(".notice button, .notice", result);
       if (first && first.focus) { if (!first.hasAttribute("tabindex") && first.tagName !== "BUTTON") first.setAttribute("tabindex", "-1"); first.focus(); }
     }
@@ -683,6 +683,7 @@
   function catalogFailed(target, out) {
     cat.failed = target;
     const box = $("#cat-error");
+    const retryHadFocus = document.activeElement && document.activeElement.id === "cat-retry";
     const why = out && typeof out.reason === "string" && out.reason ? out.reason : "The server reply could not be read.";
     const h = document.createElement("h3"); h.textContent = "The statistics did not update";
     const p = document.createElement("p");
@@ -693,6 +694,8 @@
     box.replaceChildren(h, p, retry);
     box.hidden = false;
     catalogPager();
+    // Repeated failure replaces Retry; restore it only if staff have not moved elsewhere while waiting.
+    if (retryHadFocus) retry.focus();
   }
 
   async function catalogRequest(target) {

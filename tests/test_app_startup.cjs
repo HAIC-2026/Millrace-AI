@@ -217,3 +217,30 @@ test("a failed page keeps the rows shown, offers one Retry, and Previous/Next re
   assert.deepEqual(t.unhandled, []);
   t.done();
 });
+
+test("catalog Retry restores focus only when the replaced button still owns it", async () => {
+  let fail = true;
+  const t = await readyPager((url) => fail ? json({ status: "error", reason: "Still unavailable." }, 503) : page(50, 50));
+  const d = t.doc, body = d.el("#catalog-body"), error = d.el("#cat-error"), rows = d.el("#cat-table").querySelector("tbody");
+  const before = rows.innerHTML;
+  body.fire("click", { target: d.el("#cat-next") }); await tick(20);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const retry = error.children.find((el) => el.id === "cat-retry"), n = count(t.calls, "/api/catalog/observations");
+    retry.focus(); body.fire("click", { target: retry }); await tick(20);
+    assert.equal(d.activeElement, error.children.find((el) => el.id === "cat-retry"));
+    assert.equal(count(t.calls, "/api/catalog/observations"), n + 1);
+    assert.equal(rows.innerHTML, before);
+  }
+  // A response must leave focus alone if staff already moved to a different control.
+  body.fire("click", { target: error.children.find((el) => el.id === "cat-retry") });
+  d.el("#cat-q").focus(); await tick(20);
+  assert.equal(d.activeElement, d.el("#cat-q"));
+  fail = false;
+  const retry = error.children.find((el) => el.id === "cat-retry");
+  retry.focus(); body.fire("click", { target: retry }); await tick(20);
+  assert.equal(d.activeElement, d.el("#cat-count"));
+  assert.equal(error.hidden, true);
+  assert.equal(body.count("click"), 1);
+  assert.deepEqual(t.unhandled, []);
+  t.done();
+});

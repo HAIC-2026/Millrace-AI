@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:4c8caea7cdccd538bcf1c288443c13b88151c5243ea88127be86e71e46acc963",
+  "source_identity": "sha256:660637de0e83d9577401e72c778e469861b61e4949be7da3003f032535655bdd",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -331,8 +331,8 @@
     },
     {
       "path": "static/app.js",
-      "bytes": 52649,
-      "sha256": "3273de139cfc441cbc9f54ab5b63af16a8ec0d740a21dd95959ba8fa6c1342e4"
+      "bytes": 53119,
+      "sha256": "81d902f57a935d467f057e5655f69e28dd6e2be58b2f568be20f59df3349e145"
     },
     {
       "path": "static/case_state.js",
@@ -346,8 +346,8 @@
     },
     {
       "path": "static/investigation.js",
-      "bytes": 167211,
-      "sha256": "be7751f51b5a0228a553de7326fc087ed91e5a5342146edb26fdda7bb6d819f0"
+      "bytes": 168915,
+      "sha256": "63dfb89c47195d1d77c77ec6936aa0a2be2e28db192c75b19e418c9cc0377ad2"
     },
     {
       "path": "static/language_state.js",
@@ -415,6 +415,11 @@
       "sha256": "04ff5381da78ec230a41d919cf37809c7c4f9337ea52bd61236186db08bfbeb3"
     },
     {
+      "path": "tests/focus_transitions.cjs",
+      "bytes": 12474,
+      "sha256": "197186e9dfff23355fe5feaac0e480a1c6f1c854c10afb8c6c1fada36eab6cc5"
+    },
+    {
       "path": "tests/language_funding_fixture.py",
       "bytes": 2758,
       "sha256": "fde592a28cee933336a1ad78549cbbed666f69983448e1b767a39ec427f214e8"
@@ -426,8 +431,8 @@
     },
     {
       "path": "tests/test_app_startup.cjs",
-      "bytes": 13012,
-      "sha256": "93e285c7c96b20318cee8208092d546b411d3602a0099714e982730f83b73fe2"
+      "bytes": 14529,
+      "sha256": "3f1076812e7c7b62eb2d20815debfdefc60e682724c4862b2f1523144d9811ff"
     },
     {
       "path": "tests/test_brief_presentation.py",
@@ -686,8 +691,8 @@
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 8206,
-      "sha256": "86d16287df89b004f39ade83dab859f77613524dbff2ca27de9f47dba55c2eb1"
+      "bytes": 8230,
+      "sha256": "12b63435aed6dcc8de914f49399ae2e62e3f34adb77bd25ad3bb27d664543c66"
     },
     {
       "path": "tools/compile_statistics.py",
