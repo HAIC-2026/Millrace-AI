@@ -1117,7 +1117,7 @@ function briefActionHarness(state, extra) {
   const briefs = [], runs = [];
   const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, answerBasis: null, briefFocus: null,
     currentRecommendation: (res) => ctx.briefFocus || C.recommendedBrief(res), briefBlock: () => null, createBrief: () => briefs.push(clone(ctx.state)),
-    render() {}, runActive() { runs.push(1); }, alertUser(m) { throw new Error(m); }, focusAnswer() {}, districtLabel: (d) => d.chamber + d.code,
+    render() {}, flushActive: () => true, runActive() { runs.push(1); }, alertUser(m) { throw new Error(m); }, focusAnswer() {}, districtLabel: (d) => d.chamber + d.code,
     plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: () => ({ focus() {} }) }, extra || {});
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, briefs, runs, run: (x) => vm.runInContext(x, ctx) };

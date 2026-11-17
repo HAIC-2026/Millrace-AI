@@ -354,6 +354,7 @@
   function flushActive() {
     const el = document.activeElement;
     if (!el || !el.closest || !el.closest(".ia-tray") || el.id === "ia-chk-new") return;
+    if (el.commitDate) return el.commitDate();
     if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && ["text", "number", "date"].includes(el.type))) el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
@@ -1319,6 +1320,22 @@
     return h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { for: id, text: label }), h("span", { class: "limit", id: id + "-max", text: "up to " + max + " characters" })), el);
   }
 
+  function dateInput(id, value, onCommit) {
+    const el = h("input", { type: "date", id, value: value || "" });
+    let committed = el.value;
+    const commit = () => {
+      if (el.value === committed) return true;
+      committed = el.value;
+      return onCommit(committed || null, document.activeElement !== el);
+    };
+    // Native date editors emit change for partial year segments. Keep them provisional until
+    // blur or an explicit flush; validating/rebuilding here would interrupt the remaining keys.
+    el.commitDate = commit;
+    el.addEventListener("change", (ev) => { if (!ev.isTrusted || document.activeElement !== el) commit(); });
+    el.addEventListener("blur", commit);
+    return el;
+  }
+
   // Why the brief cannot be created yet, in the order staff can fix it. Null when it can.
   function briefBlock(b, res, busy, dirty, staff, reviewed, parked) {
     if (busy) return "Wait for the current request to finish, or cancel it.";
@@ -1374,6 +1391,7 @@
   }
   // One action: select the recommended evidence and agency action, then create the brief and show it.
   function createRecommended() {
+    if (flushActive() === false) return;
     // Unapplied plan edits are never replaced: the brief uses applied results only, so ask for Apply or Discard first.
     const dirty = !C.proposeChange(state, { plan: state.draft }).noop;
     if (state.pending || dirty) { notice = state.pending ? "Wait for the current request to finish, or cancel it." : "Apply or discard the plan edits first; the brief uses applied results only. Nothing was selected."; render(); $("#ia-brief-reason").focus(); return; }
@@ -1419,7 +1437,7 @@
         textField(pid + "-text", templateText ? "Staff wording (optional)" : idKey.startsWith("custom") ? "Custom item" : "Staff entry: " + checkLabel(idKey).toLowerCase(), e.text, 120, (v, defer) => set(C.setChecklist(state, idKey, { text: v }), null, defer)),
         h("div", { class: "ia-inline" },
           textField(pid + "-owner", "Staff role", e.owner_role, 80, (v, defer) => set(C.setChecklist(state, idKey, { owner_role: v }), null, defer)),
-          h("div", { class: "field" }, h("label", { for: pid + "-due", text: "Date" }), h("input", { type: "date", id: pid + "-due", value: e.due_date || "", on: { change: (ev) => set(C.setChecklist(state, idKey, { due_date: ev.target.value || null })) } }))),
+          h("div", { class: "field" }, h("label", { for: pid + "-due", text: "Date" }), dateInput(pid + "-due", e.due_date, (value, defer) => set(C.setChecklist(state, idKey, { due_date: value }), null, defer)))),
         h("label", { class: "ia-check", for: pid + "-done" }, h("input", { type: "checkbox", id: pid + "-done", checked: e.completed === true, on: { change: (ev) => set(C.setChecklist(state, idKey, { completed: ev.target.checked })) } }), " Staff marked done (not a verified fact)"),
         ex.has("checklist:" + idKey) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, "checklist:" + idKey, false)), { class: "btn-link", id: pid + "-incl" })) : null);
     };
@@ -1448,7 +1466,7 @@
 
     // staff notes and tracking
     const t = b.tracking || { label: "", baseline: null, as_of: null };
-    const track = (patch, defer) => { const n = Object.assign({ label: "", baseline: null, as_of: null }, C.active(state).tracking, patch); set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
+    const track = (patch, defer) => { const n = Object.assign({ label: "", baseline: null, as_of: null }, C.active(state).tracking, patch); return set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
     const excl = (key) => (ex.has(key) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, key, false)), { class: "btn-link", id: "ia-incl-" + key })) : null);
     const food = b.plan.issue_id === "food_assistance_outreach";
     fill($("#ia-staff"), [
@@ -1461,7 +1479,7 @@
         textField("ia-track-label", "Measure label", t.label, 80, (v, defer) => track({ label: v }, defer)),
         h("div", { class: "ia-inline" },
           h("div", { class: "field" }, h("label", { for: "ia-track-base", text: "Office baseline" }), h("input", { type: "number", id: "ia-track-base", min: 0, max: 1000000000, step: 1, value: t.baseline === null ? "" : String(t.baseline), on: { change: (e) => track({ baseline: e.target.value === "" ? null : Number(e.target.value) }, document.activeElement !== e.target) } })),
-          h("div", { class: "field" }, h("label", { for: "ia-track-date", text: food ? "Review date" : "As of" }), h("input", { type: "date", id: "ia-track-date", value: t.as_of || "", on: { change: (e) => track({ as_of: e.target.value || null }, document.activeElement !== e.target) } }))), excl("tracking")),
+          h("div", { class: "field" }, h("label", { for: "ia-track-date", text: food ? "Review date" : "As of" }), dateInput("ia-track-date", t.as_of, (value, defer) => track({ as_of: value }, defer)))), excl("tracking")),
     ]);
 
     // parked staff work
@@ -1730,6 +1748,7 @@
     $("#ia-print-btn").addEventListener("click", () => { if (C.printStatus(state).ok && briefFits()) window.print(); });
     $("#ia-download-staff").addEventListener("change", render);
     $("#ia-download").addEventListener("click", () => {
+      if (flushActive() === false) return;
       const held = $("#ia-download-staff").checked ? staffDownloadBlock() : null;
       if (held) { alertUser(held); return; }
       const staff = $("#ia-download-staff").checked, data = C.exportCase(state, { include_staff_work: staff });
@@ -1762,6 +1781,7 @@
   }
 
   function createBrief(clean) {
+    if (flushActive() === false) return;
     const r = C.beginBrief(state, { clean: clean }, ids);
     if (r.error) return alertUser(r.error.message);
     state = r.state; notice = "Creating the brief…"; send(r.request); holdFocus();

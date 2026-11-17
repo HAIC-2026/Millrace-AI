@@ -159,6 +159,68 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
   } finally { await p.close(); }
 });
 
+test("native date segments commit on leaving or explicit save without interrupting typing", async () => {
+  const p = await page();
+  try {
+    await recommend(p);
+    await p.locator("#ia-tracking-summary").click();
+    await p.locator("#ia-track-label").fill("Date entry retained");
+    await p.locator("#ia-track-base").fill("12");
+    await p.locator("#ia-download-staff").check();
+    const save = async (programmatic) => {
+      const pending = p.waitForEvent("download");
+      if (programmatic) await p.locator("#ia-download").evaluate(el => el.click());
+      else await p.locator("#ia-download").click({ delay: 150 });
+      const file = await pending;
+      return JSON.parse(fs.readFileSync(await file.path(), "utf8")).branches[0];
+    };
+    for (const id of ["ia-track-date", "ia-chk-agency_route-due"]) {
+      await p.locator("#" + id).fill("");
+      await p.locator("#" + id).focus();
+      for (const digit of "11162026") {
+        await p.keyboard.type(digit);
+        assert.equal((await focus(p)).id, id);
+        assert.equal(await p.locator("#ia-alert").evaluate(el => el.hidden), true);
+      }
+      assert.equal(await p.locator("#" + id).inputValue(), "2026-11-16");
+      await p.keyboard.press("Tab");
+      await p.waitForTimeout(40);
+      assert.notEqual((await focus(p)).tag, "BODY");
+      assert.equal(await p.evaluate(() => document.activeElement.isConnected), true);
+      const saved = await save(false);
+      if (id === "ia-track-date") assert.equal(saved.tracking.as_of, "2026-11-16");
+      else assert.equal(saved.checklist_edits.find(x => x.item_id === "agency_route").due_date, "2026-11-16");
+      await proof(p, "date-keys-" + id, { tracking: saved.tracking, checklist: saved.checklist_edits });
+      // Explicit activation without blur must synchronously collect the provisional complete date.
+      await p.locator("#" + id).fill("");
+      await p.locator("#" + id).focus();
+      await p.keyboard.type("11172026");
+      const explicit = await save(true);
+      if (id === "ia-track-date") assert.equal(explicit.tracking.as_of, "2026-11-17");
+      else assert.equal(explicit.checklist_edits.find(x => x.item_id === "agency_route").due_date, "2026-11-17");
+      await p.locator("#" + id).fill("2026-12-18");
+      const filled = await save(false);
+      if (id === "ia-track-date") assert.equal(filled.tracking.as_of, "2026-12-18");
+      else assert.equal(filled.checklist_edits.find(x => x.item_id === "agency_route").due_date, "2026-12-18");
+      await p.locator("#" + id).fill("");
+      const cleared = await save(false);
+      if (id === "ia-track-date") assert.equal(cleared.tracking.as_of, null);
+      else assert.equal(cleared.checklist_edits.find(x => x.item_id === "agency_route")?.due_date, undefined);
+    }
+    // Invalid final dates still reach strict core validation when an explicit save is attempted.
+    await p.locator("#ia-track-date").focus();
+    await p.keyboard.type("11160002");
+    assert.equal(await p.locator("#ia-alert").evaluate(el => el.hidden), true);
+    let invalidDownloads = 0;
+    p.on("download", () => { invalidDownloads += 1; });
+    await p.locator("#ia-download").evaluate(el => el.click());
+    await p.waitForTimeout(40);
+    assert.equal((await focus(p)).id, "ia-alert");
+    assert.match(await p.locator("#ia-alert").textContent(), /real YYYY-MM-DD date/);
+    assert.equal(invalidDownloads, 0);
+  } finally { await p.close(); }
+});
+
 test("question cancellation returns to question and late completion respects moved focus", { skip: process.env.FOCUS_TEST_MOCK_ASK !== "1" }, async () => {
   const p = await page();
   try {
@@ -203,7 +265,7 @@ test("lookup Run retains focus, blocks duplicate submission and releases busy st
   try {
     let resolves = 0, fail = false;
     await p.route("**/api/resolve", async route => {
-      resolves += 1; await new Promise(r => setTimeout(r, 500));
+      resolves += 1; await new Promise(r => setTimeout(r, 800));
       if (fail) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "error", reason: "Private focus-test failure" }) });
       await route.continue();
     });
@@ -214,7 +276,11 @@ test("lookup Run retains focus, blocks duplicate submission and releases busy st
     const pending = { ariaDisabled: await p.locator("#run-btn").getAttribute("aria-disabled"), disabled: await p.locator("#run-btn").evaluate(el => el.disabled), cursor: await p.locator("#run-btn").evaluate(el => getComputedStyle(el).cursor), focus: await focus(p) };
     await proof(p, "lookup-pending", pending);
     await p.keyboard.press("Enter");
-    await p.keyboard.press("Space");
+    await p.mouse.move(0, 0);
+    await p.keyboard.down("Space");
+    const pressed = await p.locator("#run-btn").evaluate(el => ({ background: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color }));
+    await p.keyboard.up("Space");
+    assert.deepEqual(pressed, { background: "rgb(236, 238, 242)", color: "rgb(63, 69, 80)" });
     await p.waitForFunction(() => !document.querySelector("#run-btn").hasAttribute("aria-busy"));
     await proof(p, "lookup-complete", { resolves });
     assert.equal(pending.ariaDisabled, "true");

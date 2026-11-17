@@ -557,6 +557,7 @@ input[type="checkbox"] {
 .btn-primary:disabled:hover,
 .btn[aria-disabled="true"],
 .btn[aria-disabled="true"]:hover,
+.btn[aria-disabled="true"]:active,
 .choice-btn:disabled {
   color: #3f4550;
   background: #eceef2;
@@ -3178,7 +3179,8 @@ details.ia-plan[open] > summary {
   .btn:disabled:hover,
   .btn-primary:disabled:hover,
   .btn[aria-disabled="true"],
-  .btn[aria-disabled="true"]:hover {
+  .btn[aria-disabled="true"]:hover,
+  .btn[aria-disabled="true"]:active {
     box-shadow: none;
     border-width: 1.5px;
   }

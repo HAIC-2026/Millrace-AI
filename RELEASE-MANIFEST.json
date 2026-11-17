@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:77960d924ce06b329f771d2ee86f85bbeb7900d9ed71b88fb4ab89b039527ac9",
+  "source_identity": "sha256:509ce6213ab496c8f83e84b666d5b2d39ffa529d201c8a626414d590845bb7c3",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -326,8 +326,8 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 77209,
-      "sha256": "ffc2d4858701fae56fff4c928f4a50904a5155debd637913afc9564a70535a92"
+      "bytes": 77281,
+      "sha256": "703535b8cb4024d726b9490b97a121254be433c85e6dfd2e408f7d60ac1fbee5"
     },
     {
       "path": "static/app.js",
@@ -346,8 +346,8 @@
     },
     {
       "path": "static/investigation.js",
-      "bytes": 169052,
-      "sha256": "992dd914cf85351ed1b090f2cfe2d2494cd77b58a601b4f3547eb9fb713e7e38"
+      "bytes": 169811,
+      "sha256": "21d101a7fce78123109e3af624ed26109014f824c43fc22715b8986380df5bab"
     },
     {
       "path": "static/language_state.js",
@@ -416,8 +416,8 @@
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 15672,
-      "sha256": "5cb8f39c5a1c63c6ac02b72bfa6a7a4d920c62ccd23cba5d43ebf3de8c7fb21c"
+      "bytes": 19421,
+      "sha256": "771ca6e1ac6ba24eb05cc7f855678a8fab64b05128f538a2ffb34309e69bef15"
     },
     {
       "path": "tests/language_funding_fixture.py",
@@ -446,8 +446,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 139399,
-      "sha256": "aea19a67dec706813d6cc3b007318439712dd373c18642a89f155d707240de48"
+      "bytes": 139424,
+      "sha256": "88440e7538d86dad16681dffda65c63c72092079741fe560bd7627309c51f473"
     },
     {
       "path": "tests/test_catalog_pagination.py",
