@@ -244,6 +244,11 @@
     const a = document.activeElement;
     return !a || a === document.body || !a.isConnected || !!(a.closest && a.closest("#ia-question")) || a.id === "ia-cancel";
   }
+  // A background result or preview must not finish a native staff date edit by taking focus.
+  function activeDate() {
+    const el = document.activeElement;
+    return el && el.isConnected && el.commitDate && el.closest(".ia-tray") ? el : null;
+  }
 
   function finish(result) {
     const quiet = bootRun; bootRun = false;
@@ -256,13 +261,13 @@
         (e.code === "brief_overflow" ? "No brief was created: it is too long for one page. Choose what to leave out." :
         e.kind === "brief" ? "The brief was not created." : e.kind === "restore" && lastRestore ? lastRestore.name + " was not restored. You are still on " + contextName(C.active(state).branch_id) + "." : e.kind === "run" || e.kind === "restore" ? "The plan did not run." :
         e.kind === "interpret" ? "The typed request was not read." : e.kind === "import" ? "The case file was not opened." : "The request did not complete.") + " Your work is kept.";
-      render(); const box = $("#ia-error"); if (box && !quiet) box.focus(); return;
+      render(); const box = $("#ia-error"); if (box && !quiet && !activeDate()) box.focus(); return;
     }
-    if (result.outcome === "interpreted") { interp = Object.assign({ status: result.status, utterance: interp ? interp.utterance : "" }, result.interpretation); notice = result.status === "ok" ? "Typed request read. Review the proposed change, then choose Put in draft plan." : "The typed request needs a choice or is not supported. Nothing was run."; render(); const t = $("#ia-interpretation"); t.focus(); return; }
+    if (result.outcome === "interpreted") { interp = Object.assign({ status: result.status, utterance: interp ? interp.utterance : "" }, result.interpretation); notice = result.status === "ok" ? "Typed request read. Review the proposed change, then choose Put in draft plan." : "The typed request needs a choice or is not supported. Nothing was run."; render(); const t = $("#ia-interpretation"); if (!activeDate()) t.focus(); return; }
     if (result.outcome === "brief") {
       notice = "Brief created for the current results."; render();
       if (!briefFits()) { notice = "Brief drafted, but it is too long to print on one page. Choose what to leave out under One-page brief."; render(); }
-      const out = $("#ia-brief"); out.focus(); return;
+      const out = $("#ia-brief"); if (!activeDate()) out.focus(); return;
     }
     const dropped = (result.retired || []).filter((r) => r.claim_ref).length;
     if (result.outcome === "imported") {
@@ -424,6 +429,8 @@
   function reviewReasons(result, job) {
     const reasons = [], plan = result.normalized_plan, ctx = job.context, held = ctx.confirmed_plan || ctx.draft_plan, b = C.active(state);
     if (state.pending) reasons.push('Another request is still running.');
+    const date = activeDate();
+    if (date && date.dateDirty()) reasons.push('A staff date is still being edited. Finish it or clear it before running this proposal.');
     if (!C.proposeChange(state, { plan: state.draft }).noop) reasons.push('Your plan has unapplied edits, and this proposal would replace them.');
     window.IALanguage.runBlockers(lastQuestion, held, plan).forEach((x) => reasons.push(
       x.code === 'own_district' ? 'The question says “my district”. The app does not know which district is yours, so check that ' + districtLabel(plan.district) + ' is the one you mean.'
@@ -730,7 +737,7 @@
     // "Run again" replays the unchanged plan at a new revision; nothing is forked or parked.
     if (p.noop && res) { preview = null; runActive(); return; }
     if (!p.material || !p.fork) return commit(p);
-    preview = p; render(); $("#ia-preview").focus();
+    preview = p; render(); if (!activeDate()) $("#ia-preview").focus();
   }
 
   function commit(p) {
@@ -1272,7 +1279,7 @@
       const r = C.chooseAction(state, ref);
       if (r.error) return alertUser(r.error.message);
       if (r.proposal.noop) return;
-      if (r.proposal.fork) { preview = r.proposal; render(); $("#ia-preview").focus(); } else commitAction(r.proposal);
+      if (r.proposal.fork) { preview = r.proposal; render(); if (!activeDate()) $("#ia-preview").focus(); } else commitAction(r.proposal);
     };
     const areas = (ids) => (Array.isArray(ids) ? ids.map((x) => AREA_LABEL[x] || humanWords(x)).join(", ") : "");
     const nodes = res.responses.map((card, i) => {
@@ -1335,6 +1342,8 @@
         const current = box.querySelector(sel), next = wanted.querySelector(sel);
         if (current && next) current.textContent = next.textContent;
       });
+      const preset = box.querySelector("#ia-track-preset");
+      if (preset && !wanted.querySelector("#ia-track-preset")) preset.remove();
       return;
     }
     fill(box, nodes);
@@ -1352,6 +1361,7 @@
     // Native date editors emit change for partial year segments. Keep them provisional until
     // blur or an explicit save flush; validating/rebuilding here would interrupt the remaining keys.
     el.commitDate = commit;
+    el.dateDirty = () => el.value !== committed || el.validity.badInput;
     el.addEventListener("change", (ev) => { if (!ev.isTrusted || document.activeElement !== el) commit(); });
     el.addEventListener("blur", commit);
     return el;
@@ -1405,7 +1415,7 @@
         if (a && r.proposal.kinds.length === 1 && r.proposal.kinds[0] === "response" && C.canonical(r.proposal.plan) === C.canonical(a.plan) && C.active(state).snapshot_id === state.runtime.snapshot_id)
           pendingAnswer = { kind: a.kind, question: a.question, plan: a.plan, step_ids: a.step_ids.slice(), only: a.only || {}, fallback: !!a.fallback, branch_id: null, rebind: true };
       };
-      if (r.proposal.fork) { carry(); preview = r.proposal; notice = "Findings selected. Review the agency action change below; after it runs, choose " + again + " again."; render(); $("#ia-preview").focus(); return false; }
+      if (r.proposal.fork) { carry(); preview = r.proposal; notice = "Findings selected. Review the agency action change below; after it runs, choose " + again + " again."; render(); if (!activeDate()) $("#ia-preview").focus(); return false; }
       if (!r.proposal.noop) { const c = C.confirmChange(state, r.proposal, ids); if (c.error) { alertUser(c.error.message); return false; } state = c.state; if (c.forked) { carry(); notice = "Findings and agency action selected in a new context. Choose " + again + " again when its results load."; runActive(); return false; } }
     }
     return true;
@@ -1496,7 +1506,10 @@
       textField("ia-next", "Next steps", b.staff_edits.next_steps, 300, (v, defer) => set(C.setStaffText(state, "next_steps", v), null, defer), true), excl("next_steps"),
       h("details", { id: "ia-tracking", class: "ia-tracking", open: !!b.tracking }, h("summary", { id: "ia-tracking-summary", text: "Office tracking (optional)" + (b.tracking ? " · recorded" : "") }),
         h("p", { class: "hint", text: food ? "Optional office count of requests for SNAP information from the date tracking begins. Baseline: " + (t.baseline === null ? "not recorded" : t.baseline) + ". This is not a count of eligible or unserved residents, participation, a population rate or program impact. Do not enter resident details." : "A staff record such as “agency/partner referral sessions arranged”. Baseline: " + (t.baseline === null ? "not supplied" : t.baseline + (t.as_of ? " as of " + t.as_of : "")) + ". Never a verified dataset baseline. Do not enter resident details." }),
-        food && !b.tracking ? btn("Use SNAP information-request tracking", () => set(C.setTracking(state, {label:"Office requests for SNAP information",baseline:null,as_of:null}), "Tracking added as a staff contribution; baseline is not recorded.")) : null,
+        food && !b.tracking ? btn("Use SNAP information-request tracking", () => {
+          if (C.active(state).tracking) return;
+          set(C.setTracking(state, {label:"Office requests for SNAP information",baseline:null,as_of:null}), "Tracking added as a staff contribution; baseline is not recorded.");
+        }, { id: "ia-track-preset" }) : null,
         textField("ia-track-label", "Measure label", t.label, 80, (v, defer) => track({ label: v }, defer)),
         h("div", { class: "ia-inline" },
           h("div", { class: "field" }, h("label", { for: "ia-track-base", text: "Office baseline" }), h("input", { type: "number", id: "ia-track-base", min: 0, max: 1000000000, step: 1, value: t.baseline === null ? "" : String(t.baseline), on: { change: (e) => track({ baseline: e.target.value === "" ? null : Number(e.target.value) }, document.activeElement !== e.target) } })),
@@ -1791,7 +1804,7 @@
         flushActive(false);   // collect staff text while retaining any focused native date edit
         importing = C.parseCaseFile(text, state.runtime);
       }
-      render(); $("#ia-import-preview").focus();
+      render(); if (!activeDate()) $("#ia-import-preview").focus();
     });
     // Only the reviewed investigation brief prints while this view is open.
     window.addEventListener("beforeprint", () => {

@@ -676,7 +676,7 @@ test("a literal proposal changes only the draft; a separate plan action makes th
       interp: { status: "ok", utterance: "use house 13", matched_fields: [], inherited_fields: [], choices: [], reason: null, proposed_plan: null },
       h: (...a) => a, $: () => ({ focus() {} }), fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
       fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
-      render() {}, syncMap() {}, holdFocus() {}, send: (r) => requests.push(r) };
+      render() {}, syncMap() {}, holdFocus() {}, activeDate: () => null, send: (r) => requests.push(r) };
     ctx.interp.proposed_plan = proposed(ctx.state);
     vm.createContext(ctx); vm.runInContext(code, ctx); vm.runInContext("renderInterpretation()", ctx);
     return { ctx, buttons, requests };
@@ -726,7 +726,7 @@ function uiHarness(state, fit) {
     geographies: [{ geography_id: "HI-STATE-2024", label: "State of Hawaiʻi" }], unavailable_geographies: [], programs: [{ program_id: "kupuna_care_hi", name: "Kūpuna Care" }] };
   const ctx = { C, ids, state, catalog, notice: "", interp: null, importing: null, $,
     h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), btn: (label) => ({ button: label }), fill: (n, c) => { n.children = c; },
-    measureBrief: () => fit || { ok: true, over: 0 }, briefFits: () => !fit || fit.ok, render() {}, flushActive() {}, syncMap() {}, focusResults() {}, replayHelp: () => null, choiceList: () => null, claimMap: () => new Map(), savedDigest: null, ids, bootRun: false };
+    measureBrief: () => fit || { ok: true, over: 0 }, briefFits: () => !fit || fit.ok, render() {}, flushActive() {}, activeDate: () => null, syncMap() {}, focusResults() {}, replayHelp: () => null, choiceList: () => null, claimMap: () => new Map(), savedDigest: null, ids, bootRun: false };
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, $, run: (expr) => vm.runInContext(expr, ctx) };
 }
@@ -871,7 +871,7 @@ function recoveryHarness(state) {
   const $ = (sel) => { if (!nodes.has(sel)) nodes.set(sel, { sel, textContent: "", hidden: false, disabled: false, children: [], focus() { focused.push(sel); } }); return nodes.get(sel); };
   const ctx = { C, ids, state, notice: "", interp: null, importing: null, preview: null, bootRun: false, $, catalog: { metrics: [{ metric_id: "population_65_plus", label: "Population age 65 and over" }], geographies: [{ geography_id: "HI-STATE-2024", label: "State of Hawaiʻi" }, { geography_id: "HI-COUNTY-009-2024", label: "Maui County" }], unavailable_geographies: [], programs: [] },
     h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), btn: (label, fn, attrs) => { buttons.push({ label, fn, attrs }); return { button: label }; }, fill: (n, c) => { n.children = c; },
-    render() {}, flushActive() {}, syncMap() {}, replayHelp: () => null, briefFits: () => true, measureBrief: () => ({ ok: true }), alertUser(m) { throw new Error(m); }, clearAlert() {},
+    render() {}, flushActive() {}, activeDate: () => null, syncMap() {}, replayHelp: () => null, briefFits: () => true, measureBrief: () => ({ ok: true }), alertUser(m) { throw new Error(m); }, clearAlert() {},
     send: (r) => { sent.push(r); }, document: { activeElement: null, body: {} } };
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, buttons, sent, focused, run: (x) => vm.runInContext(x, ctx) };
@@ -1260,7 +1260,7 @@ function responsesHarness(state) {
   const code = part("  function renderResponses(res) {", "  function textField(");
   const handlers = {}, runs = [], alerts = [];
   const h = (tag, attrs, ...kids) => { if (attrs && attrs.id && attrs.on) handlers[attrs.id] = attrs.on; return { tag, attrs, kids }; };
-  const ctx = { C, ids, state, notice: "", preview: null, h, fill() {}, $: () => ({ focus() {} }), render() {}, runActive() { runs.push(1); },
+  const ctx = { C, ids, state, notice: "", preview: null, h, fill() {}, $: () => ({ focus() {} }), render() {}, activeDate: () => null, runActive() { runs.push(1); },
     alertUser(m) { alerts.push(m); }, claimMap: (res) => new Map(res.claims.map((c) => [C.refKey(c.claim_ref), c])), programLabel: (x) => x,
     plain: (x) => String(x), humanWords: (x) => String(x), humanDate: (x) => String(x), hawaiiDisplay: (x) => x, AREA_LABEL: {}, TIER_LABEL: {},
     officialNextStep: () => null, claimTitle: () => "", btn: () => ({}) };
@@ -1511,7 +1511,7 @@ test("a title typed while a case file is being read is kept when the reopen prev
     const handlers = {}, renders = [];
     const input = { tagName: "INPUT", type: "text", id: "ia-title", value: "Saved title", closest: (sel) => (sel === ".ia-tray" ? {} : null),
       dispatchEvent: (e) => { if (e.type === "change") ctx.state = ok(C.setStaffText(ctx.state, "title", input.value)); } };
-    const ctx = { C, state: s0, importing: null, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input },
+    const ctx = { C, state: s0, importing: null, activeDate: () => null, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input },
       $: (sel) => (sel === "#ia-import-file" ? { addEventListener: (ev, fn) => { handlers[ev] = fn; } } : { focus() {} }),
       render: () => renders.push(C.active(ctx.state).staff_edits.title) };
     vm.createContext(ctx); vm.runInContext(code, ctx);

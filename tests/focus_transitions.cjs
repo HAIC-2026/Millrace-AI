@@ -229,7 +229,7 @@ async function holdDateReply(p, kind) {
   let release, received;
   const gate = new Promise(resolve => { release = resolve; });
   const ready = new Promise(resolve => { received = resolve; });
-  if (kind === "language") {
+  if (kind.startsWith("language")) {
     const catalog = await (await p.request.get(new URL("/api/catalog", base).href)).json();
     let envelope, polls = 0;
     await p.route("**/api/language/*", async route => {
@@ -245,19 +245,33 @@ async function holdDateReply(p, kind) {
       if (++polls === 1) return route.fulfill({ json: { ...envelope, status: "pending" } });
       received();
       await gate;
-      return route.fulfill({ json: { ...envelope, status: "clarify", message: "Choose a program.", clarify_field: "program", choices: [] } });
+      const result = kind === "language-proposal"
+        ? { status: "propose", intent: "replace_plan", normalized_plan: { ...catalog.investigation.default_plan, map_session: 2024 }, typed_diff: [] }
+        : { status: "clarify", message: "Choose a program.", clarify_field: "program", choices: [] };
+      return route.fulfill({ json: { ...envelope, ...result } });
     });
-    await p.locator("#ia-question-text").fill("Food assistance in House 28.");
+    await p.locator("#ia-question-text").fill(kind === "language-proposal" ? "Show the 2024 map for House 28." : "Food assistance in House 28.");
     await p.locator("#ia-question-submit").click();
   } else {
     await p.route("**/api/investigation", async route => {
-      if (route.request().postDataJSON().mode !== "run") return route.continue();
-      const response = await route.fetch();
+      const mode = kind === "brief" || kind === "interpret" ? kind : "run";
+      if (route.request().postDataJSON().mode !== mode) return route.continue();
+      const response = kind === "network-error" ? null : await route.fetch();
       received();
       await gate;
+      if (kind === "network-error") return route.abort("connectionreset");
+      if (kind === "http-error") return route.fulfill({ status: 500, json: { status: "error", code: "internal_error", message: "Private date-race fixture failure." } });
       await route.fulfill({ response });
     });
-    await p.locator("#ia-apply").evaluate(el => el.click());
+    if (kind === "brief") {
+      await p.locator("#ia-review-btn").click();
+      await p.locator("#ia-brief-btn").evaluate(el => el.click());
+    } else if (kind === "interpret") {
+      await p.locator("#ia-advanced").evaluate(el => { el.open = true; });
+      await p.locator("#ia-typed").evaluate(el => { el.open = true; });
+      await p.locator("#ia-utterance").fill("use house 13");
+      await p.locator("#ia-ask").evaluate(el => el.requestSubmit());
+    } else await p.locator(kind === "restore" ? "#ia-restore-0" : "#ia-apply").evaluate(el => el.click());
   }
   let timer;
   try { await Promise.race([ready, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Date race reply was not reached")), 10000); })]); }
@@ -274,13 +288,28 @@ async function prepareAsyncDate(p, id) {
   await p.locator("#" + id).fill("");
 }
 async function savedDate(p, id) {
+  const saved = await savedCase(p);
+  const branch = saved.branches.find(b => b.branch_id === saved.active_branch_id);
+  return id === "ia-track-date" ? branch.tracking.as_of : branch.checklist_edits.find(x => x.item_id === "agency_route")?.due_date;
+}
+async function savedCase(p) {
   const pending = p.waitForEvent("download");
   await p.locator("#ia-download").click();
   const file = await pending;
-  const branch = JSON.parse(fs.readFileSync(await file.path(), "utf8")).branches[0];
-  return id === "ia-track-date" ? branch.tracking.as_of : branch.checklist_edits.find(x => x.item_id === "agency_route")?.due_date;
+  return JSON.parse(fs.readFileSync(await file.path(), "utf8"));
 }
-for (const kind of ["run", "language", "cancel-run", "cancel-language"]) {
+// Record the case already serialized by renderCase; inspecting it neither blurs nor flushes a date.
+async function observeCase(p) {
+  await p.evaluate(() => {
+    const original = window.IACase.exportCase;
+    window.IACase.exportCase = function (state, opts) {
+      const out = original(state, opts);
+      if (opts && opts.include_staff_work) window.dateRaceCase = out;
+      return out;
+    };
+  });
+}
+for (const kind of ["run", "network-error", "http-error", "brief", "interpret", "language", "cancel-run", "cancel-language"]) {
   for (const id of ["ia-track-date", "ia-chk-agency_route-due"]) {
     for (const [stage, first, rest, provisional] of [
       ["year-one-digit", "11162", "026", "0002-11-16"],
@@ -292,7 +321,7 @@ for (const kind of ["run", "language", "cancel-run", "cancel-language"]) {
         let release;
         try {
           await prepareAsyncDate(p, id);
-          release = await holdDateReply(p, kind.includes("language") ? "language" : "run");
+          release = await holdDateReply(p, kind.startsWith("cancel-") ? kind.slice(7) : kind);
           await p.locator("#" + id).focus();
           await p.waitForTimeout(40);
           await p.evaluate(id => { window.focusRaceDate = document.getElementById(id); }, id);
@@ -316,6 +345,9 @@ for (const kind of ["run", "language", "cancel-run", "cancel-language"]) {
           }), id);
           await proof(p, "date-race-" + kind + "-" + id + "-" + stage, { atReply });
           assert.deepEqual(atReply, { sameElement: true, connected: true, focus: id, value: provisional, alert: false });
+          if (kind.endsWith("error")) assert.equal(await p.locator("#ia-error").evaluate(el => el.hidden), false);
+          if (kind === "brief") assert.match(await p.locator("#ia-status").textContent(), /Brief created/);
+          if (kind === "interpret") assert.match(await p.locator("#ia-interpretation").textContent(), /Proposed plan change/);
           if (kind.includes("language")) assert.match(await p.locator("#ia-question-result").textContent(), kind.startsWith("cancel-") ? /Question cancelled/ : /Choose|choice|program/i);
           if (rest) await p.keyboard.type(rest);
           assert.equal(await p.locator("#" + id).inputValue(), "2026-11-16", "the next key must continue the native year segment");
@@ -373,10 +405,13 @@ for (const id of ["ia-track-date", "ia-chk-agency_route-due"]) {
 }
 
 for (const change of ["district", "action"]) {
-  test("a new " + change + " context does not inherit the active provisional date", async () => {
+  for (const activation of ["pointer", "programmatic"]) {
+  test("a new " + change + " context does not inherit the active provisional date via " + activation, async () => {
     const p = await page();
     try {
+      await observeCase(p);
       await prepareAsyncDate(p, "ia-track-date");
+      const origin = await p.evaluate(() => window.dateRaceCase.active_branch_id);
       await p.locator("#ia-track-date").focus();
       await p.keyboard.type("1116202");
       await p.evaluate(() => { window.focusRaceDate = document.querySelector("#ia-track-date"); });
@@ -384,7 +419,11 @@ for (const change of ["district", "action"]) {
         await p.locator("#ia-district").selectOption("house:013");
         await p.locator("#ia-apply").evaluate(el => el.click());
       } else await p.locator("#ia-act-none").evaluate(el => { el.checked = true; el.dispatchEvent(new Event("change", { bubbles: true })); });
-      await p.locator("#ia-preview-confirm").click();
+      assert.equal((await focus(p)).id, "ia-track-date", "opening a preview must not finish the native year");
+      assert.equal(await p.evaluate(() => document.querySelector("#ia-track-date") === window.focusRaceDate), true);
+      assert.equal(await p.evaluate(origin => window.dateRaceCase.branches.find(b => b.branch_id === origin).tracking.as_of, origin), null);
+      if (activation === "pointer") await p.locator("#ia-preview-confirm").click(); // a real field exit still commits strictly
+      else await p.locator("#ia-preview-confirm").evaluate(el => el.click());
       await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
       assert.equal(await p.evaluate(() => window.focusRaceDate.isConnected), false);
       if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
@@ -394,13 +433,130 @@ for (const change of ["district", "action"]) {
       const file = await pending;
       const saved = JSON.parse(fs.readFileSync(await file.path(), "utf8"));
       const active = saved.branches.find(b => b.branch_id === saved.active_branch_id);
+      const prior = saved.branches.find(b => b.branch_id === origin);
       assert.equal(saved.branches.length, 2);
       assert.equal(active.tracking, null);
       assert.equal(active.checklist_edits.some(x => x.due_date), false);
+      assert.equal(prior.tracking.as_of, activation === "pointer" ? "0202-11-16" : null, "only a real user field exit may write the origin date");
       if (change === "district") assert.equal(active.plan.district.code, "013");
       else assert.equal(active.selected_action_ref, null);
-      await proof(p, "date-context-" + change, { activeTracking: active.tracking, contexts: saved.branches.length });
+      await proof(p, "date-context-" + change + "-" + activation, { activeTracking: active.tracking, originTracking: prior.tracking, contexts: saved.branches.length });
     } finally { await p.close(); }
+  });
+  }
+}
+
+for (const firstField of ["baseline", "label"]) {
+  test("SNAP tracking removes its preset and stale handler preserves " + firstField + " first entries", async () => {
+    const p = await page();
+    try {
+      await p.locator("#ia-issue").selectOption("food_assistance_outreach");
+      await p.locator("#ia-apply").evaluate(el => el.click());
+      if (await p.locator("#ia-preview-confirm").count()) await p.locator("#ia-preview-confirm").click();
+      await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden && /SNAP/.test(document.querySelector("#ia-context-summary").textContent));
+      if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+      await p.evaluate(() => { window.staleTrackingPreset = Array.from(document.querySelectorAll("#ia-tracking button")).find(b => /Use SNAP information-request tracking/.test(b.textContent)); });
+      assert.equal(await p.evaluate(() => !!window.staleTrackingPreset), true);
+      if (firstField === "label") {
+        await p.locator("#ia-track-label").fill("Requests logged at front desk");
+        await p.locator("#ia-track-date").click({ delay: 150 });
+        await p.waitForTimeout(40);
+      }
+      await p.locator("#ia-track-base").focus();
+      await p.keyboard.type("13");
+      await p.keyboard.press("Tab");
+      await p.waitForTimeout(40);
+      assert.equal((await focus(p)).id, "ia-track-date");
+      assert.equal(await p.locator("#ia-tracking button", { hasText: "Use SNAP information-request tracking" }).count(), 0);
+      await p.evaluate(() => window.staleTrackingPreset.click()); // detached control must also be harmless
+      assert.equal(await p.locator("#ia-track-base").inputValue(), "13");
+      await p.keyboard.press("Shift+Tab");
+      await p.waitForTimeout(40);
+      assert.equal(await p.locator("#ia-tracking button", { hasText: "Use SNAP information-request tracking" }).count(), 0);
+      await p.locator("#ia-download-staff").check();
+      const saved = await savedCase(p), branch = saved.branches.find(b => b.branch_id === saved.active_branch_id);
+      assert.deepEqual(branch.tracking, { label: firstField === "label" ? "Requests logged at front desk" : "", baseline: 13, as_of: null });
+      await proof(p, "snap-preset-" + firstField, { tracking: branch.tracking });
+    } finally { await p.close(); }
+  });
+}
+
+for (const [stage, first, rest, value] of [["one-digit", "11162", "026", "0002-11-16"], ["three-digits", "1116202", "6", "0202-11-16"], ["complete", "11162026", "", "2026-11-16"]]) {
+  test("a pending " + stage + " staff date holds an automatic language proposal in its origin", { skip: process.env.FOCUS_TEST_MOCK_ASK !== "1" }, async () => {
+    const p = await page(); let release;
+    try {
+      await observeCase(p);
+      await p.locator("#ia-tracking-summary").click();
+      await p.locator("#ia-download-staff").check();
+      let runs = 0;
+      p.on("request", r => { if (new URL(r.url()).pathname === "/api/investigation" && r.postDataJSON().mode === "run") runs += 1; });
+      release = await holdDateReply(p, "language-proposal");
+      const origin = await p.evaluate(() => window.dateRaceCase.active_branch_id);
+      await p.locator("#ia-track-date").focus();
+      await p.evaluate(() => { window.focusRaceDate = document.querySelector("#ia-track-date"); });
+      await p.keyboard.type(first);
+      release();
+      await p.waitForFunction(() => document.querySelector("#ia-question-cancel").hidden);
+      assert.equal(await p.evaluate(() => document.activeElement === window.focusRaceDate && window.focusRaceDate.isConnected), true);
+      assert.equal(await p.locator("#ia-track-date").inputValue(), value);
+      assert.match(await p.locator("#ia-question-result").textContent(), /staff date is still being edited/);
+      assert.equal(runs, 0);
+      const held = await p.evaluate(() => window.dateRaceCase);
+      assert.equal(held.active_branch_id, origin);
+      assert.equal(held.branches.length, 1);
+      assert.equal(held.branches[0].tracking, null, "the reply must not write the provisional value into the origin");
+      if (rest) await p.keyboard.type(rest);
+      assert.equal(await p.locator("#ia-track-date").inputValue(), "2026-11-16");
+      await p.locator("#ia-download").focus();
+      await p.waitForTimeout(40);
+      const finished = await savedCase(p);
+      assert.equal(finished.branches[0].tracking.as_of, "2026-11-16");
+      await p.locator("#ia-proposal-run").click();
+      await p.locator("#ia-preview-confirm").click();
+      await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+      const applied = await savedCase(p), target = applied.branches.find(b => b.branch_id === applied.active_branch_id);
+      assert.equal(applied.branches.length, 2);
+      assert.equal(applied.branches.find(b => b.branch_id === origin).tracking.as_of, "2026-11-16");
+      assert.equal(target.tracking, null);
+      assert.equal(target.plan.map_session, 2024);
+      await proof(p, "held-date-proposal-" + stage, { heldOrigin: held.branches[0].tracking, originDate: "2026-11-16", targetTracking: target.tracking });
+    } finally { if (release) release(); await p.close(); }
+  });
+}
+
+for (const id of ["ia-track-date", "ia-chk-custom1-due"]) {
+  test("a restore reply preserves both contexts without writing provisional " + id, async () => {
+    const p = await page(); let release;
+    try {
+      await observeCase(p);
+      await prepareAsyncDate(p, "ia-track-date");
+      const targetId = await p.evaluate(() => window.dateRaceCase.active_branch_id);
+      await p.locator("#ia-district").selectOption("house:013");
+      await p.locator("#ia-apply").evaluate(el => el.click());
+      await p.locator("#ia-preview-confirm").click();
+      await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+      await p.locator("#ia-track-label").fill("Second context tracking");
+      await p.locator("#ia-chk-new").fill("Second context checklist");
+      await p.locator("#ia-chk-add").click();
+      const before = await p.evaluate(() => window.dateRaceCase), originId = before.active_branch_id;
+      release = await holdDateReply(p, "restore");
+      if (id === "ia-track-date" && await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+      await p.locator("#" + id).focus();
+      await p.evaluate(id => { window.focusRaceDate = document.getElementById(id); }, id);
+      await p.keyboard.type("1116202");
+      assert.equal(await p.locator("#" + id).inputValue(), "0202-11-16");
+      release();
+      await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+      const after = await p.evaluate(() => window.dateRaceCase);
+      assert.equal(after.active_branch_id, targetId);
+      assert.equal(await p.evaluate(() => window.focusRaceDate.isConnected), false);
+      for (const branchId of [originId, targetId]) {
+        const prior = before.branches.find(b => b.branch_id === branchId), now = after.branches.find(b => b.branch_id === branchId);
+        assert.deepEqual(now.tracking, prior.tracking);
+        assert.deepEqual(now.checklist_edits, prior.checklist_edits);
+      }
+      await proof(p, "date-restore-" + id, { origin: after.branches.find(b => b.branch_id === originId).tracking, target: after.branches.find(b => b.branch_id === targetId).tracking });
+    } finally { if (release) release(); await p.close(); }
   });
 }
 
