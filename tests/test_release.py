@@ -1,6 +1,7 @@
 """Offline public-adapter checks. No network inference, secrets or ledgers."""
 import concurrent.futures
 import copy
+from html import escape
 import http.cookiejar
 import io
 import json
@@ -72,12 +73,22 @@ class AdapterChecks(unittest.TestCase):
         cookie=self.session()
         prof=self.two(cookie,self.req('profile'))
         self.assertEqual(len(prof['findings']),20)
+        for finding in prof['findings']:
+            raw_label = finding['metric']['official_variable_label']
+            self.assertIn('!!', raw_label)
+            self.assertIn(escape(raw_label.replace('!!', ' › ')), prof['html'])
+            self.assertNotIn(escape(raw_label), prof['html'])
         self.assertEqual(prof['findings'][8]['metric']['metric_id'],'poverty_rate_all_people')
         req=self.req('compare'); req.update(task='compare',metric_ids=['poverty_rate_all_people'],comparison_geography='HI-STATE-2024')
         cmp=self.two(cookie,req)
         self.assertEqual(cmp['findings'][0]['difference']['display'],'+2.5')
         req=self.req('program'); req.update(task='program_relevance',program_ids=['snap_hi'])
         prog=self.two(cookie,req)
+        program = prog['findings'][0]['program']
+        self.assertIn('Hawaiʻi DHS', prog['html'])
+        self.assertIn('Hawaiʻi statewide', prog['html'])
+        self.assertIn(f'<dt>Checked</dt><dd>{program["checked_at"][:10]}</dd>', prog['html'])
+        self.assertNotIn(program['checked_at'], prog['html'])
         self.assertTrue(all(e.get('verification_kind') == 'authored_reference' and e['verified_against_extract'] is None for e in prog['findings'][0]['evidence']))
         source=prof['findings'][8]['source']; fid=prof['findings'][8]['finding_id']
         code,_,src=self.call('GET','/api/source?source_id='+source['source_id']+'&finding_id='+fid)
@@ -179,6 +190,27 @@ class AdapterChecks(unittest.TestCase):
             code,_,out=self.call('GET','/api/source?'+urlencode({'source_id':sid}))
             self.assertIn(code,(400,404),sid)
             self.assertNotEqual(out['status'],'ok')
+
+    def test_sources_distinguish_reports_captures_and_count_sources(self):
+        catalog = self.call('GET', '/api/catalog')[2]
+        captures = {
+            'hi_mqd_reports': ('reports.html', 'redirected from .html'),
+            'hi_mqd_reports_canonical': ('reports', 'direct address'),
+        }
+        for source_id, (path, descriptor) in captures.items():
+            with self.subTest(source=source_id):
+                _, _, inspection = self.call('GET', f'/api/source?source_id={source_id}')
+                result = inspection['result']
+                self.assertEqual(result['source']['url'], f'https://medquest.hawaii.gov/en/resources/{path}')
+                self.assertEqual(result['cited_by']['participation'], [])
+                label = f'Med-QUEST reports page ({descriptor})'
+                self.assertIn(label, catalog['sources_html'])
+                self.assertIn(label, inspection['html'])
+                self.assertIn('Reference only. The app uses no administrative counts', inspection['html'])
+        _, _, inspection = self.call('GET', '/api/source?source_id=hi_snap_sfy2027')
+        self.assertEqual(len(inspection['result']['cited_by']['participation']), 7)
+        self.assertIn('The app uses 7 administrative rows from this source.', inspection['html'])
+        self.assertIn('district participation gap', inspection['html'])
 
     def test_cookie_extraction_signatures_and_session_refresh(self):
         cookie=self.session()

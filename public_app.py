@@ -124,6 +124,16 @@ def language_service(investigation):
     return LanguageService(investigation, enabled=True, profile=load_profile(name))
 
 
+def language_view(out):
+    plan_proposal = out.get('status') == 'propose' and out.get('intent') in ('create_plan', 'replace_plan')
+    if out.get('enabled') is True or plan_proposal:
+        return dict(out, message=(
+            'A clear, supported proposal can run directly on the bundled data. '
+            'The app can require review before a district change, a comparison that needs '
+            'a chamber choice, or a change that affects earlier work.'))
+    return out
+
+
 def load_core(input_profile=None, r2_input_dir=None):
     profile = input_profile or os.environ.get('HAIC_INPUT_PROFILE', 'public')
     if profile == 'public':
@@ -281,7 +291,7 @@ class Application:
             return 400, ct, self.route_error(path, 'Request target is too long.')
         if method in ('GET', 'HEAD'):
             if path in ('/api/health', '/healthz'):
-                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'language':self.language.bootstrap(), 'language_profile':self.language.identity(), 'model_calls':0}
+                return 200, ct, {'status':'ok', 'snapshot_id':self.service.snapshot_id, 'packet':self.service.core.packet.verification, 'runtime':self.service.identity(), 'investigation':self.investigation.bootstrap(), 'language':language_view(self.language.bootstrap()), 'language_profile':self.language.identity(), 'model_calls':0}
             if path in ('/', '/index.html'):
                 _, cookie = self.session(environ)
                 if cookie: extra.append(('Set-Cookie',cookie))
@@ -295,7 +305,7 @@ class Application:
                 if cookie: extra.append(('Set-Cookie',cookie))
                 out = dict(self.service.catalog())
                 out['investigation'] = self.investigation.bootstrap()
-                out['language'] = self.language.bootstrap()
+                out['language'] = language_view(self.language.bootstrap())
                 return 200, ct, out
             if path == '/api/catalog/observations':
                 try:
@@ -362,7 +372,7 @@ class Application:
         if not isinstance(body,dict): return 400, ct, self.route_error(path, 'Body must be a JSON object.')
         if path.startswith('/api/language/'):
             code, out = self.language.handle(path.rsplit('/', 1)[1], body, session)
-            return code, ct, out
+            return code, ct, language_view(out)
         if path == '/api/event':
             body['session_id'] = session
             out = self.service.event(body)

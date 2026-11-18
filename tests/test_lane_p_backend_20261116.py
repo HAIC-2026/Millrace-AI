@@ -277,5 +277,36 @@ class LiteralAddBootstrapTests(unittest.TestCase):
         status, plan, _ = interpret('add snap for house 5', recipe(H('028')))
         self.assertEqual((status, plan['district']['code'], plan['steps'][-1]['args']), ('ok', '005', {'program_ids': ['snap_hi']}))
 
+class TypedDuplicateProgramStepTests(unittest.TestCase):
+    """#21: an identical program-reference step in the resulting plan is reported as already present, before the
+    eight-step slot check; distinct scopes, explicit districts and archived duplicate plans are unchanged."""
+    def test_identical_step_is_already_present_without_a_slot(self):
+        from districtbrief.interpret import food_assistance_recipe
+        for text, held, at in [('add kupuna care', recipe(H('028')), 3), ('program kupuna care', recipe(H('028')), 3),
+                               ('add snap', food_assistance_recipe(H('028')), 2)]:
+            status, plan, reading = interpret(text, held, allow_food=True)
+            self.assertEqual((status, plan), ('ok', held), text)
+            self.assertEqual(reading['reason'], f'Step {at} of the plan is already this program reference, so no step was added.')
+            self.assertIn('program_id', {f['field'] for f in reading['matched_fields']})
+        full = recipe(H('028'))
+        full['steps'] += [{'step_id': f's{i}', 'operation': 'profile', 'args': {'metric_ids': None}} for i in range(5, 9)]
+        status, plan, reading = interpret('add kupuna care', full)
+        self.assertEqual((status, len(plan['steps']), reading['reason'][:6]), ('ok', 8, 'Step 3'))
+        self.assertEqual(interpret('add snap', full)[0], 'unsupported')  # a new step still needs a free slot
+    def test_explicit_target_still_resolves_with_identical_step(self):
+        status, plan, reading = interpret('add kupuna care for house 5', recipe(H('028')))
+        self.assertEqual((status, plan['district']['code'], plan['steps']), ('ok', '005', recipe(H('028'))['steps']))
+        self.assertEqual({f['field'] for f in reading['matched_fields']}, {'district', 'program_id'})
+        self.assertIsNotNone(reading['reason'])
+    def test_distinct_scope_and_archived_duplicates(self):
+        from districtbrief.case_contract import validate_plan
+        held = recipe(H('028')); held['steps'][2]['args'] = {'program_ids': ['kupuna_care_hi', 'snap_hi']}
+        status, plan, reading = interpret('add snap', held)
+        self.assertEqual((status, plan['steps'][-1], reading['reason']), ('ok', {'step_id': 's5', 'operation': 'program_evidence', 'args': {'program_ids': ['snap_hi']}}, None))
+        archived = recipe(H('028')); archived['steps'].append({'step_id': 's5', 'operation': 'program_evidence', 'args': {'program_ids': ['kupuna_care_hi']}})
+        validate_plan(archived, repair.load_core())  # a reopened plan that already holds identical steps stays valid
+        status, plan, reading = interpret('add kupuna care', archived)
+        self.assertEqual((status, plan, reading['reason'][:6]), ('ok', archived, 'Step 3'))
+
 if __name__ == '__main__':
     unittest.main()

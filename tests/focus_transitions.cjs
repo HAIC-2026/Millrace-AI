@@ -1446,3 +1446,283 @@ test("Phase 1 late old typed error cannot end a newer request or steal focus", {
     assert.deepEqual(calls.map(wire => wire.mode), ["interpret", "interpret"]);
   } finally { if (old) old.open(); if (fresh) fresh.open(); await p.close(); }
 });
+
+// ------------------------------------------------------------------ Phase 2 flow (#8 #12 #14 #15 #21)
+const MAP_YEAR = "2026 map display, 2024 district statistics";
+test("Phase 2 context, restore, remove and import labels name the display map year apart from 2024 statistics", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    await changeDistrict(p, "house:013");
+    const first = p.locator("#ia-branches > li").first();
+    assert.ok((await first.locator("strong").textContent()).endsWith(" · " + MAP_YEAR));
+    assert.match(await p.locator("#ia-restore-0").getAttribute("aria-label"), new RegExp("^Restore context 1 \\(House 028 · .* · " + MAP_YEAR + "\\) by replaying its evidence$"));
+    assert.match(await p.locator("#ia-rmbranch-0").getAttribute("aria-label"), new RegExp(" · " + MAP_YEAR + "\\) from this page$"));
+    const saved = await savedCase(p);
+    assert.deepEqual(saved.branches.map(b => b.plan.map_session), [2026, 2026], "the plan is unchanged");
+    await chooseCase(p, saved);
+    assert.match(await importCard(p).textContent(), new RegExp("House 013 · .* · " + MAP_YEAR));
+    await proof(p, "phase2-map-year-labels", {});
+    await p.locator("#ia-import-cancel").click();
+  } finally { await p.close(); }
+});
+
+test("Phase 2 both Apply controls say whether a change opens the context review or runs at once", { timeout: 45000 }, async () => {
+  const p = await page();
+  try {
+    const calls = investigationCalls(p);
+    const upper = async () => ({ name: await p.getByRole("button", { name: /these changes$/ }).textContent(),
+      description: await p.locator("#ia-context-apply-btn").evaluate(b => document.getElementById(b.getAttribute("aria-describedby")).textContent) });
+    if (await p.locator("#ia-advanced").getAttribute("open") === null) await p.locator("#ia-advanced > summary").click();
+    // Direct run: Move up for step 2 of the default House 028 plan.
+    await p.locator("#ia-up-s2").click();
+    for (const id of ["#ia-context-apply-why", "#ia-apply-reason"]) assert.match(await p.locator(id).textContent(), /^Runs the reordered plan at once in this context; no review is needed/);
+    const direct = await upper();
+    assert.equal(direct.name, "Apply these changes");
+    assert.match(direct.description, /^Runs the reordered plan at once/);
+    await p.locator("#ia-context-apply-btn").focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    await requestDone(p);
+    assert.deepEqual(calls.map(w => w.mode), ["run"], "the reorder ran directly");
+    assert.equal((await focus(p)).id, "ia-evidence-h", "unchanged focus contract after a direct run");
+    // Review: a district change.
+    await p.locator("#ia-district").selectOption("house:013");
+    assert.match(await p.locator("#ia-status").textContent(), /^Context edited\. Choose Review and apply these changes to review it before it runs\.$/);
+    const review = await upper();
+    assert.equal(review.name, "Review and apply these changes");
+    assert.match(review.description, /^Opens the context review first:.*Nothing runs until you confirm\.$/);
+    assert.match(await p.locator(".ia-draft-note").textContent(), /Choose Review and apply these changes to review it before it runs/);
+    for (const id of ["#ia-context-apply-why", "#ia-apply-reason"]) assert.match(await p.locator(id).textContent(), /^Opens the context review first:.*Nothing runs until you confirm\.$/);
+    await p.locator("#ia-apply").click();
+    assert.equal(await p.locator("#ia-preview").isVisible(), true);
+    assert.deepEqual(calls.map(w => w.mode), ["run"], "nothing ran before confirmation");
+    await proof(p, "phase2-apply-prediction", { direct, review });
+    await p.locator("#ia-preview-cancel").click();
+    assert.equal((await focus(p)).id, "ia-apply");
+    // Four-context limit: the upper action only opens a review that cannot confirm.
+    await p.locator("#ia-discard").click();
+    for (const d of ["house:013", "house:010", "senate:008"]) await changeDistrict(p, d);
+    await p.locator("#ia-district").selectOption("house:051");
+    const cap = await upper();
+    assert.equal(cap.name, "Review these changes");
+    assert.match(cap.description, /four contexts, so one must be removed/);
+    assert.match(await p.locator("#ia-status").textContent(), /^Context edited\. Choose Review these changes to review it before it runs\.$/);
+    await p.locator("#ia-context-apply-btn").focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await p.locator("#ia-preview-confirm").isDisabled(), true);
+    assert.deepEqual(calls.map(w => w.mode), ["run", "run", "run", "run"], "only the three context changes ran");
+  } finally { await p.close(); }
+});
+
+test("Phase 2 a held Ask pure reorder offers focus-only scope routes for moved unchanged steps", { timeout: 30000 }, async () => {
+  // Offline fake Ask transport in this page only: no provider, no server language route.
+  const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    let env = null; const language = [];
+    await p.route("**/*", async route => {
+      const u = new URL(route.request().url());
+      if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return route.abort();
+      if (u.pathname === "/api/catalog") { const r = await route.fetch(), j = await r.json(); j.language = { enabled: true, schema_version: "ia-language/1", message: "fixture", limits: { deadline_seconds: 25 } }; return route.fulfill({ response: r, json: j }); }
+      if (!u.pathname.startsWith("/api/language/")) return route.continue();
+      const action = u.pathname.split("/").pop(), body = route.request().postDataJSON(); language.push(action);
+      if (action === "start") {
+        const c = body.context, rel = await route.request().frame().page().evaluate(async () => (await (await fetch("/api/catalog")).json()).investigation.release_id || "");
+        env = { request_id: body.request_id, context: c, context_digest: "sha256:" + "b".repeat(64), tokens: { schema_version: "ia-language/1", release_id: rel, ...Object.fromEntries(["case_id", "branch_id", "revision", "snapshot_id", "operation_version", "recipe_version"].map(k => [k, c[k]])) } };
+        return route.fulfill({ status: 202, json: { ...env, status: "pending" } });
+      }
+      if (action === "cancel") return route.fulfill({ json: { status: "cancelled" } });
+      const before = env.context.confirmed_plan, after = JSON.parse(JSON.stringify(before)), [a, b, c, d] = after.steps;
+      after.steps = [c, a, b, d];
+      return route.fulfill({ json: { ...env, status: "propose", intent: "replace_plan", message: "fixture", reason_code: "", normalized_plan: after,
+        typed_diff: [{ field: "step_order", change: "changed", before: ["s1", "s2", "s3", "s4"], after: ["s3", "s1", "s2", "s4"] }], inherited_fields: ["district"], source_inspection_refs: [], choices: [], clarify_field: "" } });
+    });
+    await p.goto(base.href);
+    await p.waitForFunction(() => !document.querySelector("#ia-recommend").hidden && document.querySelector("#ia-cancel").hidden);
+    const calls = investigationCalls(p);
+    await p.locator("#ia-question-text").fill("In my district, please review this plan.");
+    await p.locator("#ia-question-submit").click();
+    const diff = p.locator("#ia-proposal-diff");
+    await diff.waitFor({ state: "attached" });
+    await diff.locator("summary").focus();
+    await p.keyboard.press("Enter");
+    const routes = await diff.locator("button").evaluateAll(bs => bs.map(b => [b.id, b.textContent, b.getAttribute("aria-label")]));
+    assert.deepEqual(routes.map(r => r[1]), ["Open step 3 scope (step 1 in the proposal)", "Open step 1 scope (step 2 in the proposal)", "Open step 2 scope (step 3 in the proposal)"]);
+    assert.match(routes[0][2], /^Open the scope editor for step 3 of your draft plan, step 1 of the proposed plan: Program reference — Kūpuna Care$/);
+    const steps = () => p.locator("#ia-steps > li").evaluateAll(xs => xs.map(x => x.id + "|" + x.querySelector(".ia-step-scope").textContent));
+    const draft = await steps();
+    await p.locator("#ia-order-scope-s3").focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await p.evaluate(() => document.activeElement.parentElement.id), "ia-scope-s3");
+    assert.equal(await p.locator("#ia-scope-s3").getAttribute("open"), "");
+    assert.deepEqual(await steps(), draft, "focus only: the draft is unchanged");
+    assert.equal(await p.locator("#ia-proposal-run").isVisible(), true, "the held proposal is still shown, not acknowledged");
+    assert.deepEqual(calls, [], "nothing ran");
+    assert.deepEqual(language, ["start", "status"], "no further question was sent");
+    await proof(p, "phase2-ask-reorder-routes", { routes });
+  } finally { await p.close(); }
+});
+
+test("Phase 2 a confirmed-basis reorder names routes by the live draft position, not the plan the question used", { timeout: 30000 }, async () => {
+  // Offline fake Ask transport in this page only: a control-conflict clarification, then a guarded reorder of the confirmed plan.
+  const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    let env = null, statuses = 0; const language = [], starts = [];
+    await p.route("**/*", async route => {
+      const u = new URL(route.request().url());
+      if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return route.abort();
+      if (u.pathname === "/api/catalog") { const r = await route.fetch(), j = await r.json(); j.language = { enabled: true, schema_version: "ia-language/1", message: "fixture", limits: { deadline_seconds: 25 } }; return route.fulfill({ response: r, json: j }); }
+      if (!u.pathname.startsWith("/api/language/")) return route.continue();
+      const action = u.pathname.split("/").pop(), body = route.request().postDataJSON(); language.push(action);
+      if (action === "start") {
+        const c = body.context; starts.push(JSON.parse(JSON.stringify(c)));
+        const rel = await route.request().frame().page().evaluate(async () => (await (await fetch("/api/catalog")).json()).investigation.release_id || "");
+        env = { request_id: body.request_id, context: c, context_digest: "sha256:" + "c".repeat(64), tokens: { schema_version: "ia-language/1", release_id: rel, ...Object.fromEntries(["case_id", "branch_id", "revision", "snapshot_id", "operation_version", "recipe_version"].map(k => [k, c[k]])) } };
+        return route.fulfill({ status: 202, json: { ...env, status: "pending" } });
+      }
+      if (action === "cancel") return route.fulfill({ json: { status: "cancelled" } });
+      const empty = { normalized_plan: null, typed_diff: [], inherited_fields: [], source_inspection_refs: [] };
+      if (++statuses === 1) return route.fulfill({ json: { ...env, ...empty, status: "clarify", intent: "none", message: "fixture", reason_code: "control_conflict", clarify_field: "control_conflict",
+        choices: [{ alias: "x_confirmed", field: "control_conflict", value: "confirmed", label: "Use confirmed plan" }, { alias: "x_draft", field: "control_conflict", value: "draft", label: "Use draft plan" }] } });
+      const before = env.context.confirmed_plan, after = JSON.parse(JSON.stringify(before)), [a, b, c, d] = after.steps;
+      after.steps = [c, a, b, d];
+      return route.fulfill({ json: { ...env, status: "propose", intent: "replace_plan", message: "fixture", reason_code: "", normalized_plan: after,
+        typed_diff: [{ field: "step_order", change: "changed", before: ["s1", "s2", "s3", "s4"], after: ["s3", "s1", "s2", "s4"] }], inherited_fields: ["district"], source_inspection_refs: [], choices: [], clarify_field: "" } });
+    });
+    await p.goto(base.href);
+    await p.waitForFunction(() => !document.querySelector("#ia-recommend").hidden && document.querySelector("#ia-cancel").hidden);
+    const calls = investigationCalls(p);
+    if (await p.locator("#ia-advanced").getAttribute("open") === null) await p.locator("#ia-advanced > summary").click();
+    await p.locator("#ia-up-s3").click();   // live unapplied draft: [s1, s3, s2, s4]
+    const order = () => p.locator("#ia-steps > li").evaluateAll(xs => xs.map(x => x.id + "|" + x.querySelector(".ia-step-scope").textContent));
+    const draft = await order();
+    assert.deepEqual(draft.map(x => x.split("|")[0]), ["ia-step-s1", "ia-step-s3", "ia-step-s2", "ia-step-s4"]);
+    await p.locator("#ia-question-text").fill("In my district, please review this plan.");
+    await p.locator("#ia-question-submit").click();
+    await p.getByRole("button", { name: "Use Use confirmed plan" }).click();
+    assert.match(await p.locator("#ia-question-scope").textContent(), /confirmed plan/);
+    await p.locator("#ia-question-submit").click();
+    const diff = p.locator("#ia-proposal-diff");
+    await diff.waitFor({ state: "attached" });
+    assert.deepEqual(starts[1].draft_plan.steps.map(s => s.step_id), ["s1", "s2", "s3", "s4"], "the confirmed basis was sent as the question's plan");
+    await diff.locator("summary").focus();
+    await p.keyboard.press("Enter");
+    const routes = await diff.locator("button").evaluateAll(bs => bs.map(b => [b.id, b.textContent, b.getAttribute("aria-label")]));
+    assert.deepEqual(routes.map(r => [r[0], r[1]]), [["ia-order-scope-s3", "Open step 2 scope (step 1 in the proposal)"], ["ia-order-scope-s1", "Open step 1 scope (step 2 in the proposal)"], ["ia-order-scope-s2", "Open step 3 scope (step 3 in the proposal)"]]);
+    assert.equal(routes[0][2], "Open the scope editor for step 2 of your draft plan, step 1 of the proposed plan: Program reference — Kūpuna Care");
+    assert.match(await diff.locator("li").last().textContent(), /1\. Program reference — Kūpuna Care \(step 3 in the plan the question used\)/);
+    const sent = calls.length + language.length;
+    const seen = []; p.on("request", r => seen.push(r.url()));
+    await p.locator("#ia-order-scope-s3").focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await p.evaluate(() => document.activeElement.parentElement.id), "ia-scope-s3");
+    assert.equal(await p.evaluate(() => [...document.querySelectorAll("#ia-steps > li")].indexOf(document.activeElement.closest("li.ia-step")) + 1), 2, "the editor opened is live draft step 2");
+    assert.deepEqual(await order(), draft, "live draft unchanged");
+    assert.match(await p.locator("#ia-question-scope").textContent(), /confirmed plan/, "chosen basis kept");
+    assert.equal(await p.locator("#ia-proposal-run").isVisible(), true);
+    await p.waitForTimeout(100);
+    assert.deepEqual(seen, [], "no request at route activation");
+    assert.equal(calls.length + language.length, sent);
+    assert.deepEqual(calls, [], "nothing ran");
+    await proof(p, "phase2-ask-confirmed-basis-routes", { routes });
+  } finally { await p.close(); }
+});
+
+for (const [label, width, height, cap, next] of [["320x568 four-context", 320, 568, true, "ia-preview-cancel"], ["320x568", 320, 568, false, "ia-preview-confirm"],
+  ["390x844 four-context", 390, 844, true, "ia-preview-cancel"], ["desktop", 1280, 900, false, "ia-preview-confirm"]]) {
+  test("Phase 2 " + label + " review shows its heading and Tab reaches " + next, { timeout: 45000 }, async () => {
+    const p = await page();
+    try {
+      if (cap) for (const d of ["house:013", "house:010", "senate:008"]) await changeDistrict(p, d);
+      await p.setViewportSize({ width, height });
+      await p.locator("#ia-district").selectOption(cap ? "house:051" : "house:020");
+      await p.locator("#ia-context-apply-btn").focus();
+      await p.keyboard.press("Enter");
+      await p.waitForTimeout(80);
+      const opened = await p.evaluate(() => {
+        const r = document.querySelector("#ia-preview h3").getBoundingClientRect(), panel = document.querySelector("#ia-preview").getBoundingClientRect();
+        return { focus: document.activeElement.id, top: r.top, bottom: r.bottom, tall: panel.height > innerHeight, viewport: innerHeight };
+      });
+      assert.equal(opened.focus, "ia-preview");
+      assert.ok(opened.top >= 0 && opened.bottom <= opened.viewport, JSON.stringify(opened));
+      assert.equal(await p.locator("#ia-preview").count(), 1);
+      await p.keyboard.press("Tab");
+      assert.equal((await focus(p)).id, next);
+      await proof(p, "phase2-review-" + label.replace(/\W+/g, "-"), opened);
+    } finally { await p.close(); }
+  });
+}
+
+test("Phase 2 typed step choices name each step and open its existing scope editor without changing the plan", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    await openTyped(p);
+    await p.locator("#ia-add-op").selectOption("compare");
+    await p.locator("#ia-add-btn").click();
+    await readTyped(p, "compare senior poverty with maui county");
+    await requestDone(p);
+    const card = await typedCard(p).textContent();
+    assert.match(card, /Step 2 · Compare with a geography — .*comparison: State of Hawaiʻi \(typed-request name s2\)/);
+    assert.match(card, /Step 5 · Compare with a geography/);
+    const before = await p.locator("#ia-steps > li").allTextContents();
+    const route = p.getByRole("button", { name: "Open the scope editor for step 5, Compare with a geography, in your draft plan" });
+    await route.focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await p.evaluate(() => document.activeElement.parentElement.id), "ia-scope-s5");
+    assert.equal(await p.locator("#ia-scope-s5").getAttribute("open"), "");
+    assert.deepEqual(await p.locator("#ia-steps > li").allTextContents(), before, "focus only; the draft is unchanged");
+    await proof(p, "phase2-typed-step-route", { card });
+    // Once the draft changes, the card keeps readable step references but offers no route.
+    await p.locator("#ia-scope-s5 select").selectOption("HI-COUNTY-009-2024");
+    assert.match(await typedCard(p).textContent(), /Step 5 · Compare with a geography — .*comparison: State of Hawaiʻi/);
+    assert.equal(await typedCard(p).getByRole("button", { name: /Open the scope editor/ }).count(), 0);
+  } finally { await p.close(); }
+});
+
+test("Phase 2 typed add of a program step already in the plan reports it and adds no step", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const calls = investigationCalls(p);
+    await openTyped(p);
+    await readTyped(p, "add kupuna care");
+    await requestDone(p);
+    assert.match(await typedCard(p).textContent(), /Already in the plan \(no change\).*Step 3 of the plan is already this program reference, so no step was added\./s);
+    assert.equal(await proposalButton(p).count(), 0, "nothing to place: no mutating control");
+    await typedCard(p).getByRole("button", { name: "Discard" }).click();
+    assert.equal(await p.locator("#ia-steps > li").count(), 4);
+    assert.match(await p.locator("#ia-status").textContent(), /discarded\. The plan is unchanged/);
+    // An explicit district with the same step still changes the plan, so placement stays available.
+    await readTyped(p, "add kupuna care for house 5");
+    await requestDone(p);
+    assert.match(await typedCard(p).textContent(), /Proposed plan change \(not applied\)/);
+    await proposalButton(p).click();
+    assert.equal(await p.locator("#ia-district").inputValue(), "house:005");
+    assert.equal(await p.locator("#ia-steps > li").count(), 4);
+    assert.deepEqual(calls.map(w => w.mode), ["interpret", "interpret"]);
+    await proof(p, "phase2-typed-duplicate", {});
+  } finally { await p.close(); }
+});
+
+test("Phase 2 an untouched initial plan with no results never says it already ran", { timeout: 30000 }, async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    let first = true;
+    await p.route("**/*", async route => {
+      const u = new URL(route.request().url());
+      if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return route.abort();
+      if (u.pathname === "/api/investigation" && first) { first = false; return route.abort("connectionreset"); }   // the automatic first run fails
+      return route.continue();
+    });
+    await p.goto(base.href);
+    await p.locator("#ia-error").waitFor({ state: "visible" });
+    if (await p.locator("#ia-advanced").getAttribute("open") === null) await p.locator("#ia-advanced > summary").click();
+    assert.equal(await p.locator("#ia-apply").textContent(), "Apply plan");
+    const reason = await p.locator("#ia-apply-reason").textContent();
+    assert.match(reason, /^Runs the plan at once in this context and lists its findings; no review is needed\.$/);
+    assert.equal(await p.locator("#ia-context-apply").isHidden(), true);
+    await p.locator("#ia-apply").click();
+    await p.locator("#ia-cancel").waitFor({ state: "hidden" });
+    assert.equal(await p.locator("#ia-apply").textContent(), "Run again");
+    assert.equal((await focus(p)).id, "ia-evidence-h", "existing contract: busy Apply hands focus to Cancel, then to the findings");
+    await proof(p, "phase2-initial-no-results", { reason });
+  } finally { await p.close(); }
+});

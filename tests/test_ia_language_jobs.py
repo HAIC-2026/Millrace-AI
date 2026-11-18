@@ -16,6 +16,62 @@ from districtbrief.ia_language_provider import OpenAIProvider
 from language_funding_fixture import PROFILE,ledger_fixture,usage
 import test_ia_language_contract as contract_fixtures
 
+class LanguageHTTPPresentationTests(unittest.TestCase):
+    def test_plan_message_matches_direct_and_guarded_browser_paths(self):
+        message = ("A clear, supported proposal can run directly on the bundled data. "
+                   "The app can require review before a district change, a comparison that needs "
+                   "a chamber choice, or a change that affects earlier work.")
+        with tempfile.TemporaryDirectory() as state, patch.dict(
+                'os.environ', {'HAIC_LANGUAGE_ENABLED': '1', 'HAIC_LANGUAGE_PROFILE': 'terra-medium'}):
+            app = Application(state, secure_cookie=False)
+            self.addCleanup(app.language.close)
+            for handler in app.service.metrics.handlers:
+                self.addCleanup(handler.close)
+
+            def http(path, payload=None, cookie=''):
+                raw = b'' if payload is None else json.dumps(payload).encode()
+                env = {'REQUEST_METHOD': 'GET' if payload is None else 'POST',
+                       'PATH_INFO': path, 'QUERY_STRING': '', 'wsgi.input': io.BytesIO(raw),
+                       'HTTP_HOST': 'local.test', 'HTTP_COOKIE': cookie, 'CONTENT_LENGTH': str(len(raw)),
+                       'CONTENT_TYPE': 'application/json'}
+                response = []
+                data = b''.join(app(env, lambda status, headers: response.extend((status, dict(headers)))))
+                return response[0], response[1], json.loads(data)
+
+            bootstrap = app.language.bootstrap()
+            identity = app.language.identity()
+            self.assertNotEqual(bootstrap['message'], message)
+            for path in ('/api/health', '/healthz', '/api/catalog'):
+                with self.subTest(path=path):
+                    status, headers, body = http(path)
+                    self.assertEqual(status, '200 OK')
+                    if path == '/api/catalog':
+                        cookie = headers['Set-Cookie'].split(';', 1)[0]
+                    else:
+                        self.assertEqual(body['language_profile'], identity)
+                        self.assertEqual(body['model_calls'], 0)
+                    self.assertEqual(body['language'], dict(bootstrap, message=message))
+
+            for status, intent in [('propose', 'create_plan'), ('propose', 'replace_plan'),
+                                   ('propose', 'inspect_source'), ('pending', None), ('clarify', 'none')]:
+                with self.subTest(status=status, intent=intent):
+                    reply = {'status': status, 'message': 'service copy', 'model_calls': 0}
+                    if intent is not None:
+                        reply['intent'] = intent
+                    expected = dict(reply, message=message) if intent in ('create_plan', 'replace_plan') else reply
+                    with patch.object(app.language, 'handle', return_value=(200, reply)) as handle:
+                        code, _, actual = http('/api/language/status', {}, cookie)
+                        self.assertEqual(code, '200 OK')
+                        self.assertEqual(actual, expected)
+                        handle.assert_called_once()
+                    self.assertEqual(reply['message'], 'service copy')
+
+            app.language.enabled = False
+            with patch.object(app.language, '_resources', side_effect=AssertionError('resources')):
+                self.assertEqual(http('/api/health')[2]['language']['message'], DISABLED_MESSAGE)
+                self.assertEqual(http('/api/language/start', {}, cookie)[2]['message'], DISABLED_MESSAGE)
+
+
 class LanguageJobTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.i=Investigation(load_core())

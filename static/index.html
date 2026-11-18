@@ -95,12 +95,12 @@
           <div class="field"><label for="ia-issue">Issue</label>
             <select id="ia-issue" aria-describedby="ia-issue-help"><option value="aging_at_home">Older-adult support at home</option><option value="custom">Custom (staff-composed steps)</option></select>
             <p id="ia-issue-help" class="hint"></p></div>
-          <div class="field"><label for="ia-map-session">Boundary shown on map</label>
+          <div class="field"><label for="ia-map-session">Map display boundary</label>
             <select id="ia-map-session" aria-describedby="ia-session-help"><option value="2026">2026 session</option><option value="2024">2024 session</option></select>
-            <p id="ia-session-help" class="hint">Changes the boundary drawn, not the statistics (ACS 2020–2024 estimates for the 2024 districts).</p></div>
-          <div class="field"><label for="ia-service">Program area <span class="optional">(optional)</span></label>
+            <p id="ia-session-help" class="hint">District statistics use 2024 boundaries (ACS 2020–2024 estimates). This setting changes the map display.</p></div>
+          <div class="field"><label for="ia-service">Staff-chosen area for program questions <span class="optional">(optional)</span></label>
             <select id="ia-service" aria-describedby="ia-service-help"><option value="">None chosen</option><option value="statewide">Statewide</option><option value="oahu">Oʻahu</option><option value="hawaii_island">Hawaiʻi Island</option><option value="maui">Maui</option><option value="molokai">Molokaʻi</option><option value="lanai">Lānaʻi</option><option value="kauai">Kauaʻi</option><option value="kalawao">Kalawao</option></select>
-            <p id="ia-service-help" class="hint">Staff choice for program questions; not a coverage finding.</p></div>
+            <p id="ia-service-help" class="hint">Service coverage is unverified. Confirm it with the agency.</p></div>
         </div>
         <p id="ia-context-summary" class="ia-context-summary"></p>
         <div id="ia-context-apply" class="ia-context-apply" hidden>
@@ -243,7 +243,7 @@
       <div class="field"><label for="ctl-code">District number <span class="req">(for district tasks)</span></label>
         <select id="ctl-code"><option value="">Choose chamber first…</option></select></div>
       <div class="field"><label for="ctl-session">Boundary session</label>
-        <select id="ctl-session"><option value="2024" selected>2024 (default; the boundaries the statistics use)</option><option value="2026">2026</option></select></div>
+        <select id="ctl-session"><option value="2024" selected>2024 (statistical boundary)</option><option value="2026">2026 (map boundary)</option></select></div>
       <p id="lookup-context" class="fine" aria-live="polite" hidden></p>
       <p id="district-note" class="fine" aria-live="polite"></p>
     </fieldset>
@@ -261,7 +261,7 @@
       <legend>Administrative evidence</legend>
       <div class="field"><label for="ctl-admin">Recorded rows (up to 8)</label>
         <select id="ctl-admin" multiple size="6" aria-describedby="admin-help"></select>
-        <p id="admin-help" class="fine">Hold Command or Control to choose several. No district is required: these are recorded state, county or island counts, never district counts or participation gaps. A district choice is retained only as brief context.</p>
+        <p id="admin-help" class="fine">Hold Command or Control to choose several. These rows use their recorded state, county or island geography. A district is optional and serves as brief context.</p>
         <p id="admin-count" class="fine" aria-live="polite">0 of 8 rows selected.</p>
         <ul id="admin-details" class="fine" aria-live="polite"></ul></div>
     </fieldset>

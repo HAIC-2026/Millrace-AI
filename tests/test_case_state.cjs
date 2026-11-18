@@ -682,7 +682,7 @@ test("a literal proposal changes only the draft; a separate plan action makes th
     const buttons = [], requests = [];
     const ctx = { C, ids, state: run(C.createState(RUNTIME, ids)), notice: "", preview: null,
       interp: { status: "ok", utterance: "use house 13", matched_fields: [], inherited_fields: [], choices: [], reason: null, proposed_plan: null },
-      h: (...a) => a, $: () => ({ focus() {} }), fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
+      h: (...a) => a, $: () => ({ focus() {}, getBoundingClientRect: () => ({ height: 0 }) }), window: { innerHeight: 900 }, fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
       fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
       render() {}, syncMap() {}, holdFocus() {}, activeDate: () => null, send: (r) => requests.push(r) };
     ctx.interp.proposed_plan = proposed(ctx.state);
@@ -829,7 +829,7 @@ test("reopen preview groups staff notes under each context's own district, from 
   const groups = (u.$("#ia-import-preview").children.find((n) => n && n.tag === "div" && n.kids && JSON.stringify(n.kids).includes("ia-staff-list")) || {}).kids;
   const list = groups.find((k) => k && k.tag === "ul");
   const heads = list.kids[0].map((li) => li.kids[0].attrs.text);
-  assert.deepEqual(heads, ["Context 1: House 028 · Older-adult support at home · compared with State of Hawaiʻi", "Context 2: House 013 · Older-adult support at home · compared with State of Hawaiʻi", "Context 3: Senate 025 · Older-adult support at home · compared with State of Hawaiʻi"]);
+  assert.deepEqual(heads, ["Context 1: House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Context 2: House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Context 3: Senate 025 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics"]);
   const own = list.kids[0].map((li) => JSON.stringify(li.kids[1]));
   assert.match(own[0], /NOTE-A/); assert.doesNotMatch(own[0], /NOTE-B|NOTE-C/);
   assert.match(own[1], /NOTE-B/); assert.doesNotMatch(own[1], /NOTE-A|NOTE-C/);
@@ -897,7 +897,7 @@ test("a failed restore names the context, keeps the current one, and its retry r
   assert.equal(u.sent.length, 1); assert.equal(u.sent[0].branch_id, target);
   const f = C.applyTransportFailure(u.ctx.state, u.sent[0].request_id, "network");
   u.ctx.__r = f; u.run("finish(__r)");
-  assert.match(u.ctx.notice, /^Context 1 \(House 028 · Older-adult support at home · compared with State of Hawaiʻi\) was not restored\. You are still on Context 2 \(House 013 · Older-adult support at home · compared with State of Hawaiʻi\)\./);
+  assert.match(u.ctx.notice, /^Context 1 \(House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\) was not restored\. You are still on Context 2 \(House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\)\./);
   assert.equal(C.active(u.ctx.state).plan.district.code, "013", "current context unchanged");
   u.run("renderError()");
   const retry = u.buttons.find((b) => /^Restore Context 1 again$/.test(b.label));
@@ -986,10 +986,125 @@ test("saved contexts that differ only in comparison scope have distinct names", 
   const u = recoveryHarness(s1);
   u.ctx.__a = b1; u.ctx.__b = b2;
   const n1 = u.run("contextName(__a)"), n2 = u.run("contextName(__b)");
-  assert.equal(n1, "Context 1 (House 028 · Older-adult support at home · compared with State of Hawaiʻi)");
-  assert.equal(n2, "Context 2 (House 028 · Older-adult support at home · compared with Maui County)");
+  assert.equal(n1, "Context 1 (House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics)");
+  assert.equal(n2, "Context 2 (House 028 · Older-adult support at home · compared with Maui County · 2026 map display, 2024 district statistics)");
   const unknown = clone(p); unknown.steps.find((s) => s.operation === "compare").args.comparison_geography = "HI-COUNTY-999-2024";
-  u.ctx.__p = unknown; assert.match(u.run("planLabel(__p)"), /compared with an unlisted geography$/);
+  u.ctx.__p = unknown; assert.match(u.run("planLabel(__p)"), /compared with an unlisted geography · 2026 map display, 2024 district statistics$/);
+});
+
+// Phase 2 flow presentation (#8 #12 #14) through the actual investigation.js functions (inert DOM, real reducer).
+function flowHarness(state) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // ------------------------------------------------------------------ labels", "  // ------------------------------------------------------------------ state plumbing") +
+    part("  // A plan step named as staff see it", "  function renderInterpretation() {") + part("  // A held proposal's typed diff in staff terms", "  function renderQuestionScope(enabled) {") +
+    part("  // What Apply does with a draft", "  function applyPlan() {");
+  const typed = { open: false };
+  const ctx = { C, ids, state, notice: "", $: (sel) => (sel === "#ia-typed" ? typed : null), document: { getElementById: () => null },
+    catalog: { metrics: [{ metric_id: "poverty_rate_65_plus", label: "Poverty rate, age 65 and over" }], geographies: [{ geography_id: "HI-STATE-2024", label: "State of Hawaiʻi" }], unavailable_geographies: [], programs: [{ program_id: "kupuna_care_hi", name: "Kūpuna Care" }, { program_id: "snap_hi", name: "SNAP" }] },
+    h: (tag, attrs, ...kids) => ({ tag, attrs, kids }), btn: (label, fn, attrs) => ({ button: label, attrs }), render() {}, openAdvanced() {} };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { ctx, typed, run: (x) => vm.runInContext(x, ctx) };
+}
+const liText = (li) => ((li.attrs && li.attrs.text) || li.kids.filter((k) => typeof k === "string").join("")).trim();
+
+test("context labels name the display map year apart from the 2024 statistics without changing the plan (#8)", () => {
+  const s = run(C.createState(RUNTIME, ids)), p = clone(C.active(s).plan), u = flowHarness(s);
+  p.map_session = 2024; u.ctx.__p = p;
+  assert.match(u.run("planLabel(__p)"), / · 2024 map display, 2024 district statistics$/);
+  u.ctx.__q = C.active(s).plan; assert.match(u.run("planLabel(__q)"), / · 2026 map display, 2024 district statistics$/);
+  assert.equal(C.active(s).plan.map_session, 2026, "labels only; the plan is unchanged");
+});
+
+test("both Apply controls predict a context review or a direct run from the actual change (#12)", () => {
+  const s = run(C.createState(RUNTIME, ids)), u = flowHarness(s), outcome = (draft, st) => { u.ctx.state = Object.assign({}, st || s, { draft }); return u.run("applyOutcome()"); };
+  const plan = C.active(s).plan;
+  assert.equal(outcome(clone(plan)), "rerun");
+  const reordered = C.moveStep(plan, plan.steps[0].step_id, 1).plan;
+  assert.equal(outcome(reordered), "direct_reorder");
+  assert.match(u.run("applyHint('direct_reorder')"), /^Runs the reordered plan at once in this context; no review is needed/);
+  const district = clone(plan); district.district = Object.assign({}, district.district, { code: "013" });
+  assert.equal(outcome(district), "review");
+  assert.match(u.run("applyHint('review')"), /^Opens the context review first:.*Nothing runs until you confirm\.$/);
+  // A context that has not run and holds no work runs a material change directly.
+  const fresh = C.createState(RUNTIME, ids);
+  assert.equal(outcome(district, fresh), "direct");
+  assert.match(u.run("applyHint('direct')"), /^Runs the plan at once in this context and lists its findings; no review is needed\.$/);
+  // The untouched initial plan with no results yet: a direct run, and no wording claims an earlier run.
+  u.ctx.state = fresh; u.ctx.__d = clone(C.active(fresh).plan);
+  assert.equal(u.run("applyOutcome()"), "direct");
+  assert.doesNotMatch(u.run("applyHint(applyOutcome())"), /last run|again/i);
+  // A candidate plan is predicted without changing the shared state.
+  u.ctx.state = s; u.ctx.__d = district; const before = C.canonical(s);
+  assert.equal(u.run("applyOutcome(__d)"), "review"); assert.equal(C.canonical(u.ctx.state), before);
+  // Four contexts: the review opens but cannot confirm.
+  let full = s;
+  for (const code of ["013", "010", "020"]) { const q = clone(C.active(full).plan); q.district = Object.assign({}, q.district, { code }); full = run(change(full, { plan: q }).state); }
+  assert.equal(full.case.branches.length, 4);
+  const more = clone(C.active(full).plan); more.district = Object.assign({}, more.district, { code: "051" });
+  assert.equal(outcome(more, full), "review_full");
+  assert.match(u.run("applyHint('review_full')"), /four contexts, so one must be removed before this change can run/);
+  // The upper action's name comes from the same outcome.
+  assert.deepEqual(["direct", "direct_reorder", "review", "review_full"].map((o) => u.run("contextApplyLabel('" + o + "')")), ["Apply these changes", "Apply these changes", "Review and apply these changes", "Review these changes"]);
+});
+
+test("a guarded Ask diff names steps by number, operation and scope, with a scope route only for a current changed step (#14)", () => {
+  const s = run(C.createState(RUNTIME, ids)), u = flowHarness(s), before = clone(C.active(s).plan);
+  const [s1, s2, s3, s4] = before.steps;
+  const after = clone(before);
+  after.steps = [clone(s3), Object.assign(clone(s1), { args: { metric_ids: null } }), clone(s4), { step_id: "s5", operation: "program_evidence", args: { program_ids: ["snap_hi"] } }];
+  const typed_diff = [
+    { field: "steps", step_id: "s1", change: "changed", before: s1, after: after.steps[1] },
+    { field: "steps", step_id: "s2", change: "removed", before: s2, after: null },
+    { field: "steps", step_id: "s5", change: "added", before: null, after: after.steps[3] },
+  ];
+  u.ctx.__r = { normalized_plan: after, typed_diff }; u.ctx.__c = { draft_plan: before, confirmed_plan: before };
+  const items = u.run("proposalDiff(__r, __c)"), texts = items.map(liText);
+  assert.match(texts[0], /^Changed · step 1 of the plan the question used \(step 2 of the proposed plan\) · from Profile measures — .* · to Profile measures — All 20 measures$/);
+  const route = items[0].kids.find((k) => k && k.button);
+  assert.equal(route.button, "Open step 1 scope");
+  assert.equal(route.attrs["aria-label"], "Open the scope editor for step 1, Profile measures, in your draft plan");
+  assert.equal(texts[1], "Removed · step 2 of the plan the question used · Compare with a geography — Poverty rate, age 65 and over — comparison: State of Hawaiʻi");
+  assert.ok(!items[1].kids.length, "a removed step is a reference only");
+  assert.equal(texts[2], "Added · step 4 of the proposed plan · Program reference — SNAP");
+  assert.equal(texts[3], "New step order · 1. Program reference — Kūpuna Care (step 3 in the plan the question used); 2. Profile measures — All 20 measures (step 1 in the plan the question used); 3. Reviewed outreach hypothesis — Kūpuna Care — complete reviewed measure set; hypothesis reference: State (step 4 in the plan the question used); 4. Program reference — SNAP (added)");
+  assert.ok(texts.every((t) => !/\bs[0-9]\b/.test(t)), "no typed-request names in the Ask diff");
+  // Moved, unchanged steps get an order route; the Changed step s1 is routed only in its own row; added s5 has none.
+  const orderRoutes = (li) => li.kids.filter((k) => k && k.button);
+  assert.deepEqual(orderRoutes(items[3]).map((r) => [r.attrs.id, r.button]), [["ia-order-scope-s3", "Open step 3 scope (step 1 in the proposal)"], ["ia-order-scope-s4", "Open step 4 scope (step 3 in the proposal)"]]);
+  assert.equal(orderRoutes(items[3])[0].attrs["aria-label"], "Open the scope editor for step 3 of your draft plan, step 1 of the proposed plan: Program reference — Kūpuna Care");
+  // A server step_order entry for a pure reorder is shown once, in visible plan order.
+  const swapped = clone(before); swapped.steps = [clone(s2), clone(s1), clone(s3), clone(s4)];
+  u.ctx.__r = { normalized_plan: swapped, typed_diff: [{ field: "step_order", change: "changed", before: ["s1", "s2", "s3", "s4"], after: ["s2", "s1", "s3", "s4"] }] };
+  assert.deepEqual(Array.from(u.run("proposalDiff(__r, __c)"), liText), ["New step order · 1. Compare with a geography — Poverty rate, age 65 and over — comparison: State of Hawaiʻi (step 2 in the plan the question used); 2. Profile measures — " + u.run("stepScope(__c.draft_plan.steps[0])") + " (step 1 in the plan the question used); 3. Program reference — Kūpuna Care; 4. Reviewed outreach hypothesis — Kūpuna Care — complete reviewed measure set; hypothesis reference: State"]);
+  // Pure reorder [s1,s2,s3,s4] -> [s3,s1,s2,s4]: every moved, unchanged current step is routable, s4 (not moved) is not.
+  const rotated = clone(before); rotated.steps = [clone(s3), clone(s1), clone(s2), clone(s4)];
+  u.ctx.__r = { normalized_plan: rotated, typed_diff: [{ field: "step_order", change: "changed", before: ["s1", "s2", "s3", "s4"], after: ["s3", "s1", "s2", "s4"] }] };
+  const pure = u.run("proposalDiff(__r, __c)");
+  assert.deepEqual(Array.from(pure[0].kids.filter((k) => k && k.button), (r) => r.attrs.id), ["ia-order-scope-s3", "ia-order-scope-s1", "ia-order-scope-s2"]);
+  // A draft that no longer holds exactly the read step offers no route for it (stale identity).
+  const edited = clone(before); edited.steps[2] = Object.assign(clone(s3), { args: { program_ids: ["snap_hi"] } });
+  u.ctx.state = Object.assign({}, s, { draft: edited });
+  assert.deepEqual(Array.from(u.run("proposalDiff(__r, __c)")[0].kids.filter((k) => k && k.button), (r) => r.attrs.id), ["ia-order-scope-s1", "ia-order-scope-s2"]);
+  u.ctx.state = s;
+  // A same-ID replacement (another operation) is a reference only, with no scope route.
+  const replaced = { step_id: "s1", operation: "program_evidence", args: { program_ids: ["snap_hi"] } }, rplan = clone(before); rplan.steps[0] = replaced;
+  u.ctx.__r = { normalized_plan: rplan, typed_diff: [{ field: "steps", step_id: "s1", change: "changed", before: s1, after: replaced }] };
+  const ritems = u.run("proposalDiff(__r, __c)");
+  assert.match(liText(ritems[0]), /^Changed · step 1 of the plan the question used · from Profile measures — .* · to Program reference — SNAP$/);
+  assert.ok(!ritems[0].kids.some((k) => k && k.button), "no route for a replaced step");
+  // The route needs exactly the step the card read: a different step under the same ID gets none.
+  assert.ok(u.run("scopeRoute('x', 's1', __c.draft_plan.steps[0])"));
+  u.ctx.__other = Object.assign(clone(s1), { args: { metric_ids: null } });
+  assert.equal(u.run("scopeRoute('x', 's1', __other)"), null);
+  assert.equal(u.run("scopeRoute('x', 's1', null)"), null);
+  // Typed clarification references: the alias appears only while the typed-request help is open.
+  u.ctx.__p = before;
+  assert.equal(u.run("stepRef(__p, 's2').text + aliasNote('s2')"), "Step 2 · Compare with a geography — Poverty rate, age 65 and over — comparison: State of Hawaiʻi");
+  u.typed.open = true; assert.match(u.run("aliasNote('s2')"), /^ \(typed-request name s2\)$/);
+  assert.equal(u.run("stepRef(__p, 's9')"), null);
+  u.ctx.state = Object.assign({}, s, { draft: after }); assert.equal(u.run("scopeRoute('x', 's2')"), null, "no route to a step not in the draft");
 });
 
 // ------------------------------------------------------------------ recommended brief selector
@@ -1129,7 +1244,7 @@ function briefActionHarness(state, extra) {
   const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, answerBasis: null, briefFocus: null,
     currentRecommendation: (res) => ctx.briefFocus || C.recommendedBrief(res), briefBlock: () => null, createBrief: () => briefs.push(clone(ctx.state)),
     render() {}, flushActive: () => true, runActive() { runs.push(1); }, alertUser(m) { throw new Error(m); }, focusAnswer() {}, districtLabel: (d) => d.chamber + d.code,
-    plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: () => ({ focus() {} }) }, extra || {});
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: () => ({ focus() {} }), focusPreview() {} }, extra || {});
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, briefs, runs, run: (x) => vm.runInContext(x, ctx) };
 }

@@ -103,6 +103,14 @@ def source_label(source_id, url=None) -> str:
     return "Recorded source"
 
 
+def _screen_source_label(source_id, url=None) -> str:
+    """Distinguish the two recorded reports requests in public source views."""
+    return {
+        "hi_mqd_reports": "Med-QUEST reports page (redirected from .html)",
+        "hi_mqd_reports_canonical": "Med-QUEST reports page (direct address)",
+    }.get(source_id) or source_label(source_id, url)
+
+
 def human_date(value) -> str:
     """Date part of a recorded ISO timestamp (no time zone or clock detail)."""
     text = "" if value is None else str(value)
@@ -304,11 +312,13 @@ def header_html(resolution: dict | None, status: str, input_mode: str | None, re
     if args.get("finding_ids"):
         arg_bits.append(f"Findings: {len(args['finding_ids'])} selected")
     defaults = r.get("defaults_applied") or []
+    district_context = ("Only used to build a brief" if task == "administrative_context"
+                        else r.get("district_label") or "No district resolved")
     return (
         f'<div class="resolution status-{e(status)}">'
         f'<dl class="res-grid">'
         f'<div><dt>Task</dt><dd>{e(task_label)}</dd></div>'
-        f'<div><dt>District context</dt><dd>{e(r.get("district_label") or "No district resolved")}</dd></div>'
+        f'<div><dt>District context</dt><dd>{e(district_context)}</dd></div>'
         f'<div><dt>Input</dt><dd>{e(mode)}</dd></div>'
         f'<div><dt>Status</dt><dd class="res-state">{e(state)}</dd></div>'
         f'</dl>'
@@ -332,7 +342,7 @@ def _stat_row(f, selectable=True) -> str:
     return (
         f'<tr id="row-{e(f["finding_id"])}">'
         f'<th scope="row"><span class="metric-label">{e(f["metric"]["label"])}</span> {"".join(badges)}'
-        f'<div class="fine">{e(f["metric"]["official_variable_label"])}</div></th>'
+        f'<div class="fine">{e(readable_label(f["metric"]["official_variable_label"]))}</div></th>'
         f'<td class="{est_cls}">{e(est)}</td>'
         f'<td class="num">{_moe_cell(f["moe_display"])}</td>'
         f'<td>{e(f["unit"])}</td>'
@@ -494,9 +504,9 @@ def program_html(env) -> str:
             f'<article class="card program" id="row-{e(f["finding_id"])}">'
             f'<header><h3>{e(p["name"])}</h3><span class="badge badge-info">Informational only</span> '
             f'<span class="badge status-{e(p["status"])}">{e(f["status_notes"][0])}</span></header>'
-            f'<dl class="kv"><div><dt>Agency</dt><dd>{e(p["agency"])}</dd></div>'
-            f'<div><dt>Jurisdiction</dt><dd>{e(p["jurisdiction"])}</dd></div>'
-            f'<div><dt>Checked</dt><dd>{e(p["checked_at"])}</dd></div>'
+            f'<dl class="kv"><div><dt>Agency</dt><dd>{e(hawaii_display(p["agency"]))}</dd></div>'
+            f'<div><dt>Jurisdiction</dt><dd>{e(hawaii_display(p["jurisdiction"]))}</dd></div>'
+            f'<div><dt>Checked</dt><dd>{e(human_date(p["checked_at"]))}</dd></div>'
             f'<div><dt>Effective period</dt><dd>{e(f["effective_text"])} <span class="fine">({e(p["effective_period"].get("scope"))})</span></dd></div></dl>'
             + ("" if jc["in_agency_area"] else f'<p class="alert" role="note">{e(jc["note"])}</p>')
             + "".join(f'<p class="alert" role="note">{e(n)}</p>' for n in f["status_notes"][1:])
@@ -1063,16 +1073,25 @@ def catalog_html(cat: dict) -> str:
 
 
 def sources_html(cat: dict) -> str:
+    labels = {s["source_id"]: _screen_source_label(s["source_id"], s.get("url")) for s in cat["sources"]}
+    participation = cat.get("participation", [])
+    count_sources = {r["source_id"] for r in participation}
     rows = "".join(
-        f'<tr><th scope="row">{e(source_label(s["source_id"], s.get("url")))}</th><td>{e(hawaii_display(s["publisher"]))}</td>'
+        f'<tr><th scope="row">{e(labels[s["source_id"]])}'
+        + (f'<div class="fine">{"Count source" if s["source_id"] in count_sources else "Reference only"}</div>'
+           if s.get("family") == "participation" else "")
+        + f'</th><td>{e(hawaii_display(s["publisher"]))}</td>'
         f'<td class="url">{_official_link(s["url"], e(s["url"]))}</td><td>{e(human_date(s.get("retrieved_at_utc")))}</td>'
-        f'<td>{_source_button(s["source_id"], None, "Inspect")}</td></tr>' for s in cat["sources"])
-    labels = {s["source_id"]: source_label(s["source_id"], s.get("url")) for s in cat["sources"]}
+        f'<td>{_source_button(s["source_id"], None, "Inspect", labels[s["source_id"]])}</td></tr>' for s in cat["sources"])
     # Label map for the investigation view (inert JSON data; never executed).
     data = json.dumps(labels, ensure_ascii=False, sort_keys=True).replace("<", "\\u003c")
     return ('<p class="fine">Labels describe each recorded source from its publisher, address and file name; '
             'official document titles and publication dates are not recorded here. Addresses are shown for '
             'reference and are not opened by the app.</p>'
+            f'<p class="fine">The app uses {len(participation)} recorded administrative rows from entries marked “Count source.” '
+            'Entries marked “Reference only” supply no administrative counts to the app. '
+            'Published counts cover their stated state, county or island. These sources cannot establish district participation, '
+            'individual eligibility or district service coverage.</p>'
             '<table class="data-table compact"><caption>Recorded sources</caption><thead><tr>'
             '<th scope="col">Source (descriptive label)</th><th scope="col">Publisher</th>'
             '<th scope="col">Address</th><th scope="col">Retrieved</th>'
@@ -1140,7 +1159,7 @@ def source_html(res: dict) -> str:
     s = res["source"]
     rf = res["retained_file"]
     detail = res.get("detail") or {}
-    label = source_label(s["source_id"], s.get("url"))
+    label = _screen_source_label(s["source_id"], s.get("url"))
     kind = detail.get("type")
     where, supports = "", ""
     if kind == "sheet_cell":
@@ -1173,8 +1192,19 @@ def source_html(res: dict) -> str:
             f'<li><p><strong>{e(sp["claim"])}</strong> <span class="fine">({e(human_locator(sp["locator_text"]))}; '
             f'{"matches the retained text" if sp["verified_against_extract"] else ("page reference" if sp["verified_against_extract"] is None else "DOES NOT match the retained text")})</span></p>'
             f'<blockquote class="support">{e(sp["support_text"])}</blockquote></li>' for sp in detail["spans"]) + '</ul>'
+    family = s.get("family")
+    limitations = _CANNOT.get(family, "It records only what is shown above; other facts need separate confirmation.")
+    copy_detail = "The recorded values and their location are kept."
+    if family == "participation":
+        rows_used = len((res.get("cited_by") or {}).get("participation") or [])
+        if rows_used:
+            limitations = f"The app uses {rows_used} administrative rows from this source. " + limitations
+        else:
+            limitations = ("Reference only. The app uses no administrative counts from this source. "
+                           "The source cannot establish district participation or individual eligibility.")
+            copy_detail = "The catalog retains the recorded source address and retrieval date."
     copy_note = ("The app holds a copy of this file and confirmed it is unchanged." if rf.get("available") else
-                 "The original file is not bundled with this app. The recorded values and their location are kept.")
+                 f"The original file is not bundled with this app. {copy_detail}")
     final = s.get("final_url") if s.get("final_url") and s.get("final_url") != s["url"] else None
     return (
         f'<h3 class="source-title">{e(label)}</h3>'
@@ -1187,6 +1217,6 @@ def source_html(res: dict) -> str:
         + (f'<div class="kv-wide"><dt>Address after redirect</dt><dd class="url">{e(final)}</dd></div>' if final else "")
         + '</dl>'
         + (f'<h4>What the selected finding uses</h4>{supports}' if supports else "")
-        + f'<h4>What this source cannot establish</h4><p>{e(_CANNOT.get(s.get("family"), "It records only what is shown above; other facts need separate confirmation."))}</p>'
+        + f'<h4>What this source cannot establish</h4><p>{e(limitations)}</p>'
         + f'<p class="fine">{e(copy_note)} The address opens the publisher’s page in a new browser tab; the app itself does not fetch it.</p>'
     )

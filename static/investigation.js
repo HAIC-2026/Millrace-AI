@@ -108,7 +108,9 @@
     if (p && p.service_area_id) bits.push("program area " + (AREA_LABEL[p.service_area_id] || "not listed"));
     return Array.from(new Set(bits)).join(", ");
   }
-  const planLabel = (p) => districtLabel(p.district) + " · " + (ISSUE_LABEL[p.issue_id] || humanWords(p.issue_id)) + (planScope(p) ? " · " + planScope(p) : "");
+  // The map year is the plan's display choice only; every statistic uses the 2024 district boundaries (the plan is unchanged).
+  const mapYearLabel = (p) => p.map_session + " map display, 2024 district statistics";
+  const planLabel = (p) => districtLabel(p.district) + " · " + (ISSUE_LABEL[p.issue_id] || humanWords(p.issue_id)) + (planScope(p) ? " · " + planScope(p) : "") + " · " + mapYearLabel(p);
 
   const metricLabel = (id) => ((catalog.metrics || []).find((m) => m.metric_id === id) || {}).label || id;
   const programLabel = (id) => ((catalog.programs || []).find((p) => p.program_id === id) || {}).name || id;
@@ -527,6 +529,47 @@
     return null;
   }
 
+  // A held proposal's typed diff in staff terms. Removed and changed steps are numbered in the plan the question used (its
+  // basis: the draft, or the confirmed plan when staff chose it), added steps in the proposed plan; a scope route names the
+  // step's live draft position. A changed step still in the draft offers its
+  // existing scope editor (focus only); removed and added steps are references only. A new order is listed once, in the
+  // proposed plan's visible order. Typed-request names are not shown here.
+  function proposalDiff(result, ctx) {
+    const before = ctx ? (ctx.draft_plan || ctx.confirmed_plan) : null, after = result.normalized_plan, items = [];
+    const what = (st) => valueText('steps', st);
+    result.typed_diff.forEach((d) => {
+      if (d.field === 'step_order') return;
+      if (d.field !== 'steps') { items.push(h('li', { text: [humanWords(d.change), fieldLabel(d.field || ''), 'from ' + valueText(d.field || '', d.before), 'to ' + valueText(d.field || '', d.after)].join(' · ') })); return; }
+      const was = stepRef(before, d.step_id), now = stepRef(after, d.step_id);
+      if (d.change === 'removed') items.push(h('li', { text: 'Removed · ' + (was ? 'step ' + was.n + ' of the plan the question used' : 'a step of the plan the question used') + ' · ' + what(d.before) }));
+      else if (d.change === 'added') items.push(h('li', { text: 'Added · ' + (now ? 'step ' + now.n + ' of the proposed plan' : 'a step') + ' · ' + what(d.after) }));
+      else {
+        const replaced = !d.before || !d.after || d.before.operation !== d.after.operation;
+        const route = was && !replaced ? scopeRoute('ia-diff-scope-' + d.step_id, d.step_id, d.before) : null;
+        items.push(h('li', {}, 'Changed · ' + (was ? 'step ' + was.n + ' of the plan the question used' : 'a step') + (now && (!was || now.n !== was.n) ? ' (step ' + now.n + ' of the proposed plan)' : '') +
+          ' · from ' + what(d.before) + ' · to ' + what(d.after), route ? ' ' : null, route));
+      }
+    });
+    const ids = (p) => (p && Array.isArray(p.steps) ? p.steps.map((s) => s.step_id) : []), old = ids(before), next = ids(after);
+    const kept = next.filter((id) => old.includes(id));
+    if (kept.join() !== old.filter((id) => kept.includes(id)).join()) {
+      // A moved step that is otherwise unchanged (and has no Changed row above) offers its scope editor while the draft
+      // still holds exactly that step; added, removed, changed, replaced or stale steps do not.
+      const listed = new Set(result.typed_diff.filter((d) => d.field === 'steps').map((d) => d.step_id));
+      const routes = next.map((id, i) => {
+        const w = stepRef(before, id), was = w && before.steps[w.n - 1];
+        if (!w || w.n === i + 1 || listed.has(id) || C.canonical(was) !== C.canonical(after.steps[i])) return null;
+        return scopeRoute('ia-order-scope-' + id, id, was, (live) => ({ text: 'Open step ' + live.n + ' scope (step ' + (i + 1) + ' in the proposal)',
+          aria: 'Open the scope editor for step ' + live.n + ' of your draft plan, step ' + (i + 1) + ' of the proposed plan: ' + what(was) }));
+      }).filter(Boolean);
+      items.push(h('li', {}, 'New step order · ' + next.map((id, i) => {
+        const w = stepRef(before, id);
+        return (i + 1) + '. ' + what(after.steps[i]) + (!w ? ' (added)' : w.n !== i + 1 ? ' (step ' + w.n + ' in the plan the question used)' : '');
+      }).join('; '), ...routes.flatMap((r) => [' ', r])));
+    }
+    return items;
+  }
+
   function renderQuestionScope(enabled) {
     const box = $('#ia-question-scope'), b = C.active(state), ctx = enabled ? languageContext() : null;
     if (!box) return;
@@ -579,7 +622,7 @@
         nodes.push(h('h4',{text:'Proposed plan · ' + districtLabel(np.district)}),
           h('ol',{class:'ia-proposal-steps'},np.steps.map(st => h('li',{text:(OP_LABEL[st.operation] || humanWords(st.operation)) + ': ' + stepScope(st)}))));
       }
-      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('details',{id:'ia-proposal-diff'},h('summary',{text:'What changes from your current plan'}),h('ul',{},result.typed_diff.map(d => h('li',{text:[humanWords(d.change), fieldLabel(d.field || ''), d.step_id ? 'step ' + d.step_id : '', 'from ' + valueText(d.field || '', d.before), 'to ' + valueText(d.field || '', d.after)].filter(Boolean).join(' · ')})))));
+      if (Array.isArray(result.typed_diff) && result.typed_diff.length && (result.intent === 'replace_plan')) nodes.push(h('details',{id:'ia-proposal-diff'},h('summary',{text:'What changes from the plan you asked about'}),h('ul',{},proposalDiff(result, languageJob && languageJob.context))));
       if (Array.isArray(result.inherited_fields) && result.inherited_fields.length) {
         const context = languageJob && languageJob.context, confirmed = context && context.confirmed_plan;
         nodes.push(h('h4',{text:'Inherited from your confirmed context'}), h('ul',{},result.inherited_fields.map(key => h('li',{text:fieldLabel(key) + ': ' + (key === 'focus' ? 'the step you chose to ask about' : valueText(key, confirmed && confirmed[key]))}))));
@@ -745,13 +788,46 @@
     render();
   }
 
+  // What Apply does with a draft (the current one by default), from the same decision applyPlan makes below: repeat the
+  // run, run at once in this context, or open the context review first. Wording only; both Apply controls share it.
+  function applyOutcome(draft) {
+    const p = C.proposeChange(state, { plan: draft || state.draft });
+    if (p.noop && C.currentResults(state)) return "rerun";
+    if (!p.material || !p.fork) return p.reorder_only ? "direct_reorder" : "direct";
+    return p.branch_limit ? "review_full" : "review";
+  }
+  function applyHint(outcome) {
+    const res = C.currentResults(state);
+    if (outcome === "review") return "Opens the context review first: this change opens a new context and the current one stays saved. Nothing runs until you confirm.";
+    if (outcome === "review_full") return "Opens the context review first. This case already holds four contexts, so one must be removed before this change can run.";
+    if (outcome === "direct_reorder") return "Runs the reordered plan at once in this context; no review is needed because order changes no fact.";
+    if (outcome === "direct") return res ? "Runs the edited plan at once in this context; no review is needed. The current results stay shown until new ones arrive." : "Runs the plan at once in this context and lists its findings; no review is needed.";
+    return "No edits since the last run. Run again repeats the same plan.";
+  }
+  const reviewsFirst = (outcome) => outcome === "review" || outcome === "review_full";
+  // The upper action's name, from the same outcome: it opens a review (which cannot confirm at the four-context limit) or
+  // runs the change directly. The draft note and edit notice use this exact name.
+  const contextApplyLabel = (outcome) => outcome === "review_full" ? "Review these changes" : reviewsFirst(outcome) ? "Review and apply these changes" : "Apply these changes";
+
   function applyPlan() {
     const p = C.proposeChange(state, { plan: state.draft });
     const res = C.currentResults(state);
     // "Run again" replays the unchanged plan at a new revision; nothing is forked or parked.
     if (p.noop && res) { preview = null; runActive(); return; }
     if (!p.material || !p.fork) return commit(p);
-    preview = p; render(); if (!activeDate()) $("#ia-preview").focus();
+    preview = p; render(); focusPreview();
+  }
+
+  // The context review takes focus where it opens; a staff date still being edited keeps focus (unchanged exception).
+  // A review taller than the window (for example the four-context review at 320×568) would be scrolled by focus so that
+  // its heading sits above the top, so it is focused without that scroll and aligned to its top instead. Tab from the
+  // panel then reaches its first enabled control: Apply change and run, or Keep current context when that is disabled.
+  function focusPreview() {
+    if (activeDate()) return;
+    const box = $("#ia-preview");
+    if (box.getBoundingClientRect().height <= window.innerHeight) { box.focus(); return; }
+    box.focus({ preventScroll: true });
+    box.scrollIntoView({ block: "start" });
   }
 
   function commit(p) {
@@ -863,15 +939,20 @@
     $("#ia-service").value = state.draft.service_area_id || "";
     $("#ia-map-session").value = String(state.draft.map_session);
     const applied = b.plan, draftOther = dirty && (districtLabel(state.draft.district) !== districtLabel(applied.district) || state.draft.issue_id !== applied.issue_id);
+    const outcome = dirty ? applyOutcome() : null;
     fill($("#ia-context-summary"), [
       h("span", {}, res ? "Showing results for " : "Not run yet: ", h("strong", { text: districtLabel(applied.district) }), " · " + ISSUE_LABEL[applied.issue_id] +
         (applied.service_area_id ? " · program area " + AREA_LABEL[applied.service_area_id] + " (staff choice)" : "") + ". "),
       dirty ? h("span", { class: "badge badge-warn", text: "Draft has unapplied changes" }) : null,
       reviewChip(b),
-      draftOther ? h("span", { class: "ia-draft-note" }, " Draft: " + districtLabel(state.draft.district) + " · " + ISSUE_LABEL[state.draft.issue_id] + ". Choose Review and apply these changes to review and run it; nothing from the current results moves to it.") : null,
+      draftOther ? h("span", { class: "ia-draft-note" }, " Draft: " + districtLabel(state.draft.district) + " · " + ISSUE_LABEL[state.draft.issue_id] + ". " +
+        "Choose " + contextApplyLabel(outcome) + (reviewsFirst(outcome) ? " to review it before it runs; nothing from the current results moves to it." : " to run it in this context.")) : null,
     ]);
 
     $("#ia-context-apply").hidden = !dirty || busy;
+    // The same prediction as Apply plan: a context review first, or a direct run in this context.
+    $("#ia-context-apply-why").textContent = dirty ? applyHint(outcome) : "";
+    if (dirty) $("#ia-context-apply-btn").textContent = contextApplyLabel(outcome);
 
     renderLanguage();
     renderAnswer(res);
@@ -897,6 +978,36 @@
     }
   }
 
+  // A plan step named as staff see it: its number in that plan, operation and scope. The typed-request name (s1, s2…) is
+  // added only while the typed-request help is open, as in the step list.
+  function stepRef(plan, stepId) {
+    const steps = plan && Array.isArray(plan.steps) ? plan.steps : [], i = steps.findIndex((s) => s && s.step_id === stepId);
+    if (i < 0) return null;
+    let scope = null; try { scope = stepScope(steps[i]); } catch (e) { scope = null; }
+    const op = OP_LABEL[steps[i].operation] || humanWords(steps[i].operation);
+    return { n: i + 1, op: op, text: "Step " + (i + 1) + " · " + op + (scope ? " — " + scope : "") };
+  }
+  const aliasNote = (id) => ($("#ia-typed") && $("#ia-typed").open ? " (typed-request name " + id + ")" : "");
+  // Focus-only route to a step's existing scope editor in the current draft. It edits nothing; a step no longer in the
+  // draft is reported instead of opening another step.
+  // expected: the step as the card or proposal read it; the route is offered (and acts) only while the draft still holds
+  // exactly that step under that ID.
+  function scopeRoute(id, stepId, expected, naming) {
+    const same = () => { const st = state.draft.steps.find((s) => s.step_id === stepId); return !!st && !!expected && C.canonical(st) === C.canonical(expected); };
+    const ref = stepRef(state.draft, stepId);
+    if (!ref || !same()) return null;
+    const named = naming ? naming(ref) : null;
+    return btn(named ? named.text : "Open step " + ref.n + " scope", () => {
+      const now = stepRef(state.draft, stepId), dt = document.getElementById("ia-scope-" + stepId);
+      if (!now || !dt || !same()) { notice = "That step is no longer in the draft plan as it was read. Nothing was changed."; render(); return; }
+      openAdvanced(false); dt.open = true; dt.querySelector("summary").focus();
+    }, { class: "btn-link", id: id, "aria-label": named ? named.aria : "Open the scope editor for step " + ref.n + ", " + ref.op + ", in your draft plan" });
+  }
+  // The draft a typed card was read against (its origin), for naming steps after the draft has changed.
+  function originDraft(card) {
+    try { return card && card.origin && typeof card.origin.draft === "string" ? JSON.parse(card.origin.draft) : null; } catch (e) { return null; }
+  }
+
   function renderInterpretation() {
     const box = $("#ia-interpretation");
     if (!interp) { fill(box, []); return; }
@@ -904,8 +1015,12 @@
     const ended = interp.status === "cancelled" || interp.status === "not_read", stale = !ended && interp.status !== "pending" && !interpCurrent();
     // Each control acts only for the request this card was rendered for; a control left from an older card does nothing.
     const card = interp, mine = () => interp === card;
+    // An added program step that the plan already holds exactly: the reply equals the draft it was read for, so there is
+    // nothing to place and only Discard is offered (an explicit district or a distinct scope changes the plan).
+    const alreadyPresent = interp.status === "ok" && !!interp.proposed_plan && !!interp.origin && C.canonical(interp.proposed_plan) === interp.origin.draft &&
+      (interp.matched_fields || []).some((m) => m.field === "program_id");
     const reread = () => btn("Read the typed request again", () => { if (mine()) rereadTyped(); }, { class: "btn", id: "ia-reread-interp" });
-    const nodes = [h("h3", { class: "ia-group-title", text: interp.status === "pending" ? "Reading the request…" : ended ? "Not read" : interp.status === "ok" ? "Proposed plan change (not applied)" : interp.status === "clarification" ? "A choice is needed" : "Not supported" }),
+    const nodes = [h("h3", { class: "ia-group-title", text: interp.status === "pending" ? "Reading the request…" : ended ? "Not read" : interp.status === "ok" ? (alreadyPresent ? "Already in the plan (no change)" : "Proposed plan change (not applied)") : interp.status === "clarification" ? "A choice is needed" : "Not supported" }),
       h("p", { class: "ia-utterance" }, segs.map((s) => (s.field ? h("mark", { title: "Matched: " + fieldLabel(s.field), text: s.text }) : s.text)))];
     if (ended) nodes.push(h("p", { text: interp.status === "cancelled" ? "The request was cancelled before it was read. A late reply will be ignored." : "The request did not complete, so nothing was read." }));
     if (interp.reason) nodes.push(h("p", { text: interp.reason }));
@@ -915,12 +1030,20 @@
     const list = (title, items) => items.length ? h("div", {}, h("h4", { text: title }), h("ul", { class: "ia-fields" }, items.map((m) => h("li", {}, h("strong", { text: fieldLabel(m.field) + ": " }), valueText(m.field, m.value))))) : null;
     nodes.push(list("Matched in your text", interp.matched_fields), list("Inherited from the current plan", interp.inherited_fields));
     if (interp.choices.length) nodes.push(h("ul", { class: "ia-choices" }, interp.choices.map((c) => {
+      // A step choice (which comparison to change, which step to remove) is named by its number, operation and scope in
+      // the draft the request was read for. While that draft is still current it offers the step's own scope editor;
+      // otherwise it stays a readable reference only.
+      if (c && c.field === "step_id" && typeof c.value === "string") {
+        const read = originDraft(card), ref = stepRef(read, c.value), at = read && Array.isArray(read.steps) ? read.steps.find((s) => s.step_id === c.value) : null;
+        const route = !ended && !stale && interpCurrent() ? scopeRoute("ia-clar-scope-" + c.value, c.value, at) : null;
+        return h("li", {}, (ref ? ref.text : "A step that is no longer in the plan") + aliasNote(c.value), route ? " " : null, route);
+      }
       const label = String(c.label || plain(c.value));
       const usable = c && c.field === "district" && c.value && (c.value.chamber === "house" || c.value.chamber === "senate") && typeof c.value.code === "string";
       return h("li", {}, usable ? btn("Use " + label, () => { if (!placeable(card)) return; interp = null; editDraft(C.setContext(state.draft, { district: c.value }), label + " placed in the plan. Choose Apply plan to run it."); }) : label);
     })));
     if (interp.proposed_plan) nodes.push(h("div", { class: "btn-row" },
-      btn("Put in draft plan", () => { if (!placeable(card)) return; const p = card.proposed_plan; interp = null; state = Object.assign({}, state, { draft: p }); notice = C.proposeChange(state, { plan: state.draft }).noop ? "Typed request placed in the draft plan. It matches the current plan, and nothing has run." : "Typed request placed in the draft plan. Nothing has run. Review the steps, then choose Apply plan."; render(); $("#ia-apply").focus(); }, { class: "btn btn-primary", id: "ia-apply-interp" }),
+      alreadyPresent ? null : btn("Put in draft plan", () => { if (!placeable(card)) return; const p = card.proposed_plan; interp = null; state = Object.assign({}, state, { draft: p }); notice = C.proposeChange(state, { plan: state.draft }).noop ? "Typed request placed in the draft plan. It matches the current plan, and nothing has run." : "Typed request placed in the draft plan. Nothing has run. Review the steps, then choose Apply plan."; render(); $("#ia-apply").focus(); }, { class: "btn btn-primary", id: "ia-apply-interp" }),
       btn("Discard", () => { if (!mine()) return; interp = null; notice = "Typed request discarded. The plan is unchanged."; render(); })));
     fill(box, nodes);
   }
@@ -956,11 +1079,11 @@
     $("#ia-add-btn").disabled = plan.steps.length >= 8;
     $("#ia-add-reason").textContent = plan.steps.length >= 8 ? "A plan holds up to 8 steps. Remove one to add another." : "";
     $("#ia-apply").disabled = busy;
-    $("#ia-apply").textContent = dirty ? "Apply plan" : "Run again";
+    $("#ia-apply").textContent = dirty || !res ? "Apply plan" : "Run again";
     $("#ia-discard").hidden = !dirty;
     $("#ia-apply-reason").textContent = busy ? "Wait for the current request to finish, or cancel it." :
       !plan.steps.length ? "Add at least one step to get findings." :
-      dirty ? (res ? "Runs the edited plan. The current results stay saved until new ones arrive." : "Runs the plan and lists its findings.") :
+      dirty || !res ? applyHint(applyOutcome()) :
       "No edits since the last run. Run again repeats the same plan.";
   }
 
@@ -1314,7 +1437,7 @@
       const r = C.chooseAction(state, ref);
       if (r.error) return alertUser(r.error.message);
       if (r.proposal.noop) return;
-      if (r.proposal.fork) { preview = r.proposal; render(); if (!activeDate()) $("#ia-preview").focus(); } else commitAction(r.proposal);
+      if (r.proposal.fork) { preview = r.proposal; render(); focusPreview(); } else commitAction(r.proposal);
     };
     const areas = (ids) => (Array.isArray(ids) ? ids.map((x) => AREA_LABEL[x] || humanWords(x)).join(", ") : "");
     const nodes = res.responses.map((card, i) => {
@@ -1450,7 +1573,7 @@
         if (a && r.proposal.kinds.length === 1 && r.proposal.kinds[0] === "response" && C.canonical(r.proposal.plan) === C.canonical(a.plan) && C.active(state).snapshot_id === state.runtime.snapshot_id)
           pendingAnswer = { kind: a.kind, question: a.question, plan: a.plan, step_ids: a.step_ids.slice(), only: a.only || {}, fallback: !!a.fallback, branch_id: null, rebind: true };
       };
-      if (r.proposal.fork) { carry(); preview = r.proposal; notice = "Findings selected. Review the agency action change below; after it runs, choose " + again + " again."; render(); if (!activeDate()) $("#ia-preview").focus(); return false; }
+      if (r.proposal.fork) { carry(); preview = r.proposal; notice = "Findings selected. Review the agency action change below; after it runs, choose " + again + " again."; render(); focusPreview(); return false; }
       if (!r.proposal.noop) { const c = C.confirmChange(state, r.proposal, ids); if (c.error) { alertUser(c.error.message); return false; } state = c.state; if (c.forked) { carry(); notice = "Findings and agency action selected in a new context. Choose " + again + " again when its results load."; runActive(); return false; } }
     }
     return true;
@@ -1846,7 +1969,14 @@
       pointerDown = false;
       if (textRenderPending) renderAfterTextCommit();
     }));
-    const ctx = (patch) => editDraft(C.setContext(state.draft, patch), "Context edited. Choose Review and apply these changes to review and run it.");
+    const ctx = (patch) => {
+      const r = C.setContext(state.draft, patch);
+      if (r.error) return editDraft(r);
+      // Worded from the predicted outcome for the edited draft (the same check Apply makes when chosen).
+      const outcome = applyOutcome(r.plan);
+      editDraft(r, outcome === "rerun" ? "Context edited. The draft matches the plan already run." : "Context edited. Choose " + contextApplyLabel(outcome) + " to " +
+        (reviewsFirst(outcome) ? "review it before it runs." : "run it at once in this context."));
+    };
     $("#ia-district").addEventListener("change", (e) => { const v = String(e.target.value).split(":"); if (v.length === 2) ctx({ district: { chamber: v[0], code: v[1] } }); });
     $("#ia-issue").addEventListener("change", (e) => ctx({ issue_id: e.target.value }));
     $("#ia-service").addEventListener("change", (e) => ctx({ service_area_id: e.target.value || null }));

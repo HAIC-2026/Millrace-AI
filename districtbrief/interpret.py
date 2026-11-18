@@ -108,7 +108,12 @@ def interpret(utterance,plan,*,allow_food=False):
                     if not 1<=n<=(51 if ch=='house' else 25):return unresolved('District is outside the admitted range.',status='unsupported')
                     proposed['district']={'state_fips':'15','chamber':ch,'code':f'{n:03}','boundary_session':2024}
                     match('district',proposed['district'],m,m.start(2),m.end(3))
-                if not add('program_evidence',{'program_ids':[p]}):return unresolved('The plan already has eight steps.',status='unsupported')
+                # A step with exactly this operation and scope already in the resulting plan is reported, not added
+                # again, so it never takes a slot (also in a full plan). An explicit district above still applies;
+                # a step with a different program set is a distinct scope and a new step is added as before.
+                same=next((i for i,s in enumerate(proposed['steps']) if s['operation']=='program_evidence' and s['args']=={'program_ids':[p]}),None)
+                if same is not None:result['reason']=f'Step {same+1} of the plan is already this program reference, so no step was added.'
+                elif not add('program_evidence',{'program_ids':[p]}):return unresolved('The plan already has eight steps.',status='unsupported')
                 match('program_id',p,m)
             else:
                 m=re.fullmatch(r'\s*remove (comparison|step (s[0-9]{1,3}))\s*',t)

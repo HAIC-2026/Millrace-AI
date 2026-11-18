@@ -100,11 +100,27 @@
     catalog.unavailable_geographies.forEach((g) => geo.appendChild(option(g.geography_id, placeDisplay(g.label) + " (not normalized)")));
     const prog = $("#ctl-program");
     catalog.programs.forEach((p) => prog.appendChild(option(p.program_id, p.name)));
+    const adminSeries = {
+      snap_monthly_persons: "SNAP", snap_monthly_households: "SNAP",
+      snap_average_monthly_persons: "Food stamps (avg.)",
+      medicaid_managed_care: "Managed care", medicaid_managed_care_island: "Managed care",
+      medicaid_only: "Medicaid Only", medicaid_total_enrollment: "Total Medicaid",
+    };
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     (catalog.administrative_rows || catalog.participation || []).forEach((r) => {
       const geography = placeDisplay(typeof r.geography === "object" ? (r.geography.label || r.geography.name) : r.geography) || null;
-      const label = [r.series_label || r.label || r.program_id, geography, r.period, r.unit, r.status || r.publication_status || r.revision_status].filter(Boolean).join(" · ");
-      const rowOption = option(r.observation_id, label);
-      rowOption.title = label;
+      const series = r.series_label || r.label || r.program_id;
+      const status = r.status || r.publication_status || r.revision_status;
+      const fullLabel = [series, geography, r.period, r.unit, status].filter(Boolean).join(" · ");
+      const month = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(r.period);
+      const period = month ? months[Number(month[2]) - 1] + " " + month[1] :
+        String(r.period || "").replace(/^(\d{4}) \(year label;.*\)$/, "$1");
+      const unit = r.unit === "persons (average monthly)" ? "persons" : r.unit;
+      const shortSeries = adminSeries[r.series_id] || series;
+      const summary = r.program_id === "medquest_hi" ? [shortSeries, unit] : [unit, shortSeries];
+      const shortLabel = [period, geography, ...summary, status === "observed" ? null : status].filter(Boolean).join(" · ");
+      const rowOption = option(r.observation_id, shortLabel);
+      rowOption.title = fullLabel;
       $("#ctl-admin").appendChild(rowOption);
     });
     if (!controlsWired) wireControls();
@@ -131,7 +147,7 @@
     const details = $("#admin-details");
     details.innerHTML = "";
     chosen.forEach((o) => {
-      const li = document.createElement("li"); li.textContent = o.textContent; details.appendChild(li);
+      const li = document.createElement("li"); li.textContent = o.title; details.appendChild(li);
     });
   }
 
@@ -159,7 +175,7 @@
     const chamber = $("#ctl-chamber").value, code = $("#ctl-code").value, session = Number($("#ctl-session").value);
     const note = $("#district-note");
     if (currentTask() === "administrative_context") {
-      text(note, "No district is required for administrative evidence. Any district choice is retained as brief context only.");
+      text(note, "Administrative rows use the geography recorded by the publisher. You can choose a district for a brief.");
       return;
     }
     if (!chamber || !code) { text(note, "Choose both the chamber and the district number."); return; }
@@ -167,7 +183,7 @@
     const has = catalog.districts.some((x) => x.chamber === chamber && x.code === code && x.boundary_session === 2024 && x.has_statistics);
     let msg = (d ? d.name + " · service coverage requires agency confirmation" : "") + ". ";
     msg += has ? "Normalized statistics are available (2024 session)." : "No normalized statistics for this district in the fixture.";
-    if (session !== 2024) msg += " Statistics are tabulated on the 2024 session; Run will ask before using them.";
+    if (session !== 2024) msg += " The 2026 session is a map vintage. If its boundary matches 2024, Run asks before using the 2024 statistics.";
     text(note, msg);
   }
 
@@ -204,7 +220,7 @@
     $("#ctl-code").value = d.code; districtNote();
     prefill = { chamber: d.chamber, code: d.code };
     const note = $("#lookup-context");
-    text(note, "District filled in from District investigation: " + (d.chamber === "house" ? "House " : "Senate ") + Number(d.code) + ". Guided runs use it; a typed command uses the district it names. Changing it here does not change the investigation or its brief.");
+    text(note, "District filled in from District investigation: " + (d.chamber === "house" ? "House " : "Senate ") + Number(d.code) + ". Guided district tasks use it; a typed command uses the district it names. Changing it here does not change the investigation or its brief.");
     note.hidden = false;
   }
 
