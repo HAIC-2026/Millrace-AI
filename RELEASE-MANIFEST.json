@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:fffc05d29d0c729f60b19cdc7a9061891d374e816dfcb11b65c9cf0e1d6b1ea8",
+  "source_identity": "sha256:d88e3e4dcee0ea5de9464ba879b95db94237f2eb4442a1ecde1a55db8f99a834",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -341,13 +341,13 @@
     },
     {
       "path": "static/index.html",
-      "bytes": 26065,
-      "sha256": "3a5cae4a6ddb6b26d8fb24a89469c22aa38c360775b1962b2bfcd229728d114e"
+      "bytes": 26095,
+      "sha256": "1396efaaf62ef34583aa7bb454ebbc97ddf84620c5ff0c949b57c36cf1125904"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 172574,
-      "sha256": "5bc3666e0b6673372a7e439c9176a2d3a03ed2d0db0cdaba04fc5010ee708031"
+      "bytes": 173335,
+      "sha256": "97663d85c8cebc97acfbc235938b9f3edb6234155e2db530dfcdde802fcdfc7a"
     },
     {
       "path": "static/language_state.js",
@@ -416,8 +416,8 @@
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 40371,
-      "sha256": "507d3ee80e0781481fecded545557e3ee12b1ee5cf7b5aa55c6e2f0469699d8c"
+      "bytes": 45558,
+      "sha256": "818ca488aae1513c40d6d26f6fc602df03f69d389831be1e0245a3f9d4cd5ef1"
     },
     {
       "path": "tests/language_funding_fixture.py",

@@ -1523,19 +1523,33 @@
 
     // parked staff work
     const parked = C.pendingReview(state), box = state.parked[b.branch_id];
+    // The review list filters out resolved items. Use each item's retained slot so focus follows
+    // its row even when others disappear or two notes belong to the same finding.
+    const parkedSlot = (p) => b.branch_id + "-" + box.items.indexOf(p);
     const sameAction = box && box.origin_action_ref && C.actionKey(box.origin_action_ref) === C.actionKey(b.selected_action_ref);
-    fill($("#ia-review"), parked.length ? [h("h3", { class: "ia-group-title", text: "Staff notes waiting for review (" + parked.length + ")" }),
+    fill($("#ia-review"), parked.length ? [h("h3", { id: "ia-review-h", class: "ia-group-title", tabindex: -1, text: "Staff notes waiting for review (" + parked.length + ")" }),
       h("p", { class: "hint", text: parked.every((x) => x.orphan_reason) ? "These notes were on findings removed from the selection. They are left out of this brief and are not in any case file while they wait; copy them back or discard them." :
         "These entries were written for an earlier context" + (box.kinds.length ? " (changed: " + box.kinds.map((k) => CHANGE_LABEL[k] || k).join(", ") + ")" : "") + ". They are left out of this brief and stay in their original context unless you copy them. Copies remain labeled staff contributions." + (parked.some((x) => x.orphan_reason) ? " A note on a removed finding is not in any case file while it waits." : "") }),
       h("ul", { class: "ia-parked" }, parked.map((p, i) => {
-        const done = p.kind === "checklist" && p.item.completed && sameAction ? h("input", { type: "checkbox", id: "ia-park-done-" + i }) : null;
+        const slot = parkedSlot(p);
+        const done = p.kind === "checklist" && p.item.completed && sameAction ? h("input", { type: "checkbox", id: "ia-park-done-" + slot }) : null;
         return h("li", {}, h("p", {}, staffLine(p, " (done in the earlier context)")),
           p.kind === "checklist" && p.item.completed && !sameAction ? h("p", { class: "hint", text: "The done mark belongs to a different agency action and is not copied." }) : null,
           p.orphan_reason ? h("p", { class: "hint", text: "This note was on a finding removed from the selection, and it is not in any case file while it waits. Select that finding again, then copy the note back; or leave it to discard it." }) : null,
-          done ? h("label", { class: "ia-check", for: "ia-park-done-" + i }, done, " Also copy the done mark (same agency action)") : null,
+          done ? h("label", { class: "ia-check", for: done.id }, done, " Also copy the done mark (same agency action)") : null,
           h("div", { class: "btn-row" },
-            btn("Copy into this context", () => set(C.copyParked(state, p.key, { include_completion: !!(done && done.checked) }), "Copied as a staff contribution. Review staff notes before creating the brief."), { id: "ia-park-copy-" + i }),
-            btn(p.orphan_reason ? "Discard this note" : "Leave in original context", () => set(C.leaveParked(state, p.key), p.orphan_reason ? "Note discarded at your choice." : "Left in its original context."), { id: "ia-park-leave-" + i })));
+            btn("Copy into this context", (e) => {
+              const hadFocus = document.activeElement === e.currentTarget;
+              if (set(C.copyParked(state, p.key, { include_completion: !!(done && done.checked) }), "Copied as a staff contribution. Review staff notes before creating the brief.") && hadFocus) {
+                ($("#ia-review-h") || $("#ia-staff-h")).focus();
+              }
+            }, { id: "ia-park-copy-" + slot }),
+            btn(p.orphan_reason ? "Discard this note" : "Leave in original context", (e) => {
+              const next = document.activeElement === e.currentTarget && parked[i + 1];
+              if (set(C.leaveParked(state, p.key), p.orphan_reason ? "Note discarded at your choice." : "Left in its original context.") && next) {
+                document.getElementById("ia-park-leave-" + parkedSlot(next)).focus();
+              }
+            }, { id: "ia-park-leave-" + slot })));
       }))] : []);
 
     // brief controls: one primary action with its blocking reason beside it

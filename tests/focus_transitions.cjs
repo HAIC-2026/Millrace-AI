@@ -161,6 +161,117 @@ test("staff commits preserve forward/reverse Tab, pointer actions and saved work
   } finally { await p.close(); }
 });
 
+const copyTitle = "Synthetic brief title";
+const copySummary = "Synthetic summary for keyboard verification";
+async function parkStaffNotes(p) {
+  await recommend(p);
+  await p.locator("#ia-title").fill(copyTitle);
+  await p.keyboard.press("Tab");
+  await p.locator("#ia-note").fill(copySummary);
+  await p.keyboard.press("Tab");
+  await p.locator("#ia-district").selectOption("house:013");
+  await p.locator("#ia-context-apply-btn").click();
+  await p.locator("#ia-preview-confirm").click();
+  await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+  const copies = p.getByRole("button", { name: "Copy into this context" });
+  assert.equal(await copies.count(), 2);
+  return copies;
+}
+
+test("copying parked staff notes keeps keyboard focus in review and then in the staff notes", async () => {
+  const p = await page();
+  try {
+    const copies = await parkStaffNotes(p);
+    await copies.first().focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-review-h");
+    assert.equal(await copies.count(), 1);
+    assert.equal(await p.locator("#ia-title").inputValue(), copyTitle);
+    const status = p.getByRole("status").filter({ hasText: "Copied as a staff contribution." });
+    assert.equal(await status.textContent(), "Copied as a staff contribution. Review staff notes before creating the brief.");
+    await proof(p, "copy-staff-note-one-left", { status: await status.textContent() });
+
+    await p.keyboard.press("Tab");
+    assert.equal(await copies.evaluate(el => el === document.activeElement), true);
+    await p.keyboard.press("Space");
+    assert.equal((await focus(p)).id, "ia-staff-h");
+    assert.equal(await copies.count(), 0);
+    assert.equal(await p.locator("#ia-note").inputValue(), copySummary);
+    await proof(p, "copy-staff-note-last", { status: await status.textContent() });
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-title");
+
+    await p.locator("#ia-download-staff").check();
+    const saved = await savedCase(p);
+    assert.equal(saved.branches.length, 2);
+    for (const branch of saved.branches) {
+      assert.deepEqual(branch.staff_edits, { title: copyTitle, note: copySummary });
+    }
+  } finally { await p.close(); }
+});
+
+test("copying a parked note without focus preserves the remaining row or native date editor", async () => {
+  const p = await page();
+  try {
+    const copies = await parkStaffNotes(p);
+    await copies.last().focus();
+    await copies.first().evaluate(el => el.click());
+    assert.equal(await copies.count(), 1);
+    assert.equal(await copies.evaluate(el => el === document.activeElement), true);
+    await proof(p, "copy-staff-note-keep-other-row", {});
+
+    await p.locator("#ia-tracking-summary").click();
+    const date = p.locator("#ia-track-date");
+    await date.focus();
+    await p.keyboard.type("1116202");
+    await copies.evaluate(el => el.click());
+    assert.equal((await focus(p)).id, "ia-track-date");
+    assert.equal(await copies.count(), 0);
+    await p.keyboard.type("6");
+    assert.equal(await date.inputValue(), "2026-11-16");
+    await p.keyboard.press("Tab");
+    await p.locator("#ia-download-staff").check();
+    const saved = await savedCase(p);
+    const active = saved.branches.find(b => b.branch_id === saved.active_branch_id);
+    assert.deepEqual(active.staff_edits, { title: copyTitle, note: copySummary });
+    assert.equal(active.tracking.as_of, "2026-11-16");
+    await proof(p, "copy-staff-note-keep-date", { date: active.tracking.as_of });
+  } finally { await p.close(); }
+});
+
+test("leaving a parked note keeps focus on the next leave action", async () => {
+  const p = await page();
+  try {
+    await parkStaffNotes(p);
+    const leave = p.getByRole("button", { name: "Leave in original context" });
+    await leave.first().focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await leave.count(), 1);
+    assert.equal(await leave.evaluate(el => el === document.activeElement), true);
+    assert.equal(await p.locator("#ia-title").inputValue(), "");
+  } finally { await p.close(); }
+});
+
+test("parked notes on the same finding retain distinct focus across a render", async () => {
+  const p = await page();
+  try {
+    const finding = p.locator('#ia-evidence input[type="checkbox"]').first();
+    for (const note of ["First parked finding note", "Second parked finding note"]) {
+      await finding.check();
+      await p.locator("#ia-selected input").first().fill(note);
+      await p.keyboard.press("Tab");
+      await p.getByRole("button", { name: "Remove finding 1 from brief" }).click();
+    }
+    const copies = p.getByRole("button", { name: "Copy into this context" });
+    assert.equal(await copies.count(), 2);
+    assert.notEqual(await copies.first().getAttribute("id"), await copies.last().getAttribute("id"));
+    const second = p.locator("#ia-review li").filter({ hasText: "Second parked finding note" }).getByRole("button", { name: "Copy into this context" });
+    await second.focus();
+    await p.locator("#ia-district").selectOption("house:013");
+    assert.equal(await second.evaluate(el => el === document.activeElement), true);
+  } finally { await p.close(); }
+});
+
 test("native date segments commit on leaving or explicit save without interrupting typing", async () => {
   const p = await page();
   try {
