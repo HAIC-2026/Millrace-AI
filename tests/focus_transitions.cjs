@@ -254,6 +254,7 @@ test("leaving a parked note keeps focus on the next leave action", async () => {
 
 const firstFindingNote = "First parked finding note";
 const secondFindingNote = "Second parked finding note";
+const thirdFindingNote = "Third parked finding note";
 const parkedFindingRow = (p, note) => p.locator("#ia-review li").filter({ hasText: note });
 async function parkFindingNote(p, finding, note) {
   await finding.check();
@@ -267,6 +268,83 @@ async function parkDuplicateFindingNotes(p) {
   await parkFindingNote(p, finding, secondFindingNote);
   return finding;
 }
+
+test("leaving the last parked note moves focus to the staff notes and the next Tab continues there", async () => {
+  const p = await page();
+  try {
+    await parkStaffNotes(p);
+    const leave = p.getByRole("button", { name: "Leave in original context" });
+    await leave.first().focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await leave.count(), 1);
+    assert.equal(await leave.evaluate(el => el === document.activeElement), true);
+    await p.keyboard.press("Space");
+    assert.equal(await leave.count(), 0);
+    await proof(p, "leave-last-parked-note", {});
+    assert.equal((await focus(p)).id, "ia-staff-h");
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-title");
+  } finally { await p.close(); }
+});
+
+test("leaving the tail parked note with others remaining focuses the review heading", async () => {
+  const p = await page();
+  try {
+    await parkStaffNotes(p);
+    const leave = p.getByRole("button", { name: "Leave in original context" });
+    await leave.last().focus();
+    await p.keyboard.press("Space");
+    assert.equal(await leave.count(), 1);
+    await proof(p, "leave-tail-parked-note", {});
+    assert.equal((await focus(p)).id, "ia-review-h");
+    await p.keyboard.press("Tab");
+    assert.equal(await p.getByRole("button", { name: "Copy into this context" }).evaluate(el => el === document.activeElement), true);
+  } finally { await p.close(); }
+});
+
+test("leaving a parked note by pointer does not take focus from another control", async () => {
+  const p = await page();
+  try {
+    await parkStaffNotes(p);
+    const leave = p.getByRole("button", { name: "Leave in original context" });
+    await p.locator("#ia-title").focus();
+    await leave.last().evaluate(el => el.click());
+    assert.equal(await leave.count(), 1);
+    assert.equal((await focus(p)).id, "ia-title");
+    await leave.evaluate(el => el.click());
+    assert.equal(await leave.count(), 0);
+    assert.equal((await focus(p)).id, "ia-title");
+    await proof(p, "leave-parked-notes-without-focus", {});
+  } finally { await p.close(); }
+});
+
+test("discarding parked notes keeps focus on the next Discard, then the review heading, then the staff notes", async () => {
+  const p = await page();
+  try {
+    const finding = p.locator('#ia-evidence input[type="checkbox"]').first();
+    for (const note of [firstFindingNote, secondFindingNote, thirdFindingNote]) await parkFindingNote(p, finding, note);
+    const discard = p.getByRole("button", { name: "Discard this note" });
+    assert.equal(await discard.count(), 3);
+    await discard.first().focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await discard.count(), 2);
+    const second = parkedFindingRow(p, secondFindingNote).getByRole("button", { name: "Discard this note" });
+    assert.equal(await second.evaluate(el => el === document.activeElement), true);
+    await discard.last().focus();
+    await p.keyboard.press("Space");
+    assert.equal(await discard.count(), 1);
+    assert.equal((await focus(p)).id, "ia-review-h");
+    await p.keyboard.press("Tab");
+    assert.equal(await p.getByRole("button", { name: "Copy into this context" }).evaluate(el => el === document.activeElement), true);
+    await discard.focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await discard.count(), 0);
+    await proof(p, "discard-last-parked-note", {});
+    assert.equal((await focus(p)).id, "ia-staff-h");
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-title");
+  } finally { await p.close(); }
+});
 
 test("parked notes on the same finding retain distinct focus across a render", async () => {
   const p = await page();
@@ -312,7 +390,6 @@ test("discarding the second parked note on the same finding leaves the first pen
     assert.equal(await first.count(), 1);
     assert.equal(await second.count(), 0);
 
-    const thirdFindingNote = "Third parked finding note";
     await parkFindingNote(p, finding, thirdFindingNote);
     const third = parkedFindingRow(p, thirdFindingNote);
     const discardThird = third.getByRole("button", { name: "Discard this note" });

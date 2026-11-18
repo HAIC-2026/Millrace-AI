@@ -1545,9 +1545,10 @@
               }
             }, { id: "ia-park-copy-" + rowId }),
             btn(p.orphan_reason ? "Discard this note" : "Leave in original context", (e) => {
-              const next = document.activeElement === e.currentTarget && parked[i + 1];
-              if (set(C.leaveParked(state, b.branch_id, slot), p.orphan_reason ? "Note discarded at your choice." : "Left in its original context.") && next) {
-                document.getElementById("ia-park-leave-" + b.branch_id + "-" + parkedSlot(next)).focus();
+              const hadFocus = document.activeElement === e.currentTarget, next = parked[i + 1];
+              if (set(C.leaveParked(state, b.branch_id, slot), p.orphan_reason ? "Note discarded at your choice." : "Left in its original context.") && hadFocus) {
+                // The next row's action, else the review heading while notes remain, else the staff notes.
+                ((next && document.getElementById("ia-park-leave-" + b.branch_id + "-" + parkedSlot(next))) || $("#ia-review-h") || $("#ia-staff-h")).focus();
               }
             }, { id: "ia-park-leave-" + rowId })));
       }))] : []);
