@@ -600,7 +600,16 @@
     // The request reads the draft plan, so its recipe version is the draft's issue (an unapplied issue change
     // such as Custom would otherwise conflict with the applied branch's recipe and be refused).
     const tokenBranch = state.draft ? Object.assign({}, b, { recipe_version: state.draft.issue_id + "/1" }) : b;
-    return begin(state, "interpret", tokenBranch, { mode: "interpret", plan: clone(state.draft), utterance: utterance }, b.last_ready_revision === null ? 0 : b.last_ready_revision, ids);
+    return begin(state, "interpret", tokenBranch, { mode: "interpret", plan: clone(state.draft), utterance: utterance }, b.last_ready_revision === null ? 0 : b.last_ready_revision, ids,
+      { applied_revision: b.last_ready_revision });
+  }
+
+  // A typed proposal or district choice was read for one request, case, context, applied revision and exact draft.
+  // It may be placed only while all of these are still the ones on screen; otherwise it is read again.
+  function interpretationCurrent(state, origin) {
+    const b = active(state);
+    return isObj(origin) && !!b && state.case.case_id === origin.case_id && b.branch_id === origin.branch_id &&
+      b.last_ready_revision === origin.applied_revision && canonical(state.draft) === origin.draft;
   }
 
   function nextRevision(out) {
@@ -702,7 +711,9 @@
     if (pending.kind === "interpret") {
       const i = isObj(response.interpretation) ? response.interpretation : {};
       const proposed = response.normalized_plan, issues = [];
-      return { state: out, outcome: "interpreted", status: response.status, interpretation: {
+      const origin = { request_id: pending.tokens.request_id, case_id: pending.tokens.case_id, branch_id: pending.tokens.branch_id,
+        applied_revision: pending.applied_revision === undefined ? null : pending.applied_revision, draft: canonical(pending.plan) };
+      return { state: out, outcome: "interpreted", status: response.status, origin: origin, interpretation: {
         matched_fields: Array.isArray(i.matched_fields) ? i.matched_fields : [], inherited_fields: Array.isArray(i.inherited_fields) ? i.inherited_fields : [],
         choices: Array.isArray(i.choices) ? i.choices : [], reason: typeof i.reason === "string" ? i.reason : null,
         proposed_plan: response.status === "ok" && proposed && validPlan(proposed, "plan", issues) ? clone(proposed) : null,
@@ -1016,7 +1027,7 @@
     createState, active, branchOf, staffItems, hasStaffContent, runtimeMatches, proposeChange, confirmChange, removeBranch,
     currentResults, toggleClaim, moveSelection, availableActions, chooseAction, setStaffText, setFindingNote, setChecklist, setTracking,
     copyParked, leaveParked, pendingReview, setExclusion, activeStaff, staffDigest, markReviewed, reviewCurrent,
-    beginInterpret, beginRun, beginRestore, beginBrief, cancelPending, applyResponse, applyTransportFailure, shorteningChoices, printStatus,
+    beginInterpret, interpretationCurrent, beginRun, beginRestore, beginBrief, cancelPending, applyResponse, applyTransportFailure, shorteningChoices, printStatus,
     exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments, recommendedBrief, focusedFindings, focusedBrief,
   };
 });

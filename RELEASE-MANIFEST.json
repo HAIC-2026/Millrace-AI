@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:9a5464d01f19e9e840d5035fb918a1869103be5aa9136438433ea676e52544eb",
+  "source_identity": "sha256:4b619ced064e6dacf195a461ac20190b7252e479042ed4cdc6cf7435d0e98049",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -336,8 +336,8 @@
     },
     {
       "path": "static/case_state.js",
-      "bytes": 72306,
-      "sha256": "5df3cb3fdc93588069cd74e35d66440ecac1b77cbe1f13443e1405bdc1d91654"
+      "bytes": 73178,
+      "sha256": "4ac625796a495a1ea6e6fd99a29f4f5cceb75449cc746820f3e25c7e2a18f006"
     },
     {
       "path": "static/index.html",
@@ -346,8 +346,8 @@
     },
     {
       "path": "static/investigation.js",
-      "bytes": 173505,
-      "sha256": "e565b248679a5c3ff810fc80b30cb7f87fbc22c0d7ad0ee8326d2908a0781064"
+      "bytes": 183844,
+      "sha256": "a22583151fda032b9b642594880d9d2f8d58f7f4ab15f0189bbb98ade81c7ee6"
     },
     {
       "path": "static/language_state.js",
@@ -416,8 +416,8 @@
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 52170,
-      "sha256": "1eee950488c71f3fd7ee6a97b41b4b33ee618e2b31e717f2c259fc3a36e097b1"
+      "bytes": 80117,
+      "sha256": "4a2ec7c33419237a8da157263328ed4ac305330c811ecca83c1736a4f8412922"
     },
     {
       "path": "tests/language_funding_fixture.py",
@@ -446,8 +446,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 143330,
-      "sha256": "69f76c18f608c0d378f7fc3de505979782cf5cbcb446e465c0ffa53ce2f0fbf6"
+      "bytes": 145460,
+      "sha256": "782315941774df872fe099ace571249a37974881d5e69daab206c4a41b140cda"
     },
     {
       "path": "tests/test_catalog_pagination.py",

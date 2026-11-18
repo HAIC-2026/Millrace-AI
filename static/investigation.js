@@ -252,18 +252,21 @@
 
   function finish(result) {
     const quiet = bootRun; bootRun = false;
+    const was = state.pending;   // the request this reply concluded (null when it was already cancelled)
     // Typed staff text was committed to its own context in send(), before this reply could switch the active context.
     state = result.state;
     if (result.outcome === "discarded") { notice = "A late reply for an earlier request was ignored. The current context is unchanged."; render(); return; }
     if (result.outcome === "error") {
       const e = state.last_error || {};
+      // Only the typed-request card of this exact request stops reading; its text stays in the box for a retry.
+      if (was && was.kind === "interpret" && interp && interp.status === "pending" && interp.request_id === was.tokens.request_id) interp = Object.assign({}, interp, { status: "not_read" });
       notice = previousBriefKept() ? (e.code === "brief_overflow" ? "The new brief was not created: it is too long for one page." : "The new brief was not created.") + " " + PREVIOUS_BRIEF + " Your work is kept." :
         (e.code === "brief_overflow" ? "No brief was created: it is too long for one page. Choose what to leave out." :
         e.kind === "brief" ? "The brief was not created." : e.kind === "restore" && lastRestore ? lastRestore.name + " was not restored. You are still on " + contextName(C.active(state).branch_id) + "." : e.kind === "run" || e.kind === "restore" ? "The plan did not run." :
         e.kind === "interpret" ? "The typed request was not read." : e.kind === "import" ? "The case file was not opened." : "The request did not complete.") + " Your work is kept.";
       render(); const box = $("#ia-error"); if (box && !quiet && !activeDate()) box.focus(); return;
     }
-    if (result.outcome === "interpreted") { interp = Object.assign({ status: result.status, utterance: interp ? interp.utterance : "" }, result.interpretation); notice = result.status === "ok" ? "Typed request read. Review the proposed change, then choose Put in draft plan." : "The typed request needs a choice or is not supported. Nothing was run."; render(); const t = $("#ia-interpretation"); if (!activeDate()) t.focus(); return; }
+    if (result.outcome === "interpreted") { interp = Object.assign({ status: result.status, utterance: interp ? interp.utterance : "" }, result.interpretation, { origin: result.origin, request_id: result.origin.request_id }); notice = result.status === "ok" ? "Typed request read. Review the proposed change, then choose Put in draft plan." : "The typed request needs a choice or is not supported. Nothing was run."; render(); const t = $("#ia-interpretation"); if (!activeDate()) t.focus(); return; }
     if (result.outcome === "brief") {
       notice = "Brief created for the current results."; render();
       if (!briefFits()) { notice = "Brief drafted, but it is too long to print on one page. Choose what to leave out under One-page brief."; render(); }
@@ -274,7 +277,13 @@
       // A reopened case starts with no unfinished add-item text from the page's earlier case.
       addDrafts.clear();
       const box = $("#ia-chk-new"); if (box) box.value = "";
-      importing = null; notice = "Case file replayed against this release's evidence and opened." + (dropped ? " " + plural(dropped, "saved selection was", "saved selections were") + " not reselected; see Selected findings." : ""); }
+      // Staff-notes download consent belongs to the case it was given for: every successful replay (also a file with the
+      // same case ID, whose contents may differ) starts unchecked. Preview, cancel, failure and restore keep the choice.
+      const consent = $("#ia-download-staff"), wasOn = !!(consent && consent.checked); if (consent) consent.checked = false;
+      // A typed proposal read for the outgoing case never crosses into the reopened one (even one with the same IDs).
+      if (interp && interp.origin) interp = Object.assign({}, interp, { origin: null });
+      importing = null; notice = "Case file replayed against this release's evidence and opened." + (dropped ? " " + plural(dropped, "saved selection was", "saved selections were") + " not reselected; see Selected findings." : "") +
+        (wasOn ? " “Include staff notes” was turned off for this case; check it again before a download should include its staff notes." : ""); }
     else if (result.outcome === "restored") notice = "Context restored after an exact replay. Its staff notes and progress are shown as staff contributions from that context.";
     else notice = (result.draft_kept ? "Results updated for the plan you applied earlier. Your newer plan edits are kept as a draft; choose Apply plan to run them. " : "") + (result.status === "ok" ? "Results updated." : "Results updated; some steps did not produce findings (see Findings and evidence).") + (result.retired && result.retired.length ? " " + result.retired.length + " earlier selection" + (result.retired.length === 1 ? " was" : "s were") + " not carried into this context." : "");
     render();
@@ -892,22 +901,42 @@
     const box = $("#ia-interpretation");
     if (!interp) { fill(box, []); return; }
     const segs = C.interpretationSegments(interp.utterance, interp.matched_fields);
-    const nodes = [h("h3", { class: "ia-group-title", text: interp.status === "pending" ? "Reading the request…" : interp.status === "ok" ? "Proposed plan change (not applied)" : interp.status === "clarification" ? "A choice is needed" : "Not supported" }),
+    const ended = interp.status === "cancelled" || interp.status === "not_read", stale = !ended && interp.status !== "pending" && !interpCurrent();
+    // Each control acts only for the request this card was rendered for; a control left from an older card does nothing.
+    const card = interp, mine = () => interp === card;
+    const reread = () => btn("Read the typed request again", () => { if (mine()) rereadTyped(); }, { class: "btn", id: "ia-reread-interp" });
+    const nodes = [h("h3", { class: "ia-group-title", text: interp.status === "pending" ? "Reading the request…" : ended ? "Not read" : interp.status === "ok" ? "Proposed plan change (not applied)" : interp.status === "clarification" ? "A choice is needed" : "Not supported" }),
       h("p", { class: "ia-utterance" }, segs.map((s) => (s.field ? h("mark", { title: "Matched: " + fieldLabel(s.field), text: s.text }) : s.text)))];
+    if (ended) nodes.push(h("p", { text: interp.status === "cancelled" ? "The request was cancelled before it was read. A late reply will be ignored." : "The request did not complete, so nothing was read." }));
     if (interp.reason) nodes.push(h("p", { text: interp.reason }));
     if (interp.status !== "pending" && interp.status !== "ok") nodes.push(h("p", { class: "hint", text: "Your plan and other work are unchanged. Use the step controls above, or edit the request and read it again." }));
+    if (ended) nodes.push(h("div", { class: "btn-row" }, reread()));
+    if (stale && (interp.proposed_plan || interp.choices.length)) nodes.push(h("p", { class: "alert", id: "ia-interp-stale" }, "The plan, context or case changed after this request was read, so this proposal cannot be placed. Read the typed request again for the current draft plan. Nothing has run. ", reread()));
     const list = (title, items) => items.length ? h("div", {}, h("h4", { text: title }), h("ul", { class: "ia-fields" }, items.map((m) => h("li", {}, h("strong", { text: fieldLabel(m.field) + ": " }), valueText(m.field, m.value))))) : null;
     nodes.push(list("Matched in your text", interp.matched_fields), list("Inherited from the current plan", interp.inherited_fields));
     if (interp.choices.length) nodes.push(h("ul", { class: "ia-choices" }, interp.choices.map((c) => {
       const label = String(c.label || plain(c.value));
       const usable = c && c.field === "district" && c.value && (c.value.chamber === "house" || c.value.chamber === "senate") && typeof c.value.code === "string";
-      return h("li", {}, usable ? btn("Use " + label, () => { interp = null; editDraft(C.setContext(state.draft, { district: c.value }), label + " placed in the plan. Choose Apply plan to run it."); }) : label);
+      return h("li", {}, usable ? btn("Use " + label, () => { if (!placeable(card)) return; interp = null; editDraft(C.setContext(state.draft, { district: c.value }), label + " placed in the plan. Choose Apply plan to run it."); }) : label);
     })));
     if (interp.proposed_plan) nodes.push(h("div", { class: "btn-row" },
-      btn("Put in draft plan", () => { const p = interp.proposed_plan; interp = null; state = Object.assign({}, state, { draft: p }); notice = C.proposeChange(state, { plan: state.draft }).noop ? "Typed request placed in the draft plan. It matches the current plan, and nothing has run." : "Typed request placed in the draft plan. Nothing has run. Review the steps, then choose Apply plan."; render(); $("#ia-apply").focus(); }, { class: "btn btn-primary", id: "ia-apply-interp" }),
-      btn("Discard", () => { interp = null; notice = "Typed request discarded. The plan is unchanged."; render(); })));
+      btn("Put in draft plan", () => { if (!placeable(card)) return; const p = card.proposed_plan; interp = null; state = Object.assign({}, state, { draft: p }); notice = C.proposeChange(state, { plan: state.draft }).noop ? "Typed request placed in the draft plan. It matches the current plan, and nothing has run." : "Typed request placed in the draft plan. Nothing has run. Review the steps, then choose Apply plan."; render(); $("#ia-apply").focus(); }, { class: "btn btn-primary", id: "ia-apply-interp" }),
+      btn("Discard", () => { if (!mine()) return; interp = null; notice = "Typed request discarded. The plan is unchanged."; render(); })));
     fill(box, nodes);
   }
+  // The proposal on screen still answers the request, case, context, applied revision and exact draft it was read for.
+  function interpCurrent() { return !!interp && C.interpretationCurrent(state, interp.origin); }
+  // Placing a proposal or choice: refused (nothing changes) when it is stale or a saved context is replaying.
+  function placeable(card) {
+    if (!card || interp !== card) return false;   // an older request's control: the newer card and draft stay as they are
+    if (state.pending && (state.pending.kind === "restore" || state.pending.kind === "import")) { alertUser("A saved context is being replayed. Wait for it to finish, or cancel the request, before editing the plan."); render(); return false; }
+    if (interpCurrent()) return true;
+    notice = "The typed request was not placed: the plan, context or case changed after it was read. Nothing has run. Read it again for the current draft plan.";
+    render(); const r = $("#ia-reread-interp"); if (r && !activeDate()) r.focus();
+    return false;
+  }
+  // A fresh, deterministic read of the text in the Typed request box (the latest input) against the current draft.
+  function rereadTyped() { $("#ia-ask").requestSubmit(); }
 
   function renderSteps(dirty, busy) {
     const plan = state.draft, res = C.currentResults(state);
@@ -948,7 +977,8 @@
         h("li", { text: p.clears_selections ? "Selected findings and the agency action are not carried over. No fact from the earlier context enters the new brief." : plural(p.provisional_selections, "selected finding is", "selected findings are") + " kept only if exactly the same finding appears in the new results." }),
         h("li", { text: p.parked.length ? plural(p.parked.length, "staff note or checklist entry goes", "staff notes or checklist entries go") + " to review. Nothing is copied unless you choose it." : "There are no staff notes or checklist progress to review." }),
         p.kinds.includes("program") || p.kinds.includes("response") ? h("li", { text: "A different agency action never inherits done marks or notes from the earlier one." }) : null),
-      p.branch_limit ? h("p", { class: "alert", text: "This case already holds four contexts. Download the case with staff notes, then remove a context under Save or reopen the case before applying." }) : null,
+      p.branch_limit ? h("p", { class: "alert", text: "This case already holds four contexts. " + (fullDownloadCurrent() ? "Your last download request included all of it: remove a context under Save or reopen the case before applying." :
+        "To apply this, " + downloadStep() + ", then remove a context under Save or reopen the case.") }) : null,
       h("div", { class: "btn-row" },
         btn("Apply change and run", () => {
           if (C.canonical(state.draft) !== p.draft_key) { preview = null; pendingAnswer = null; notice = "The plan was edited after this review opened, so the reviewed change was not applied. Your newer edits are kept in the draft; choose Apply plan to review them."; render(); $("#ia-apply").focus(); return; }
@@ -1665,20 +1695,47 @@
 
   // A note on a removed finding waits for review in this page only: a case file cannot hold it until it is copied back
   // or left. While any waits (in this or another context), a download "with staff notes" would omit it, so it is held.
-  function staffDownloadBlock() {
+  function heldWork() {
     const n = Object.keys(state.parked || {}).reduce((k, id) => k + state.parked[id].items.filter((i) => i.resolved === null && i.orphan_reason).length, 0);
     // Unfinished custom checklist text (typed, not added) is in no case file either, so it holds the same guard.
     const keys = new Set(), onScreen = $("#ia-chk-new"), mine = (k) => k.indexOf(state.case.case_id + "|") === 0;
     addDrafts.forEach((v, k) => { if (mine(k) && String(v).trim()) keys.add(k); });
     if (onScreen && onScreen.draftKey && mine(onScreen.draftKey)) { if (String(onScreen.value || "").trim()) keys.add(onScreen.draftKey); else keys.delete(onScreen.draftKey); }
+    return { notes: n, unfinished: keys.size };
+  }
+  function staffDownloadBlock() {
+    const held = heldWork(), n = held.notes, keys = { size: held.unfinished };
     const parts = [];
     if (n) parts.push((n === 1 ? "A staff note on a removed finding is" : n + " staff notes on removed findings are") + " waiting for review. Select the finding again and copy the note back, or discard it, under “Staff notes waiting for review” (restore the context it belongs to if needed).");
     if (keys.size) parts.push((keys.size === 1 ? "An unfinished custom checklist item is" : keys.size + " unfinished custom checklist items are") + " typed but not added. Choose Add item or clear the text (in the context it was typed in).");
     return parts.length ? parts.join(" ") + " Until then a download with staff notes would leave " + (n + keys.size === 1 ? "it" : "them") + " out; a case file cannot hold " + (n && keys.size ? "them." : n ? "a waiting note." : "unfinished text.") : null;
   }
+  // The full local download that allows Remove context: nothing held in page memory, and the last download requested
+  // was the staff-inclusive export of exactly this case (a default download counts only when the case has no staff text).
+  const fullDownloadCurrent = () => !staffDownloadBlock() && savedDigest === C.canonical(C.exportCase(state, { include_staff_work: true }));
+  // The step that makes a context removable, worded for what this case holds.
+  function downloadStep() {
+    const held = heldWork(), fix = [held.notes ? "copy back or discard the staff notes waiting for review" : "", held.unfinished ? "add or clear the unfinished checklist text" : ""].filter(Boolean);
+    return (fix.length ? fix.join(" and ") + " (a case file cannot hold " + (held.notes + held.unfinished === 1 ? "it" : "them") + "), then " : "") +
+      "download the case" + (C.staffExportPreview(state).length ? " with staff notes included" : "");
+  }
+  // What replacing this case with a file would take out of the page. Counts only; no staff text is repeated here.
+  function outgoingWork() {
+    const brs = state.case.branches, held = heldWork(), staff = C.staffExportPreview(state);
+    const entries = staff.reduce((n, r) => n + r.items.length, 0), sel = brs.reduce((n, br) => n + br.selected_claim_refs.length, 0), acts = brs.filter((br) => br.selected_action_ref).length;
+    const where = (rows) => rows.length ? " (" + rows.map((r) => "Context " + (brs.findIndex((br) => br.branch_id === r.branch_id) + 1)).join(", ") + ")" : "";
+    const items = [];
+    if (entries) items.push(plural(entries, "staff entry", "staff entries") + " — notes, checklist or tracking" + where(staff) + ". A download without “Include staff notes” leaves them out.");
+    if (sel || acts) items.push(plural(sel, "selected finding", "selected findings") + (acts ? " and " + plural(acts, "chosen agency action", "chosen agency actions") : "") + where(brs.filter((br) => br.selected_claim_refs.length || br.selected_action_ref)) + ".");
+    if (brs.length > 1) items.push(plural(brs.length - 1, "other context", "other contexts") + " besides the current one.");
+    if (held.notes) items.push(plural(held.notes, "staff note on a removed finding is", "staff notes on removed findings are") + " waiting for review. No case file holds " + (held.notes === 1 ? "it" : "them") + " until copied back.");
+    if (held.unfinished) items.push(plural(held.unfinished, "unfinished custom checklist item is", "unfinished custom checklist items are") + " typed but not added. No case file holds unfinished text.");
+    return { items: items, saved: fullDownloadCurrent() };
+  }
+  const riskKey = (o) => (o && o.items.length && !o.saved ? JSON.stringify(o.items) : "");
   function renderCase(b, busy) {
     const list = $("#ia-branches");
-    const savedNow = !staffDownloadBlock() && savedDigest === C.canonical(C.exportCase(state, { include_staff_work: true }));
+    const savedNow = fullDownloadCurrent();
     fill(list, state.case.branches.map((br, i) => {
       const on = br.branch_id === b.branch_id, n = C.staffItems(br).length;
       return h("li", { class: on ? "is-selected" : "" },
@@ -1690,8 +1747,15 @@
         br.snapshot_id !== state.runtime.snapshot_id ? replayHelp(br.snapshot_id) : null,
         on ? null : h("div", { class: "ia-branch-tools" },
           btn("Restore", () => restoreContext(br.branch_id), { class: "btn btn-small", id: "ia-restore-" + i, disabled: busy, "aria-label": "Restore context " + (i + 1) + " (" + planLabel(br.plan) + ") by replaying its evidence" }),
-          btn("Remove context", () => set(C.removeBranch(state, br.branch_id, { saved_locally: savedNow }), "Context removed after a full local download."), { class: "btn-link btn-danger", id: "ia-rmbranch-" + i, disabled: busy || !savedNow, "aria-label": "Remove context " + (i + 1) + " (" + planLabel(br.plan) + ") from this page", "aria-describedby": "ia-rmbranch-why-" + i }),
-          h("span", { class: "hint", id: "ia-rmbranch-why-" + i, text: savedNow ? "Saved in your last download." : "To remove it, first download the case" + (C.staffExportPreview(state).length ? " with staff notes included." : ".") })));
+          btn("Remove context", () => {
+            // Rechecked on activation: work typed since the last render (e.g. unfinished checklist text) is not in any download.
+            // Focused staff text is collected first; a native date still being edited is never committed by this click.
+            if (activeDate()) { notice = "Finish or leave the staff date being edited, then choose Remove context again. Nothing was removed."; render(); return; }
+            flushActive(false);
+            if (!fullDownloadCurrent()) { render(); alertUser("Nothing was removed. To remove a context, first " + downloadStep() + "."); return; }
+            set(C.removeBranch(state, br.branch_id, { saved_locally: true }), "Context removed after a full local download.");
+          }, { class: "btn-link btn-danger", id: "ia-rmbranch-" + i, disabled: busy || !savedNow, "aria-label": "Remove context " + (i + 1) + " (" + planLabel(br.plan) + ") from this page", "aria-describedby": "ia-rmbranch-why-" + i }),
+          h("span", { class: "hint", id: "ia-rmbranch-why-" + i, text: savedNow ? "Saved in your last download." : "To remove it, first " + downloadStep() + "." })));
     }));
     const staffOn = $("#ia-download-staff").checked, pv = $("#ia-staff-preview"), held = staffOn ? staffDownloadBlock() : null;
     $("#ia-download").disabled = !!held;
@@ -1706,7 +1770,16 @@
     ip.hidden = !importing;
     if (!importing) { fill(ip, []); return; }
     if (!importing.ok) { fill(ip, [h("h3", { text: "The file was not opened" }), h("ul", {}, importing.issues.map((i) => h("li", { text: i.code === "invalid_json" ? "This is not a case file this app can read (it could not be parsed). It was not opened." : i.message }))), h("p", { text: "Your current case is unchanged." }), btn("Close", () => { importing = null; render(); $("#ia-import-file").focus(); }, { id: "ia-import-close" })]); return; }
-    const p = importing.preview, accept = h("input", { type: "checkbox", id: "ia-import-staff" });
+    const p = importing.preview, accept = h("input", { type: "checkbox", id: "ia-import-staff", checked: !!importing.accept_staff, on: { change: (e) => { importing.accept_staff = e.target.checked; } } });
+    // Before Replay: what is replaced, and the outgoing work at risk unless a full download was requested since it changed.
+    const out = p.runtime_match ? outgoingWork() : null, risk = out && out.items.length && !out.saved;
+    importing.shown_risk = riskKey(out);   // exactly what this preview presents, compared again when Replay is chosen
+    const replaceNote = out ? h("div", { id: "ia-import-replace" },
+      h("p", { text: "Replay and open replaces the case open in this page now (" + plural(state.case.branches.length, "context", "contexts") + "; current: Context " + (state.case.branches.findIndex((br) => br.branch_id === b.branch_id) + 1) + ", " + planLabel(b.plan) + ") with the file's case. If the replay fails or you cancel, the current case stays as it is." }),
+      risk ? h("div", { class: "alert", id: "ia-import-risk", tabindex: "-1" }, h("p", { text: "No full download was requested since this work last changed. After the replay it is gone from this page:" }),
+        h("ul", {}, out.items.map((t) => h("li", { text: t }))),
+        h("p", { text: "To keep it, choose Cancel, then under Save or reopen the case " + downloadStep() + ". A download is only a request; check your browser's downloads to confirm the file was saved, then choose the file to open again." }))
+        : out.items.length ? h("p", { class: "hint", text: "A download of everything in this case was requested after its last change. Check your browser's downloads to confirm the file was saved." }) : null) : null;
     fill(ip, [h("h3", { text: "Case file preview" + (p.runtime_match ? "" : " — cannot be replayed here") }),
       h("dl", { class: "kv" },
         h("div", {}, h("dt", { text: "Active plan" }), h("dd", { text: planLabel(p.active_plan) + " · " + p.active_plan.steps.map((s, i) => (i + 1) + ". " + OP_LABEL[s.operation]).join("; ") })),
@@ -1718,8 +1791,22 @@
       p.staff_items && p.runtime_match ? h("div", {}, h("p", { text: "The file holds " + p.staff_items + " staff entr" + (p.staff_items === 1 ? "y" : "ies") + " (unverified staff notes):" }),
         h("ul", { class: "ia-staff-list" }, p.staff_preview.map((r) => h("li", {}, h("strong", { text: importContextName(r.branch_id) }), h("ul", {}, r.items.map((it) => h("li", {}, staffLine(it))))))),
         h("label", { class: "ia-check", for: "ia-import-staff" }, accept, " Also open these staff notes (they will need review before any brief)")) : null,
+      replaceNote,
       h("div", { class: "btn-row" },
-        p.runtime_match ? btn("Replay and open this case", () => { const r = C.beginImport(state, importing, { accept_staff_work: accept.checked }, ids); if (r.error) return alertUser(r.error.message); state = r.state; notice = "Replaying the file's active plan. Only the plan and references are sent, never the file."; send(r.request); holdFocus(); }, { class: "btn btn-primary", id: "ia-import-go", disabled: busy }) : null,
+        p.runtime_match ? btn("Replay and open this case", () => {
+          // Work typed after this preview rendered (for example unfinished checklist text) never renders it. When the
+          // risk now differs from what is shown, the preview is refreshed and nothing is sent; Replay again proceeds.
+          // What was on screen before this click; collecting focused staff text below may re-render the preview.
+          const shown = importing.shown_risk, opened = importing;
+          if (activeDate()) { notice = "Finish or leave the staff date being edited, then choose Replay and open this case again. Nothing was sent."; render(); return; }
+          flushActive(false);
+          if (importing !== opened) return;
+          const now = outgoingWork();
+          if (now.items.length && !now.saved && riskKey(now) !== shown) {
+            notice = "The work at risk changed since this preview opened. Nothing was sent. Review the updated list, then choose Replay and open this case again, or Cancel.";
+            render(); const w = $("#ia-import-risk"); if (w && !activeDate()) w.focus(); return;
+          }
+          const r = C.beginImport(state, importing, { accept_staff_work: accept.checked }, ids); if (r.error) return alertUser(r.error.message); state = r.state; notice = "Replaying the file's active plan. Only the plan and references are sent, never the file."; send(r.request); holdFocus(); }, { class: "btn btn-primary", id: "ia-import-go", disabled: busy, "aria-describedby": "ia-import-replace" }) : null,
         btn(p.runtime_match ? "Cancel" : "Close", () => {
           // After Replay and open, Cancel also cancels the pending replay (as Cancel request does), so the reply is ignored.
           const replaying = !!(state.pending && state.pending.kind === "import");
@@ -1786,7 +1873,7 @@
       const text = $("#ia-utterance").value;
       const r = C.beginInterpret(state, text, ids);
       if (r.error) return alertUser(r.error.message);
-      state = r.state; interp = { utterance: text, matched_fields: [], inherited_fields: [], choices: [], reason: null, status: "pending" }; notice = "Reading your typed request. Nothing runs until you apply it.";
+      state = r.state; interp = { utterance: text, matched_fields: [], inherited_fields: [], choices: [], reason: null, status: "pending", request_id: r.request.request_id }; notice = "Reading your typed request. Nothing runs until you apply it.";
       send(r.request);
     });
     $("#ia-add-btn").addEventListener("click", () => {
@@ -1800,7 +1887,14 @@
     // The same review-and-run action, placed beside the edited context selects.
     $("#ia-context-apply-btn").addEventListener("click", () => { applyPlan(); if (!preview) holdFocus(); });
     $("#ia-discard").addEventListener("click", () => { state = Object.assign({}, state, { draft: JSON.parse(JSON.stringify(C.active(state).plan)) }); preview = null; pendingAnswer = null; notice = "Draft edits discarded. The plan matches the last applied context."; render(); });
-    $("#ia-cancel").addEventListener("click", () => { pendingAnswer = null; state = C.cancelPending(state); notice = "Request cancelled. Any late reply will be ignored. Earlier results are unchanged."; render(); });
+    $("#ia-cancel").addEventListener("click", () => {
+      // A cancelled typed request ends its own card (not a newer one); its text stays in the box to read again.
+      const p = state.pending, typed = !!(p && p.kind === "interpret" && interp && interp.status === "pending" && interp.request_id === p.tokens.request_id);
+      const fromCancel = document.activeElement === $("#ia-cancel");
+      if (typed) interp = Object.assign({}, interp, { status: "cancelled" });
+      pendingAnswer = null; state = C.cancelPending(state); notice = "Request cancelled. Any late reply will be ignored. Earlier results are unchanged."; render();
+      if (typed && fromCancel) $("#ia-interpretation").focus();
+    });
     $("#ia-review-btn").addEventListener("click", () => {
       if (!set(C.markReviewed(state), "Staff notes marked as reviewed for this context.")) return;
       const b = $("#ia-brief-btn");

@@ -904,3 +904,545 @@ test("lookup Run retains focus, blocks duplicate submission and releases busy st
     await proof(p, "lookup-error-moved-focus", { resolves });
   } finally { await p.close(); }
 });
+
+// Case files use browser downloads, the real file picker handler and the real replay endpoint.
+const activeBranch = saved => saved.branches.find(b => b.branch_id === saved.active_branch_id);
+const typedCard = p => p.locator("#ia-interpretation");
+const importCard = p => p.locator("#ia-import-preview");
+const requestDone = p => p.locator("#ia-cancel").waitFor({ state: "hidden" });
+async function chooseCase(p, saved) {
+  await p.locator("#ia-import-file").setInputFiles({
+    name: "synthetic-case.json", mimeType: "application/json",
+    buffer: Buffer.from(typeof saved === "string" ? saved : JSON.stringify(saved)),
+  });
+  await importCard(p).waitFor({ state: "visible" });
+}
+async function replayCase(p) {
+  await p.locator("#ia-import-go").click();
+  await requestDone(p);
+  await importCard(p).waitFor({ state: "hidden" });
+}
+async function changeDistrict(p, district) {
+  await p.locator("#ia-district").selectOption(district);
+  await p.locator("#ia-context-apply-btn").click();
+  await p.locator("#ia-preview-confirm").click();
+  await requestDone(p);
+}
+function investigationCalls(p) {
+  const calls = [];
+  p.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/investigation") calls.push(request.postDataJSON());
+  });
+  return calls;
+}
+// Keep the real response in the loop unless a fault is explicitly injected.
+async function gateInvestigation(p, mode, fault) {
+  let open, arrive;
+  const gate = new Promise(resolve => { open = resolve; });
+  const received = new Promise(resolve => { arrive = resolve; });
+  await p.route("**/api/investigation", async route => {
+    const wire = route.request().postDataJSON();
+    if (wire.mode !== mode) return route.fallback();
+    const response = fault ? null : await route.fetch();
+    arrive(wire);
+    await gate;
+    return fault ? fault(route) : route.fulfill({ response });
+  }, { times: 1 });
+  return { received, open };
+}
+
+for (const sameId of [true, false]) {
+  for (const acceptStaff of [true, false]) {
+    const scenario = (sameId ? "same" : "different") + "-id-" + (acceptStaff ? "accepted" : "clean");
+    test("Phase 1 import resets staff export consent after " + scenario + " replay", { timeout: 30000 }, async () => {
+      const p = await page();
+      try {
+        await p.locator("#ia-title").fill("Synthetic outgoing title");
+        await p.locator("#ia-download-staff").check();
+        const outgoing = await savedCase(p);
+        assert.equal(activeBranch(outgoing).staff_edits.title, "Synthetic outgoing title");
+        const incoming = structuredClone(outgoing);
+        if (!sameId) incoming.case_id = "8fa7fc0b-b349-4ae7-8671-1c3c949da882";
+        activeBranch(incoming).staff_edits.title = "Synthetic incoming title";
+        const calls = investigationCalls(p);
+        await chooseCase(p, incoming);
+        assert.equal(await p.locator("#ia-download-staff").isChecked(), true, "preview keeps outgoing consent");
+        assert.match(await importCard(p).textContent(), /Synthetic incoming title/);
+        if (acceptStaff) await p.locator("#ia-import-staff").check();
+        await replayCase(p);
+        assert.equal(await p.locator("#ia-title").inputValue(), acceptStaff ? "Synthetic incoming title" : "");
+        if (acceptStaff) assert.match(await p.locator("#ia-context-summary").textContent(), /Staff review required/);
+        assert.equal(calls.filter(wire => wire.mode === "run").length, 1);
+        for (const wire of calls) assert.doesNotMatch(JSON.stringify(wire), /Synthetic (incoming|outgoing) title|staff_edits/);
+        const consent = await p.locator("#ia-download-staff").isChecked();
+        const clean = await savedCase(p);
+        await proof(p, "phase1-import-" + scenario, {
+          expectedCaseId: incoming.case_id, downloadedCaseId: clean.case_id, consent,
+          staffWorkIncluded: clean.staff_work_included, downloadedStaff: activeBranch(clean).staff_edits,
+        });
+        assert.equal(clean.case_id, incoming.case_id);
+        assert.equal(consent, false);
+        assert.equal(clean.staff_work_included, false);
+        assert.deepEqual(activeBranch(clean).staff_edits, {});
+        if (acceptStaff) {
+          await p.locator("#ia-download-staff").check();
+          assert.equal(activeBranch(await savedCase(p)).staff_edits.title, "Synthetic incoming title");
+        }
+      } finally { await p.close(); }
+    });
+  }
+}
+
+test("Phase 1 import preview, cancellation, failure and context restore keep outgoing consent", { timeout: 30000 }, async () => {
+  const p = await page();
+  let held;
+  try {
+    await p.locator("#ia-title").fill("Synthetic title that stays");
+    await p.locator("#ia-download-staff").check();
+    const outgoing = await savedCase(p);
+    const checkOutgoing = async () => {
+      assert.equal(await p.locator("#ia-download-staff").isChecked(), true);
+      const saved = await savedCase(p);
+      assert.equal(saved.case_id, outgoing.case_id);
+      assert.equal(activeBranch(saved).staff_edits.title, "Synthetic title that stays");
+    };
+    const incoming = structuredClone(outgoing);
+    incoming.case_id = "8fa7fc0b-b349-4ae7-8671-1c3c949da882";
+    activeBranch(incoming).staff_edits.title = "Synthetic title from the file";
+    await chooseCase(p, "{broken");
+    await p.locator("#ia-import-close").click();
+    await checkOutgoing();
+
+    await chooseCase(p, incoming);
+    await p.locator("#ia-import-cancel").click();
+    await checkOutgoing();
+
+    held = await gateInvestigation(p, "run");
+    await chooseCase(p, incoming);
+    await p.locator("#ia-import-go").click();
+    await held.received;
+    assert.equal(await p.locator(".ia-grid").evaluate(el => el.inert), true);
+    const late = p.waitForResponse(r => new URL(r.url()).pathname === "/api/investigation");
+    await p.locator("#ia-import-cancel").click();
+    held.open();
+    await (await late).finished();
+    await checkOutgoing();
+
+    held = await gateInvestigation(p, "run", route => route.abort("connectionreset"));
+    await chooseCase(p, incoming);
+    await p.locator("#ia-import-go").click();
+    await held.received;
+    held.open();
+    await requestDone(p);
+    assert.match(await p.locator("#ia-error").textContent(), /Choose the case file again/);
+    if (await importCard(p).isVisible()) await p.locator("#ia-import-cancel").click();
+    await checkOutgoing();
+
+    await changeDistrict(p, "house:013");
+    await p.locator("#ia-restore-0").click();
+    await requestDone(p);
+    await checkOutgoing();
+    await proof(p, "phase1-import-consent-preserved", { stages: ["invalid file", "preview cancel", "pending replay cancel", "transport failure", "context restore"] });
+  } finally { if (held) held.open(); await p.close(); }
+});
+
+test("Phase 1 import previews replacement and guards unsaved plans", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const clean = await savedCase(p);
+    const calls = investigationCalls(p);
+    await chooseCase(p, clean);
+    const emptyPreview = await importCard(p).textContent();
+    await p.locator("#ia-import-cancel").click();
+    await p.locator("#ia-district").selectOption("house:013");
+    await chooseCase(p, clean);
+    await p.locator("#ia-import-go").click();
+    const guard = await p.locator("#ia-alert").textContent();
+    await proof(p, "phase1-import-empty-and-dirty", { emptyPreview, guard, calls: calls.length });
+    assert.match(guard, /unapplied edits/i);
+    assert.equal(await p.locator("#ia-district").inputValue(), "house:013");
+    assert.equal(calls.length, 0);
+    assert.match(emptyPreview, /replaces? (?:your current case|the case open in this page)/i);
+  } finally { await p.close(); }
+});
+
+test("Phase 1 import inventories outgoing active and inactive work until the matching full download", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const incoming = await savedCase(p);
+    await recommend(p);
+    await p.locator("#ia-title").fill("Synthetic inactive title");
+    await p.locator("#ia-chk-new").fill("Synthetic checklist item");
+    await p.locator("#ia-chk-add").click();
+    await p.locator("#ia-tracking-summary").click();
+    await p.locator("#ia-track-label").fill("Synthetic inactive tracking");
+    await p.locator("#ia-track-base").fill("12");
+    await p.locator("#ia-download").focus();
+    await changeDistrict(p, "house:013");
+    await p.locator('#ia-evidence input[type="checkbox"]').first().check();
+    await p.locator("#ia-note").fill("Synthetic active summary");
+    await p.locator("#ia-download").focus();
+
+    async function preview() {
+      await chooseCase(p, incoming);
+      const text = await importCard(p).textContent();
+      await p.locator("#ia-import-cancel").click();
+      return text;
+    }
+    const unsaved = await preview();
+    const defaultExport = await savedCase(p);
+    assert.equal(defaultExport.staff_work_included, false);
+    assert.ok(defaultExport.branches.every(b => Object.keys(b.staff_edits).length === 0 && b.checklist_edits.length === 0 && b.tracking === null));
+    assert.ok(defaultExport.branches.every(b => b.selected_claim_refs.length > 0));
+    const partial = await preview();
+    await p.locator("#ia-download-staff").check();
+    const full = await savedCase(p);
+    assert.equal(full.staff_work_included, true);
+    assert.equal(full.branches[0].staff_edits.title, "Synthetic inactive title");
+    assert.equal(full.branches[0].checklist_edits[0].text, "Synthetic checklist item");
+    assert.equal(full.branches[0].tracking.label, "Synthetic inactive tracking");
+    assert.equal(activeBranch(full).staff_edits.note, "Synthetic active summary");
+    const covered = await preview();
+    await p.locator("#ia-note").fill("Synthetic post-download change");
+    await p.locator("#ia-download").focus();
+    const changed = await preview();
+
+    await proof(p, "phase1-import-download-coverage", { unsaved, partial, covered, changed });
+    for (const text of [unsaved, partial, covered, changed]) assert.match(text, /replaces? (?:your current case|the case open in this page)/i);
+    for (const text of [unsaved, partial, changed]) {
+      assert.match(text, /select(ed|ion)/i);
+      assert.match(text, /staff (notes|work|entr)/i);
+      assert.match(text, /(?:save or reopen|download|cancel)/i);
+      assert.match(text, /staff entr[^.]+Context 1, Context 2/i);
+      assert.match(text, /selected finding[^.]+Context 1, Context 2/i);
+      assert.doesNotMatch(text, /Synthetic (?:in)?active (?:summary|title|tracking)|Synthetic checklist item/);
+    }
+    assert.match(covered, /download.*was requested/i);
+    assert.doesNotMatch(covered, /staff entr|selected findings? \(/i, "the outgoing contexts no longer need an inventory");
+  } finally { await p.close(); }
+});
+
+test("Phase 1 import names held orphan notes and unfinished text even after a full download", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const incoming = await savedCase(p);
+    await p.locator("#ia-download-staff").check();
+    await savedCase(p);
+    await parkFindingNote(p, p.locator('#ia-evidence input[type="checkbox"]').first(), "Synthetic orphan note");
+    await p.locator("#ia-chk-new").fill("Synthetic unfinished item");
+    await changeDistrict(p, "house:013");
+    assert.equal(await p.locator("#ia-download").isDisabled(), true);
+    assert.equal(await p.locator("#ia-rmbranch-0").isDisabled(), true);
+    const held = await p.locator("#ia-download-held").textContent();
+    await chooseCase(p, incoming);
+    const preview = await importCard(p).textContent();
+    await p.locator("#ia-import-cancel").click();
+    await p.locator("#ia-restore-0").click();
+    await requestDone(p);
+    assert.equal(await p.locator("#ia-chk-new").inputValue(), "Synthetic unfinished item");
+    assert.equal(await parkedFindingRow(p, "Synthetic orphan note").count(), 1);
+    await proof(p, "phase1-import-held-work", { held, preview });
+    assert.match(preview, /replaces? (?:your current case|the case open in this page)/i);
+    assert.match(preview, /(?:removed|orphan|waiting).*finding|note.*removed finding/i);
+    assert.match(preview, /unfinished custom checklist/i);
+    assert.match(preview, /cancel.*(?:review|save or reopen)/i);
+    assert.doesNotMatch(preview, /Synthetic orphan note|Synthetic unfinished item/);
+  } finally { await p.close(); }
+});
+
+test("Phase 1 import updates its warning for checklist text entered after preview", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const incoming = await savedCase(p), calls = investigationCalls(p);
+    await chooseCase(p, incoming);
+    const before = await importCard(p).textContent();
+    assert.doesNotMatch(before, /unfinished custom checklist/i);
+    const item = p.locator("#ia-chk-new");
+    await item.fill("Synthetic unfinished after preview");
+    // Either show the new risk immediately, or use the attempted replay to refresh the preview without replaying.
+    if (!/unfinished custom checklist/i.test(await importCard(p).textContent())) {
+      await p.locator("#ia-import-go").click();
+      await requestDone(p);
+    }
+    const updated = await importCard(p).textContent();
+    await proof(p, "phase1-import-updated-held-warning", { before, updated, calls: calls.length, unfinished: await item.inputValue() });
+    assert.equal(calls.length, 0);
+    assert.match(updated, /unfinished custom checklist/i);
+    assert.equal(await item.inputValue(), "Synthetic unfinished after preview");
+    await p.locator("#ia-import-cancel").click();
+    assert.equal(await item.inputValue(), "Synthetic unfinished after preview");
+
+    await chooseCase(p, incoming);
+    assert.match(await importCard(p).textContent(), /unfinished custom checklist/i);
+    await replayCase(p);
+    assert.equal(calls.length, 1);
+    assert.equal(await item.inputValue(), "");
+  } finally { await p.close(); }
+});
+
+test("Phase 1 Replay warns about staff text still focused at activation", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const incoming = await savedCase(p), calls = investigationCalls(p);
+    await chooseCase(p, incoming);
+    const summary = p.locator("#ia-note");
+    await summary.fill("Synthetic summary still being edited");
+    assert.equal((await focus(p)).id, "ia-note");
+    // A connected button can activate from the accessibility action without first blurring the editor.
+    await p.locator("#ia-import-go").evaluate(el => el.click());
+    await requestDone(p);
+    const warning = await importCard(p).textContent();
+    const after = await summary.inputValue();
+    await proof(p, "phase1-replay-flushes-active-summary", { warning, calls: calls.length, summary: after });
+    assert.equal(calls.length, 0);
+    assert.match(warning, /staff entr|staff notes/i);
+    assert.equal(after, "Synthetic summary still being edited");
+    await p.locator("#ia-import-cancel").click();
+    await p.locator("#ia-download-staff").check();
+    assert.equal(activeBranch(await savedCase(p)).staff_edits.note, "Synthetic summary still being edited");
+  } finally { await p.close(); }
+});
+
+test("Phase 1 four-context review uses content-sensitive download guidance and keeps the removal gate", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    for (const d of ["house:013", "house:010", "senate:008"]) await changeDistrict(p, d);
+    async function cap() {
+      await p.locator("#ia-district").selectOption("house:051");
+      await p.locator("#ia-context-apply-btn").click();
+      assert.equal(await p.locator("#ia-preview-confirm").isDisabled(), true);
+      const warning = await p.locator("#ia-preview .alert").textContent();
+      await p.locator("#ia-preview-cancel").click();
+      await p.locator("#ia-discard").click();
+      return warning;
+    }
+    const cleanWarning = await cap();
+    assert.equal(await p.locator("#ia-rmbranch-0").isDisabled(), true);
+    assert.equal((await savedCase(p)).staff_work_included, false);
+    assert.equal(await p.locator("#ia-rmbranch-0").isEnabled(), true);
+    await p.locator("#ia-title").fill("Synthetic fourth context title");
+    await p.locator("#ia-download").focus();
+    const staffWarning = await cap();
+    assert.equal(await p.locator("#ia-rmbranch-0").isDisabled(), true);
+    await savedCase(p);
+    assert.equal(await p.locator("#ia-rmbranch-0").isDisabled(), true);
+    await p.locator("#ia-download-staff").check();
+    assert.equal(activeBranch(await savedCase(p)).staff_edits.title, "Synthetic fourth context title");
+    assert.equal(await p.locator("#ia-rmbranch-0").isEnabled(), true);
+    await p.locator("#ia-chk-new").fill("Unfinished even after full download");
+    await cap();
+    assert.equal(await p.locator("#ia-rmbranch-0").isDisabled(), true);
+    await proof(p, "phase1-context-cap", { cleanWarning, staffWarning });
+    assert.match(cleanWarning, /download.*remove a context/i);
+    assert.doesNotMatch(cleanWarning, /with staff notes/i);
+    assert.match(staffWarning, /download.*with staff notes.*remove a context/i);
+  } finally { await p.close(); }
+});
+
+test("Phase 1 context removal rechecks held work at activation", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    await changeDistrict(p, "house:013");
+    const saved = await savedCase(p);
+    assert.equal(saved.branches.length, 2);
+    const remove = p.locator("#ia-rmbranch-0"), item = p.locator("#ia-chk-new");
+    await item.fill("Synthetic unfinished text before Remove");
+    const wasEnabled = await remove.isEnabled();
+    if (wasEnabled) await remove.click();
+    const remaining = await p.locator("#ia-branches > li").count();
+    await proof(p, "phase1-remove-rechecks-held-work", { wasEnabled, remaining, text: await item.inputValue() });
+    assert.equal(remaining, 2);
+    assert.equal(await item.inputValue(), "Synthetic unfinished text before Remove");
+    await item.fill("");
+    await p.locator("#ia-download-staff").check(); // render without requesting another download
+    assert.equal(await remove.isEnabled(), true);
+    const summary = p.locator("#ia-note");
+    await summary.fill("Synthetic summary still focused before Remove");
+    assert.equal((await focus(p)).id, "ia-note");
+    await remove.evaluate(el => el.click());
+    const afterSummary = await summary.inputValue(), remainingAfterSummary = await p.locator("#ia-branches > li").count();
+    await proof(p, "phase1-remove-flushes-active-summary", { summary: afterSummary, remaining: remainingAfterSummary });
+    assert.equal(remainingAfterSummary, 2);
+    assert.equal(afterSummary, "Synthetic summary still focused before Remove");
+    assert.equal(activeBranch(await savedCase(p)).staff_edits.note, afterSummary);
+    assert.equal(await remove.isEnabled(), true);
+    await remove.click();
+    assert.equal(await p.locator("#ia-branches > li").count(), 1);
+  } finally { await p.close(); }
+});
+
+async function openTyped(p) {
+  if (await p.locator("#ia-advanced").getAttribute("open") === null) await p.locator("#ia-advanced > summary").click();
+  await p.locator("#ia-typed > summary").click();
+}
+async function readTyped(p, text) {
+  if (text !== undefined) await p.locator("#ia-utterance").fill(text);
+  await p.locator("#ia-interpret-btn").click();
+}
+const proposalButton = p => p.getByRole("button", { name: "Put in draft plan" });
+const senateChoice = p => p.getByRole("button", { name: "Use Senate 013" });
+
+for (const [kind, text, action] of [
+  ["proposal", "add snap", proposalButton],
+  ["clarification", "use district 13", senateChoice],
+]) {
+  for (const commit of [false, true]) {
+    const scenario = kind + (commit ? "-after-fork" : "-after-draft-edit");
+    test("Phase 1 typed " + scenario + " cannot replace a newer district draft", { timeout: 30000 }, async () => {
+      const p = await page();
+      try {
+        const calls = investigationCalls(p);
+        await openTyped(p);
+        await readTyped(p, text);
+        await action(p).waitFor();
+        assert.equal(calls[0].plan.district.code, "028");
+        if (commit) await changeDistrict(p, "house:010");
+        else await p.locator("#ia-district").selectOption("house:010");
+        if (await action(p).isVisible() && await action(p).isEnabled()) await action(p).click();
+        const draftDistrict = await p.locator("#ia-district").inputValue();
+        const recoveryText = await typedCard(p).textContent() + " " + await p.locator("#ia-status").textContent();
+        await proof(p, "phase1-typed-" + scenario, { draftDistrict, recoveryText, modes: calls.map(wire => wire.mode) });
+        assert.equal(draftDistrict, "house:010");
+        assert.match(recoveryText, /read.*again|changed.*(?:request|plan)|(?:request|plan).*changed/i);
+        assert.deepEqual(calls.map(wire => wire.mode), commit ? ["interpret", "run"] : ["interpret"]);
+        await typedCard(p).getByRole("button", { name: /read.*again/i }).click();
+        await requestDone(p);
+        await action(p).click();
+        assert.equal(await p.locator("#ia-district").inputValue(), kind === "clarification" ? "senate:013" : "house:010");
+        assert.equal(calls.filter(wire => wire.mode === "run").length, commit ? 1 : 0);
+      } finally { await p.close(); }
+    });
+  }
+}
+
+for (const [kind, first, next, oldAction, newAction] of [
+  ["proposal", "use house 13", "use senate 8", proposalButton, proposalButton],
+  ["clarification", "use district 13", "use district 8", senateChoice, p => p.getByRole("button", { name: "Use Senate 008" })],
+]) {
+  test("Phase 1 superseded typed " + kind + " cannot activate a newer card", { timeout: 30000 }, async () => {
+    const p = await page();
+    try {
+      const calls = investigationCalls(p);
+      await openTyped(p);
+      await readTyped(p, first);
+      const old = await oldAction(p).elementHandle();
+      await readTyped(p, next);
+      await requestDone(p);
+      await newAction(p).waitFor();
+      const detached = await old.evaluate(el => { const connected = el.isConnected; el.click(); return !connected; });
+      const draftDistrict = await p.locator("#ia-district").inputValue();
+      const card = await typedCard(p).textContent();
+      await proof(p, "phase1-typed-superseded-" + kind, { detached, draftDistrict, card, modes: calls.map(wire => wire.mode) });
+      assert.equal(detached, true);
+      assert.equal(draftDistrict, "house:028");
+      assert.ok(card.includes(next));
+      assert.equal(await newAction(p).isVisible(), true);
+      await newAction(p).click();
+      assert.equal(await p.locator("#ia-district").inputValue(), "senate:008");
+      assert.deepEqual(calls.map(wire => wire.mode), ["interpret", "interpret"]);
+    } finally { await p.close(); }
+  });
+}
+
+test("Phase 1 typed explicit district places only a draft and the next apply triggers one run", { timeout: 30000 }, async () => {
+  const p = await page();
+  try {
+    const calls = investigationCalls(p);
+    await openTyped(p);
+    await readTyped(p, "use senate 8");
+    await proposalButton(p).click();
+    assert.equal(await p.locator("#ia-district").inputValue(), "senate:008");
+    assert.match(await p.locator("#ia-context-summary").textContent(), /Showing results for House 028/);
+    assert.deepEqual(calls.map(wire => wire.mode), ["interpret"]);
+    await p.locator("#ia-context-apply-btn").click();
+    await p.locator("#ia-preview-confirm").click();
+    await requestDone(p);
+    assert.deepEqual(calls.map(wire => wire.mode), ["interpret", "run"]);
+    assert.equal(calls[1].plan.district.code, "008");
+    assert.equal(calls[1].plan.district.chamber, "senate");
+    await proof(p, "phase1-typed-explicit-district", { applied: calls[1].plan.district });
+  } finally { await p.close(); }
+});
+
+for (const [kind, fault] of [
+  ["cancel", null],
+  ["HTTP error", route => route.fulfill({ status: 500, json: { status: "error", code: "internal_error", message: "Synthetic typed request error" } })],
+  ["403", route => route.fulfill({ status: 403, json: { status: "error", code: "forbidden" } })],
+  ["abort", route => route.abort("connectionreset")],
+]) {
+  test("Phase 1 typed " + kind + " ends Reading and preserves text, focus and retry", { timeout: 30000 }, async () => {
+    const p = await page();
+    let held;
+    try {
+      const calls = investigationCalls(p), refreshes = [];
+      p.on("request", r => { if (new URL(r.url()).pathname === "/api/health") refreshes.push(r.url()); });
+      await openTyped(p);
+      held = await gateInvestigation(p, "interpret", fault);
+      const original = "use house 13";
+      await readTyped(p, original);
+      const first = await held.received;
+      assert.match(await typedCard(p).textContent(), /Reading the request/);
+      if (kind === "cancel") {
+        await p.locator("#ia-cancel").focus();
+        await p.keyboard.press("Enter");
+      } else held.open();
+      await requestDone(p);
+      const stalledCard = await typedCard(p).textContent();
+      const settledFocus = await focus(p);
+      await proof(p, "phase1-typed-" + kind.replace(" ", "-").toLowerCase(), { card: stalledCard, settledFocus, healthRefreshes: refreshes.length });
+      assert.doesNotMatch(stalledCard, /Reading the request/);
+      assert.equal(await p.locator("#ia-utterance").inputValue(), original);
+      assert.notEqual(settledFocus.tag, "BODY");
+      assert.equal(await typedCard(p).getAttribute("aria-live"), "polite");
+      if (kind === "403") assert.equal(refreshes.length, 1);
+      const retry = p.getByRole("button", { name: /read.*again/i }).first();
+      if (await retry.isVisible() && await retry.isEnabled()) await retry.click();
+      else await readTyped(p);
+      await proposalButton(p).waitFor();
+      assert.equal(calls.length, 2);
+      assert.notEqual(calls[1].request_id, first.request_id);
+      assert.equal(calls[1].utterance, original);
+      assert.equal(await p.locator("#ia-district").inputValue(), "house:028");
+      if (kind === "cancel") {
+        const old = p.waitForResponse(r => r.request().postDataJSON()?.request_id === first.request_id);
+        held.open();
+        await (await old).finished();
+        await proposalButton(p).waitFor();
+      }
+      await proposalButton(p).click();
+      assert.equal(await p.locator("#ia-district").inputValue(), "house:013");
+    } finally { if (held) held.open(); await p.close(); }
+  });
+}
+
+test("Phase 1 late old typed error cannot end a newer request or steal focus", { timeout: 30000 }, async () => {
+  const p = await page();
+  let old, fresh;
+  try {
+    p.setDefaultTimeout(7000);
+    const calls = investigationCalls(p);
+    await openTyped(p);
+    old = await gateInvestigation(p, "interpret", route => route.fulfill({ status: 403, json: { status: "error", code: "forbidden" } }));
+    await readTyped(p, "use house 13");
+    const first = await old.received;
+    await p.locator("#ia-cancel").click();
+    fresh = await gateInvestigation(p, "interpret");
+    await readTyped(p, "use senate 8");
+    await fresh.received;
+    const late = p.waitForResponse(r => r.request().postDataJSON()?.request_id === first.request_id);
+    await p.locator("#ia-district").focus();
+    old.open();
+    await late;
+    assert.equal(await p.locator("#ia-cancel").isVisible(), true);
+    assert.match(await typedCard(p).textContent(), /Reading the request.*use senate 8/s);
+    assert.equal((await focus(p)).id, "ia-district");
+    fresh.open();
+    await proposalButton(p).waitFor();
+    await proof(p, "phase1-typed-late-old", { old: first.utterance, current: calls[1].utterance, card: await typedCard(p).textContent() });
+    assert.match(await typedCard(p).textContent(), /use senate 8/);
+    assert.doesNotMatch(await typedCard(p).textContent(), /use house 13|Reading the request/);
+    await proposalButton(p).click();
+    assert.equal(await p.locator("#ia-district").inputValue(), "senate:008");
+    assert.deepEqual(calls.map(wire => wire.mode), ["interpret", "interpret"]);
+  } finally { if (old) old.open(); if (fresh) fresh.open(); await p.close(); }
+});

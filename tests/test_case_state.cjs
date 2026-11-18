@@ -686,6 +686,9 @@ test("a literal proposal changes only the draft; a separate plan action makes th
       fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
       render() {}, syncMap() {}, holdFocus() {}, activeDate: () => null, send: (r) => requests.push(r) };
     ctx.interp.proposed_plan = proposed(ctx.state);
+    const read = C.beginInterpret(ctx.state, ctx.interp.utterance, ids);
+    const result = C.applyResponse(read.state, reply(read.request), meta(read.request));
+    Object.assign(ctx.interp, { origin: result.origin, request_id: read.request.request_id });
     vm.createContext(ctx); vm.runInContext(code, ctx); vm.runInContext("renderInterpretation()", ctx);
     return { ctx, buttons, requests };
   }
@@ -1784,4 +1787,33 @@ test("a typed request carries the draft's recipe version, so 'add snap' after an
   // Run and brief still use the applied branch's own plan and recipe.
   const d = Object.assign({}, s, { draft: C.setContext(s.draft, { issue_id: "custom" }).plan });
   assert.equal(C.beginRun(d, ids).request.recipe_version, "aging_at_home/1");
+});
+
+test("Phase 1 typed replies retain the exact originating case, context, revision and draft", () => {
+  const original = worked(), branch = C.active(original);
+  const read = C.beginInterpret(original, "use district 13", ids);
+  const changedDraft = C.setContext(read.state.draft, { district: { chamber: "house", code: "010" } }).plan;
+  const edited = Object.assign({}, read.state, { draft: changedDraft });
+  for (const status of ["ok", "clarification"]) {
+    const result = C.applyResponse(edited, reply(read.request, { status }), { ...meta(read.request), request_id: read.request.request_id });
+    assert.equal(result.outcome, "interpreted");
+    assert.equal(result.state.pending, null);
+    assert.equal(result.state.draft.district.code, "010");
+    assert.deepEqual(result.origin, {
+      request_id: read.request.request_id, case_id: original.case.case_id, branch_id: branch.branch_id,
+      applied_revision: branch.last_ready_revision, draft: C.canonical(original.draft),
+    });
+    assert.equal(C.interpretationCurrent(result.state, result.origin), false);
+    assert.equal(C.interpretationCurrent(original, result.origin), true);
+    const reorderedKeys = Object.fromEntries(Object.entries(original.draft).reverse());
+    assert.equal(C.interpretationCurrent({ ...original, draft: reorderedKeys }, result.origin), true);
+    const rerun = run(original);
+    assert.equal(C.active(rerun).branch_id, branch.branch_id);
+    assert.equal(C.interpretationCurrent(rerun, result.origin), false);
+    const fork = change(original, { plan: changedDraft }).state;
+    assert.notEqual(C.active(fork).branch_id, branch.branch_id);
+    assert.equal(C.interpretationCurrent(fork, result.origin), false);
+    const foreign = { ...original, case: { ...original.case, case_id: ids.uuid() } };
+    assert.equal(C.interpretationCurrent(foreign, result.origin), false);
+  }
 });
