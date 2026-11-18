@@ -54,6 +54,12 @@ const meta = (request) => ({ http_status: 200, plan_hash: sha(C.planCanonical(re
 function run(state) { const b = C.beginRun(state, ids); assert.equal(b.error, undefined); const r = C.applyResponse(b.state, reply(b.request), meta(b.request)); assert.equal(r.outcome, "committed"); return r.state; }
 function change(state, proposal) { const p = C.proposeChange(state, proposal); const c = C.confirmChange(state, p, ids); assert.equal(c.error, undefined, c.error && c.error.message); return { state: run(c.state), proposal: p, forked: c.forked }; }
 const claim = (state, prefix) => C.currentResults(state).claims.find((c) => c.claim_ref.finding_id.startsWith(prefix)).claim_ref;
+function parkedTarget(state, key) {
+  const branchId = state.case.active_branch_id;
+  const slot = state.parked[branchId].items.findIndex((item) => item.key === key && item.resolved === null);
+  assert.ok(slot >= 0, key);
+  return [branchId, slot];
+}
 
 // A House 028 case with three selections, one response, and every kind of staff work.
 function worked() {
@@ -85,7 +91,7 @@ test("district change opens a new branch, carries no fact or staff work, and lea
   assert.equal(C.pendingReview(s).length, 8, "all eight staff entries wait for review");
   assert.ok(!JSON.stringify(C.currentResults(s).claims).includes("house028"), "no House 028 fact in the new results");
   // The finding notes cannot be copied: their claims do not exist in this district.
-  assert.equal(C.copyParked(s, "finding_note:" + origin.selected_claim_refs[0].semantic_hash).error.code, "not_applicable");
+  assert.equal(C.copyParked(s, ...parkedTarget(s, "finding_note:" + origin.selected_claim_refs[0].semantic_hash)).error.code, "not_applicable");
   // A clean brief is still possible; staff content is not sent.
   let t = ok(C.toggleClaim(s, claim(s, "stat:house013"), true));
   const clean = C.beginBrief(t, { clean: true }, ids);
@@ -119,16 +125,18 @@ test("comparator change retires the changed comparison, keeps exact independent 
   assert.deepEqual(b.checklist_edits, []);
   assert.equal(C.activeStaff(s).empty, true);
   const keep = "finding_note:" + b.selected_claim_refs[0].semantic_hash, gone = "finding_note:" + s.retired[b.branch_id][0].claim_ref.semantic_hash;
-  assert.equal(C.copyParked(s, gone).error.code, "not_applicable", "a note on the retired comparison cannot be re-attached");
+  assert.equal(C.copyParked(s, ...parkedTarget(s, gone)).error.code, "not_applicable", "a note on the retired comparison cannot be re-attached");
   assert.equal(C.markReviewed(s).error.code, "staff_review_required");
-  let t = ok(C.copyParked(s, keep));
+  let t = ok(C.copyParked(s, ...parkedTarget(s, keep)));
   assert.equal(C.active(t).staff_edits.finding_notes[b.selected_claim_refs[0].semantic_hash], "PRIVATE-FNOTE on an unchanged fact");
   assert.deepEqual(t.copied[b.branch_id][0], { key: keep, origin_branch_id: o.branch_id, origin_revision: o.last_ready_revision, scope_kinds: ["comparator"], completion_copied: false });
   // Same response identity: a done mark may be copied only with an explicit choice.
-  assert.equal(C.copyParked(t, "checklist:agency_route").completion_copied, false);
-  const withDone = C.copyParked(t, "checklist:agency_route", { include_completion: true });
+  assert.equal(C.copyParked(t, ...parkedTarget(t, "checklist:agency_route")).completion_copied, false);
+  const withDone = C.copyParked(t, ...parkedTarget(t, "checklist:agency_route"), { include_completion: true });
   assert.equal(withDone.completion_copied, true);
-  C.pendingReview(withDone.state).forEach((i) => { t = ok(C.leaveParked(t, i.key)); });
+  t = ok(withDone);
+  t.parked[b.branch_id].items.forEach((item, slot) => { if (item.resolved === null) t = ok(C.leaveParked(t, b.branch_id, slot)); });
+  assert.equal(C.active(t).review_state, "clean");
 });
 
 test("program change clears the response and a new agency never inherits a completed call", () => {
@@ -142,7 +150,7 @@ test("program change clears the response and a new agency never inherits a compl
   assert.equal(act.proposal.fork, false, "no staff content yet in this branch");
   const s = ok(C.confirmChange(s0b, act.proposal, ids));
   assert.equal(C.active(s).selected_action_ref.action_id, "snap_verify/1");
-  const copied = C.copyParked(s, "checklist:agency_route", { include_completion: true });
+  const copied = C.copyParked(s, ...parkedTarget(s, "checklist:agency_route"), { include_completion: true });
   assert.equal(copied.completion_copied, false);
   const item = C.active(copied.state).checklist_edits.find((c) => c.item_id === "agency_route");
   assert.deepEqual(item, { item_id: "agency_route", owner_role: "PRIVATE-ROLE", due_date: "2026-11-20" });
@@ -1331,15 +1339,59 @@ test("a note waiting for review after a manual deselection blocks the brief and 
   assert.match(t.run("briefBlock(C.active(state), C.currentResults(state), false, false, C.activeStaff(state), C.reviewCurrent(state), C.pendingReview(state))") || "", /waiting for review/);
   assert.equal(t.run("staffDownloadBlock()") !== null, true, "a download with staff notes would omit the waiting note");
   // Selecting the finding again and copying the note back (or leaving it) is the explicit resolution.
-  const copied = ok(C.copyParked(ok(C.toggleClaim(d, pop.claim_ref, true)), C.pendingReview(d)[0].key, {}));
+  const copied = ok(C.copyParked(ok(C.toggleClaim(d, pop.claim_ref, true)), d.case.active_branch_id, 0));
   assert.ok(JSON.stringify(C.exportCase(copied, { include_staff_work: true })).includes("Synthetic note to keep"), "copied back, the note is in the case file");
   const t2 = waitingNotesHarness(copied);
   assert.equal(t2.run("staffDownloadBlock()"), null);
-  const left = ok(C.leaveParked(d, C.pendingReview(d)[0].key));
+  const left = ok(C.leaveParked(d, d.case.active_branch_id, 0));
   assert.equal(waitingNotesHarness(left).run("staffDownloadBlock()"), null, "leaving it is an intentional choice");
   // Other staff work is not affected by the guard.
   const titled = ok(C.setStaffText(s, "title", "Synthetic title"));
   assert.equal(waitingNotesHarness(titled).run("staffDownloadBlock()"), null);
+});
+
+test("parked notes for the same finding resolve by active branch and retained slot", () => {
+  const first = "First parked note", second = "Second parked note";
+  const { s: initial, pop } = annotatedState(first);
+  const ref = pop.claim_ref, branchId = initial.case.active_branch_id;
+  const firstParked = ok(C.toggleClaim(initial, ref, false));
+  const annotated = ok(C.setFindingNote(ok(C.toggleClaim(firstParked, ref, true)), ref.semantic_hash, second));
+  const parked = ok(C.toggleClaim(annotated, ref, false));
+  const pending = C.pendingReview(parked);
+  assert.deepEqual(pending.map((item) => [item.key, item.value]), [
+    ["finding_note:" + ref.semantic_hash, first], ["finding_note:" + ref.semantic_hash, second],
+  ]);
+  assert.equal(C.copyParked(parked, branchId, 1).error.code, "not_applicable");
+  assert.deepEqual(C.pendingReview(parked), pending);
+
+  const reselected = ok(C.toggleClaim(parked, ref, true));
+  const copiedSecond = ok(C.copyParked(reselected, branchId, 1));
+  assert.equal(C.active(copiedSecond).staff_edits.finding_notes[ref.semantic_hash], second);
+  assert.deepEqual(copiedSecond.parked[branchId].items.map((item) => item.resolved), [null, "copied"]);
+  assert.deepEqual(C.pendingReview(copiedSecond).map((item) => item.value), [first]);
+  assert.equal(copiedSecond.copied[branchId][0].key, pending[1].key);
+
+  const discardedSecond = ok(C.leaveParked(parked, branchId, 1));
+  assert.deepEqual(discardedSecond.parked[branchId].items.map((item) => item.resolved), [null, "left"]);
+  assert.deepEqual(C.pendingReview(discardedSecond).map((item) => item.value), [first]);
+  assert.deepEqual(C.active(discardedSecond).staff_edits, {});
+
+  const discardedFirst = ok(C.leaveParked(reselected, branchId, 0));
+  const copiedAfterDiscard = ok(C.copyParked(discardedFirst, branchId, 1));
+  assert.deepEqual(copiedAfterDiscard.parked[branchId].items.map((item) => item.resolved), ["left", "copied"]);
+  assert.equal(C.active(copiedAfterDiscard).staff_edits.finding_notes[ref.semantic_hash], second);
+  assert.equal(C.active(copiedAfterDiscard).review_state, "clean");
+  assert.deepEqual(C.pendingReview(copiedAfterDiscard), []);
+
+  const forked = change(annotated, { plan: C.setContext(annotated.draft, { district: { chamber: "house", code: "013" } }).plan }).state;
+  assert.notEqual(forked.case.active_branch_id, branchId);
+  assert.equal(C.pendingReview(forked).length, 1);
+  for (const action of [C.copyParked, C.leaveParked]) {
+    assert.equal(action(forked, branchId, 0).error.code, "unknown_item", "an old branch cannot target the same slot in the active branch");
+    assert.equal(action(discardedFirst, branchId, 0).error.code, "unknown_item", "a resolved slot cannot target the remaining row");
+    assert.equal(action(copiedSecond, branchId, 1).error.code, "unknown_item");
+    for (const invalid of [-1, 2, "1", 0.5]) assert.equal(action(reselected, branchId, invalid).error.code, "unknown_item");
+  }
 });
 
 function waitingNotesHarness(state) {

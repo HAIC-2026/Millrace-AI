@@ -478,12 +478,19 @@
     return { state: out };
   }
 
+  // Slots are positions in the branch's retained array, including rows already resolved.
+  function pendingParkedItem(state, branchId, slot) {
+    if (branchId !== state.case.active_branch_id || !Number.isInteger(slot) || slot < 0) return null;
+    const box = state.parked[branchId], item = box && box.items[slot];
+    return item && item.resolved === null ? item : null;
+  }
+
   // Explicit, per-item reuse of parked staff work. The copy stays labeled staff content and records
   // its origin. Completion is never carried to a different response identity.
-  function copyParked(state, key, options) {
-    const box = state.parked[state.case.active_branch_id];
-    const item = box && box.items.find((i) => i.key === key && i.resolved === null);
+  function copyParked(state, branchId, slot, options) {
+    const item = pendingParkedItem(state, branchId, slot);
     if (!item) return err("unknown_item", "That parked item is no longer waiting for review.");
+    const box = state.parked[branchId];
     let r, completionCopied = false;
     if (item.kind === "finding_note") r = setFindingNote(state, item.semantic_hash, item.value);
     else if (item.kind === "checklist") {
@@ -495,17 +502,16 @@
     } else if (item.kind === "tracking") r = setTracking(state, item.tracking);
     else r = setStaffText(state, item.kind, item.value);
     if (r.error) return r.error.code === "stale_ref" ? err("not_applicable", "This note belongs to a finding that is not selected in the current context. It stays in its original branch.") : r;
-    const out = r.state, b = active(out);
-    out.parked[b.branch_id].items.find((i) => i.key === key).resolved = "copied";
-    (out.copied[b.branch_id] || (out.copied[b.branch_id] = [])).push({ key: key, origin_branch_id: box.origin_branch_id, origin_revision: box.origin_revision, scope_kinds: box.kinds.slice(), completion_copied: completionCopied });
+    const out = r.state;
+    out.parked[branchId].items[slot].resolved = "copied";
+    (out.copied[branchId] || (out.copied[branchId] = [])).push({ key: item.key, origin_branch_id: box.origin_branch_id, origin_revision: box.origin_revision, scope_kinds: box.kinds.slice(), completion_copied: completionCopied });
     return { state: settleReview(out), completion_copied: completionCopied };
   }
 
-  function leaveParked(state, key) {
-    const out = clone(state), box = out.parked[out.case.active_branch_id];
-    const item = box && box.items.find((i) => i.key === key && i.resolved === null);
-    if (!item) return err("unknown_item", "That parked item is no longer waiting for review.");
-    item.resolved = "left";
+  function leaveParked(state, branchId, slot) {
+    if (!pendingParkedItem(state, branchId, slot)) return err("unknown_item", "That parked item is no longer waiting for review.");
+    const out = clone(state);
+    out.parked[branchId].items[slot].resolved = "left";
     return { state: settleReview(out) };
   }
 

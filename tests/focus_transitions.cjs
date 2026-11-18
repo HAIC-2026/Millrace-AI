@@ -252,23 +252,85 @@ test("leaving a parked note keeps focus on the next leave action", async () => {
   } finally { await p.close(); }
 });
 
+const firstFindingNote = "First parked finding note";
+const secondFindingNote = "Second parked finding note";
+const parkedFindingRow = (p, note) => p.locator("#ia-review li").filter({ hasText: note });
+async function parkFindingNote(p, finding, note) {
+  await finding.check();
+  await p.locator("#ia-selected input").first().fill(note);
+  await p.keyboard.press("Tab");
+  await p.getByRole("button", { name: "Remove finding 1 from brief" }).click();
+}
+async function parkDuplicateFindingNotes(p) {
+  const finding = p.locator('#ia-evidence input[type="checkbox"]').first();
+  await parkFindingNote(p, finding, firstFindingNote);
+  await parkFindingNote(p, finding, secondFindingNote);
+  return finding;
+}
+
 test("parked notes on the same finding retain distinct focus across a render", async () => {
   const p = await page();
   try {
-    const finding = p.locator('#ia-evidence input[type="checkbox"]').first();
-    for (const note of ["First parked finding note", "Second parked finding note"]) {
-      await finding.check();
-      await p.locator("#ia-selected input").first().fill(note);
-      await p.keyboard.press("Tab");
-      await p.getByRole("button", { name: "Remove finding 1 from brief" }).click();
-    }
+    await parkDuplicateFindingNotes(p);
     const copies = p.getByRole("button", { name: "Copy into this context" });
     assert.equal(await copies.count(), 2);
     assert.notEqual(await copies.first().getAttribute("id"), await copies.last().getAttribute("id"));
-    const second = p.locator("#ia-review li").filter({ hasText: "Second parked finding note" }).getByRole("button", { name: "Copy into this context" });
+    const second = parkedFindingRow(p, secondFindingNote).getByRole("button", { name: "Copy into this context" });
     await second.focus();
     await p.locator("#ia-district").selectOption("house:013");
     assert.equal(await second.evaluate(el => el === document.activeElement), true);
+  } finally { await p.close(); }
+});
+
+test("copying the second parked note on the same finding copies its exact text", async () => {
+  const p = await page();
+  try {
+    const finding = await parkDuplicateFindingNotes(p);
+    await finding.check();
+    const second = parkedFindingRow(p, secondFindingNote);
+    await second.getByRole("button", { name: "Copy into this context" }).focus();
+    await p.keyboard.press("Enter");
+    const note = await p.locator("#ia-selected input").first().inputValue();
+    const first = parkedFindingRow(p, firstFindingNote);
+    await proof(p, "copy-second-parked-finding-note", { note, remaining: await p.locator("#ia-review li > p:first-child").allTextContents() });
+    assert.equal(note, secondFindingNote);
+    assert.equal(await second.count(), 0);
+    assert.equal(await first.count(), 1);
+    assert.equal((await focus(p)).id, "ia-review-h");
+    await p.keyboard.press("Tab");
+    assert.equal(await first.getByRole("button", { name: "Copy into this context" }).evaluate(el => el === document.activeElement), true);
+  } finally { await p.close(); }
+});
+
+test("discarding the second parked note on the same finding leaves the first pending", async () => {
+  const p = await page();
+  try {
+    const finding = await parkDuplicateFindingNotes(p);
+    const first = parkedFindingRow(p, firstFindingNote), second = parkedFindingRow(p, secondFindingNote);
+    await second.getByRole("button", { name: "Discard this note" }).click();
+    await proof(p, "discard-second-parked-finding-note", { remaining: await p.locator("#ia-review li > p:first-child").allTextContents() });
+    assert.equal(await first.count(), 1);
+    assert.equal(await second.count(), 0);
+
+    const thirdFindingNote = "Third parked finding note";
+    await parkFindingNote(p, finding, thirdFindingNote);
+    const third = parkedFindingRow(p, thirdFindingNote);
+    const discardThird = third.getByRole("button", { name: "Discard this note" });
+    const thirdId = await discardThird.getAttribute("id");
+    await first.getByRole("button", { name: "Discard this note" }).focus();
+    await p.keyboard.press("Enter");
+    assert.equal(await first.count(), 0);
+    assert.equal(await discardThird.getAttribute("id"), thirdId);
+    assert.equal((await focus(p)).id, thirdId);
+
+    await finding.check();
+    await third.getByRole("button", { name: "Copy into this context" }).focus();
+    await p.keyboard.press("Space");
+    const note = await p.locator("#ia-selected input").first().inputValue();
+    await proof(p, "copy-parked-finding-note-after-resolved-slots", { note });
+    assert.equal(note, thirdFindingNote);
+    assert.equal(await p.locator("#ia-review li").count(), 0);
+    assert.equal((await focus(p)).id, "ia-staff-h");
   } finally { await p.close(); }
 });
 
