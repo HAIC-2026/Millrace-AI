@@ -18,6 +18,8 @@
   // The executed question whose findings lead the page (never saved in the case). It is shown only while the
   // current results are exactly the plan the question produced, in the context where it ran.
   let answerBasis = null, pendingAnswer = null;
+  // A map-only fork observed on this page, tied to its first run. Dropped on cancel, replay, another change or rerun.
+  let mapFork = null;
   let notice = "";
   let pointerDown = false, textRenderPending = false;
   let bootRun = false;          // the automatic first run after loading: focus stays where the page starts              // polite status line
@@ -133,7 +135,8 @@
   }
   // Staff-facing wording for recorded values: known issue, operation and geography identifiers and plan
   // fields use the selector labels; anything else is shown as recorded. Identifiers stay in the data.
-  const MOE_NOT_PUBLISHED = "Not published (source marker *****: controlled estimate)";
+  // Ordinary text for the publisher's controlled-estimate marker; the marker itself stays in the data and source inspection.
+  const MOE_NOT_PUBLISHED = "Controlled estimate; no numeric margin of error published";
   const VERIFIED_LABEL = { true: "matches the retained cell", false: "not checked against a retained cell", null: "original cell not reread" };
   function plain(v, depth) {
     if (v === null || v === undefined || v === "") return "—";
@@ -259,6 +262,7 @@
     state = result.state;
     if (result.outcome === "discarded") { notice = "A late reply for an earlier request was ignored. The current context is unchanged."; render(); return; }
     if (result.outcome === "error") {
+      if (was && was.kind === "run") mapFork = null;
       const e = state.last_error || {};
       // Only the typed-request card of this exact request stops reading; its text stays in the box for a retry.
       if (was && was.kind === "interpret" && interp && interp.status === "pending" && interp.request_id === was.tokens.request_id) interp = Object.assign({}, interp, { status: "not_read" });
@@ -317,12 +321,17 @@
     lastRestore = { branchId: branchId, name: contextName(branchId) };
     const r = C.beginRestore(state, branchId, ids);
     if (r.error) { if (r.state) state = r.state; alertUser(r.error.message); render(); return; }
+    mapFork = null;
     state = r.state; notice = "Replaying " + lastRestore.name + " against its exact evidence…"; send(r.request); holdFocus();
   }
 
   function runActive() {
     const r = C.beginRun(state, ids);
     if (r.error) { if (r.state) state = r.state; alertUser(r.error.message); render(); return; }
+    if (mapFork) {
+      if (mapFork.revision === null) mapFork.revision = r.request.revision;
+      else mapFork = null;
+    }
     state = r.state; clearAlert(); notice = "Running the plan…";
     syncMap(false);
     send(r.request);
@@ -673,13 +682,17 @@
     const id = 'ia-c-' + st.step_id + '-' + c.claim_ref.semantic_hash.slice(7, 19), m = c.metric || {};
     const level = typeof c.moe_confidence_level === 'number' ? Math.round(c.moe_confidence_level * 100) + '% ' : '';
     const moe = (x, unit) => /^±/.test(String(x || '')) ? moeWithUnit(x, unit) : x ? String(x) : null;
-    const sideMoe = (x) => /^±/.test(String(x.moe_display || '')) ? ' (' + level + 'margin of error ' + moeWithUnit(x.moe_display, x.unit || c.unit) + ')' : x.moe_display ? ' (margin of error not published as a number: ' + x.moe_display + ')' : '';
+    // Each side states its own margin. Beside a controlled or unavailable side, a numeric side names its own published
+    // confidence level; comparisons of two numeric sides keep their earlier wording.
+    const mixedSides = c.kind === 'comparison' && !!(C.moeStatus(c.left) || C.moeStatus(c.right));
+    const sideLevel = (x) => mixedSides && typeof x.moe_confidence_level === 'number' ? Math.round(x.moe_confidence_level * 100) + '% ' : level;
+    const sideMoe = (x) => C.moeStatus(x) ? ' (' + C.moeStatus(x) + ')' : /^±/.test(String(x.moe_display || '')) ? ' (' + sideLevel(x) + 'margin of error ' + moeWithUnit(x.moe_display, x.unit || c.unit) + ')' : x.moe_display ? ' (margin of error not published as a number: ' + x.moe_display + ')' : '';
     const side = (x) => x ? shortGeo(x.geography && x.geography.label) + ': ' + valueWithUnit(x.estimate_display, x.unit || c.unit) + sideMoe(x) : '';
     let head, value = null, sub = null, text = null;
     if (c.kind === 'statistic') {
       head = (m.label || 'Statistic') + ' · ' + shortGeo(c.geography && c.geography.label);
       value = valueWithUnit(c.estimate_display, c.unit);
-      sub = /^±/.test(String(c.moe_display || '')) ? level + 'margin of error ' + moe(c.moe_display, c.unit) : c.moe_display ? 'Margin of error not published as a number: ' + c.moe_display : null;
+      sub = C.moeStatus(c) || (/^±/.test(String(c.moe_display || '')) ? level + 'margin of error ' + moe(c.moe_display, c.unit) : c.moe_display ? 'Margin of error not published as a number: ' + c.moe_display : null);
     } else if (c.kind === 'comparison') {
       head = (m.label || 'Comparison') + ' · ' + shortGeo(c.left && c.left.geography && c.left.geography.label) + ' compared with ' + shortGeo(c.right && c.right.geography && c.right.geography.label);
       value = side(c.left) + '  ·  ' + side(c.right);
@@ -710,7 +723,11 @@
   // Notes for the kinds of finding shown: survey estimates, administrative counts, program information.
   function answerCaptions(list) {
     const kinds = new Set(list.map((c) => c.kind)), out = [];
-    if (kinds.has('statistic') || kinds.has('comparison')) out.push('Survey estimates are published ACS 2020–2024 figures with 90% margins of error, shown as recorded. A comparison makes no statistical significance test.');
+    // A published 90% margin is claimed only where each operand has one; a controlled or missing margin is never filled in.
+    const statuses = new Set(list.flatMap((c) => (c.kind === 'comparison' ? [c.left, c.right] : c.kind === 'statistic' ? [c] : [])).map((x) => C.moeStatus(x)).filter(Boolean));
+    if (kinds.has('statistic') || kinds.has('comparison')) out.push((statuses.size ? 'Survey estimates are published ACS 2020–2024 figures with 90% margins of error where a numeric margin is published, shown as recorded. ' +
+      (statuses.has(C.MOE_STATUS.controlled) ? 'A controlled estimate has no numeric margin of error, and none is substituted. ' : '') + (statuses.has(C.MOE_STATUS.unavailable) ? 'Where a margin of error is unavailable, none is substituted. ' : '')
+      : 'Survey estimates are published ACS 2020–2024 figures with 90% margins of error, shown as recorded. ') + 'A comparison makes no statistical significance test.');
     if (kinds.has('administrative_context')) out.push('Administrative counts are recorded state, county or island figures with their own period and coverage; they are not district counts or eligibility figures.');
     if (kinds.has('program_relevance') || kinds.has('outreach_hypothesis')) out.push('Program information and outreach hypotheses are recorded references for agency follow-up; agencies decide eligibility.');
     out.push('Other findings from this plan are listed below.');
@@ -719,6 +736,11 @@
   // The answer's own brief action, with what it selects, whether that brief exists, and why no agency action is attached.
   function answerBriefAction() {
     const b = C.active(state), rec = briefFocus, dirty = !C.proposeChange(state, { plan: state.draft }).noop;
+    // An answer that is not about one program, in results with mixed programs: the answer's agency action would be a
+    // guess, so the one-step answer brief is not offered. The Brief panel lists the choices; nothing changes here.
+    if (C.recommendationGuard(C.currentResults(state), rec)) return h('div', { class: 'ia-answer-brief' },
+      h('p', { class: 'hint', id: 'ia-answer-brief-what', text: 'These results name programs that do not match one agency action, so Create brief from this answer is not offered. Select the findings you want, choose an agency action or No agency action in the brief, then choose Create brief from my selection.' }),
+      btn('Show brief choices', () => { const t = $('#ia-conflict-h'); if (t) t.focus(); }, { class: 'btn-link', id: 'ia-answer-brief-choices' }));
     const on = rec.claims.length === b.selected_claim_refs.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && C.actionKey(rec.action || null) === C.actionKey(b.selected_action_ref || null);
     const made = on && C.printStatus(state).ok;
     const what = (made ? 'Shown under One-page brief. It uses ' : 'Uses ') + rec.claims.map(claimShortName).join('; ') +
@@ -831,10 +853,15 @@
   }
 
   function commit(p) {
+    const origin = C.active(state);
     const r = C.confirmChange(state, p, ids);
     preview = null;
     if (r.error) { alertUser(r.error.message); render(); return; }
     state = r.state;
+    // Only an exact map-only fork opened here is remembered (page memory); any other applied change forgets it.
+    mapFork = r.forked && p.kinds.length === 1 && p.kinds[0] === "map_session" && !p.action_changed
+      ? { case_id: state.case.case_id, origin_branch_id: origin.branch_id, origin_revision: origin.last_ready_revision,
+        branch_id: C.active(state).branch_id, plan: C.canonical(C.active(state).plan), revision: null, consumed: false } : null;
     runActive();
   }
 
@@ -942,6 +969,7 @@
     const outcome = dirty ? applyOutcome() : null;
     fill($("#ia-context-summary"), [
       h("span", {}, res ? "Showing results for " : "Not run yet: ", h("strong", { text: districtLabel(applied.district) }), " · " + ISSUE_LABEL[applied.issue_id] +
+        (rescopedPrograms(applied) ? " (program steps use " + rescopedPrograms(applied).map(programLabel).join("; ") + ")" : "") +
         (applied.service_area_id ? " · program area " + AREA_LABEL[applied.service_area_id] + " (staff choice)" : "") + ". "),
       dirty ? h("span", { class: "badge badge-warn", text: "Draft has unapplied changes" }) : null,
       reviewChip(b),
@@ -956,7 +984,9 @@
 
     renderLanguage();
     renderAnswer(res);
-    $("#ia-issue-help").textContent = state.draft.issue_id === "custom" ? "Custom keeps the current steps so you can edit them under Advanced investigation. Remove any you do not need." : "";
+    const rescoped = rescopedPrograms(state.draft);
+    $("#ia-issue-help").textContent = state.draft.issue_id === "custom" ? "Custom keeps the current steps so you can edit them under Advanced investigation. Remove any you do not need." :
+      rescoped ? "The program steps use " + rescoped.map(programLabel).join("; ") + ", not " + programLabel(C.ISSUE_PROGRAMS[state.draft.issue_id]) + ", the program of the " + ISSUE_LABEL[state.draft.issue_id] + " recipe. The issue, its recipe and saved references stay as recorded. If this plan is no longer " + ISSUE_LABEL[state.draft.issue_id] + ", staff can choose Custom." : "";
     $("#ia-advanced-sum").textContent = plural(state.draft.steps.length, "step", "steps") + (dirty ? " · unapplied edits" : "") + " · edit steps and scope";
     renderInterpretation();
     renderSteps(dirty, busy);
@@ -976,6 +1006,13 @@
         if (selection && el.setSelectionRange) el.setSelectionRange(...selection);
       }
     }
+  }
+
+  // A guided plan whose program steps all use programs other than its recipe's program (a complete rescope): those
+  // programs, in plan order; otherwise null. Display only.
+  function rescopedPrograms(plan) {
+    const expected = C.ISSUE_PROGRAMS[plan.issue_id], used = C.planPrograms(plan);
+    return expected && used.length && !used.includes(expected) ? used : null;
   }
 
   // A plan step named as staff see it: its number in that plan, operation and scope. The typed-request name (s1, s2…) is
@@ -1094,10 +1131,17 @@
     $("#ia-advanced").open = true;   // the context review sits with the plan; it is never left in a closed panel
     const p = preview, kinds = p.kinds.map((k) => CHANGE_LABEL[k] || k).join(", ");
     if (p.draft_key === undefined) p.draft_key = C.canonical(state.draft);   // the draft this review was opened against
+    // An exact map-only fork: the display year is part of every district finding's identity, so selections never match
+    // exactly. Say so before it runs, and name the one explicit recovery that may follow.
+    const was = C.active(state), mapOnly = p.fork && C.mapOnlyChange(was.plan, p.plan);
     fill(box, [h("h3", { text: "Review this context change" }),
       h("p", { text: "This changes the " + kinds + ". The current context stays saved exactly as it is (see Save or reopen the case), and a new context opens for the change." }),
       h("ul", {},
-        h("li", { text: p.clears_selections ? "Selected findings and the agency action are not carried over. No fact from the earlier context enters the new brief." : plural(p.provisional_selections, "selected finding is", "selected findings are") + " kept only if exactly the same finding appears in the new results." }),
+        h("li", { id: mapOnly ? "ia-preview-map" : null, text: p.clears_selections ? "Selected findings and the agency action are not carried over. No fact from the earlier context enters the new brief." :
+          mapOnly && p.provisional_selections ? "The map display year is part of each district finding's recorded identity, so " + plural(p.provisional_selections, "selected finding is", "selected findings are") + " not kept automatically, although the statistics still use the 2024 district boundaries. " +
+            "After the new context runs, if the server confirms the boundaries are the same and matches a selected profile statistic to the current results, you can choose Select again in the Brief panel." +
+            (was.selected_action_ref ? " The agency action is not carried; choose it again under Agency verification if it still applies." : "") :
+          plural(p.provisional_selections, "selected finding is", "selected findings are") + " kept only if exactly the same finding appears in the new results." }),
         h("li", { text: p.parked.length ? plural(p.parked.length, "staff note or checklist entry goes", "staff notes or checklist entries go") + " to review. Nothing is copied unless you choose it." : "There are no staff notes or checklist progress to review." }),
         p.kinds.includes("program") || p.kinds.includes("response") ? h("li", { text: "A different agency action never inherits done marks or notes from the earlier one." }) : null),
       p.branch_limit ? h("p", { class: "alert", text: "This case already holds four contexts. " + (fullDownloadCurrent() ? "Your last download request included all of it: remove a context under Save or reopen the case before applying." :
@@ -1166,7 +1210,7 @@
   // Overflow recovery beside the warning: the recommended selection, when it differs from the current one.
   function recommendRecovery(id) {
     const rec = briefFocus || C.recommendedBrief(C.currentResults(state)), b = C.active(state), key = (r) => C.refKey(r);
-    if (!rec.claims.length) return null;
+    if (!rec.claims.length || C.recommendationGuard(C.currentResults(state), rec)) return null;
     const sameClaims = rec.claims.length === b.selected_claim_refs.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => key(r) === key(c.claim_ref)));
     const sameAction = !rec.action || (b.selected_action_ref && C.actionKey(b.selected_action_ref) === C.actionKey(rec.action));
     if (sameClaims && sameAction) return null;
@@ -1191,8 +1235,8 @@
   }
   // Short name used in accessible names and leave-out choices (never an identifier).
   function statLine(c) {
-    const m = c.metric || {}, level = typeof c.moe_confidence_level === "number" ? Math.round(c.moe_confidence_level * 100) + "% " : "";
-    const moe = /^±/.test(String(c.moe_display || "")) ? " (" + level + "margin of error " + moeWithUnit(c.moe_display, c.unit) + ")" : c.moe_display ? " (margin of error: " + moeWithUnit(c.moe_display, c.unit) + ")" : "";
+    const m = c.metric || {}, level = typeof c.moe_confidence_level === "number" ? Math.round(c.moe_confidence_level * 100) + "% " : "", status = C.moeStatus(c);
+    const moe = status ? " (" + status + ")" : /^±/.test(String(c.moe_display || "")) ? " (" + level + "margin of error " + moeWithUnit(c.moe_display, c.unit) + ")" : c.moe_display ? " (margin of error: " + moeWithUnit(c.moe_display, c.unit) + ")" : "";
     const note = c.annotation_meaning ? " Note: " + c.annotation_meaning : "";
     return (m.label || "Statistic") + ", " + shortGeo(c.geography && c.geography.label) + ": " + valueWithUnit(c.estimate_display, c.unit) + moe + "." + note;
   }
@@ -1278,12 +1322,16 @@
   }
   function moeText(c) {
     if (c.estimate_display === undefined) return null;
-    const level = typeof c.moe_confidence_level === "number" ? Math.round(c.moe_confidence_level * 100) + "% " : "";
-    return valueWithUnit(c.estimate_display, c.unit) + " · " + level + "margin of error " + moeWithUnit(c.moe_display, c.unit);
+    const level = typeof c.moe_confidence_level === "number" ? Math.round(c.moe_confidence_level * 100) + "% " : "", status = C.moeStatus(c);
+    return valueWithUnit(c.estimate_display, c.unit) + " · " + (status || level + "margin of error " + moeWithUnit(c.moe_display, c.unit));
   }
   function claimRows(c) {
     const m = c.metric || {}, g = c.geography || {}, src = c.source || {};
-    const side = (x) => (x && x.geography ? x.geography.label + ": " + x.estimate_display + " (margin of error " + x.moe_display + ")" : null);
+    // Each operand states its own margin: a published numeric margin, a controlled estimate, or no margin. Beside a
+    // controlled or unavailable operand, a numeric one names its published confidence level; numeric pairs are unchanged.
+    const mixed = c.kind === "comparison" && !!(C.moeStatus(c.left) || C.moeStatus(c.right));
+    const sideLevel = (x) => (mixed && typeof x.moe_confidence_level === "number" ? Math.round(x.moe_confidence_level * 100) + "% " : "");
+    const side = (x) => (x && x.geography ? x.geography.label + ": " + (x.estimate_display == null ? "estimate unavailable" : x.estimate_display) + " (" + (C.moeStatus(x) || sideLevel(x) + "margin of error " + x.moe_display) + ")" : null);
     const checks = c.compatibility && c.compatibility.checks ? Object.keys(c.compatibility.checks).filter((k) => c.compatibility.checks[k]).map((k) => humanWords(k).toLowerCase()) : null;
     return [
       ["Recorded statement", c.kind === "statistic" && typeof c.text === "string" ? c.text : null],
@@ -1298,7 +1346,7 @@
       ["Method", c.transformation],
       ["ACS table", m.table_id || null], ["Official variable label", m.official_variable_label ? String(m.official_variable_label).replace(/!!/g, " › ") : null],
       ["Agency", c.program && c.program.agency ? hawaiiDisplay(c.program.agency) : null], ["Program jurisdiction", c.program && c.program.jurisdiction ? hawaiiDisplay(c.program.jurisdiction) : null], ["Recorded status", c.status_notes], ["Effective period", c.effective_text],
-      ["Reviewed measures", Array.isArray(c.observed_need) ? c.observed_need.map((o) => o.label + ": " + o.estimate_display + " (margin of error " + o.moe_display + "; " + o.universe + "; " + o.period_label + ")" + (o.state_reference ? " — State reference: " + o.state_reference.estimate_display + " (margin of error " + o.state_reference.moe_display + ")" : "")) : null],
+      ["Reviewed measures", Array.isArray(c.observed_need) ? c.observed_need.map((o) => o.label + ": " + o.estimate_display + " (" + (C.moeStatus(o) || "margin of error " + o.moe_display) + "; " + o.universe + "; " + o.period_label + ")" + (o.state_reference ? " — State reference: " + o.state_reference.estimate_display + " (" + (C.moeStatus(o.state_reference) || "margin of error " + o.state_reference.moe_display) + ")" : "")) : null],
       ["Program connection", c.program_connection && c.program_connection.text], ["Not known from this evidence", c.unknowns], ["Reviewed next step", c.next_step],
       ["Source", src.source_id ? [hawaiiDisplay(src.publisher), srcLabel(src.source_id), src.retrieved_at_utc ? "retrieved " + humanDate(src.retrieved_at_utc) : null].filter(Boolean).join(" · ") : null],
       ["Location in the source", locatorText(src.locator)],
@@ -1317,8 +1365,8 @@
   // statement stays available word for word.
   function outreachBody(c, id) {
     const obs = Array.isArray(c.observed_need) ? c.observed_need : [];
-    const line = (o) => o.label + ": " + valueWithUnit(o.estimate_display, o.unit) + " (" + moeWithUnit(o.moe_display, o.unit) + "; " + o.universe + "; " + o.period_label + ")" +
-      (o.state_reference ? " — State of Hawaiʻi " + valueWithUnit(o.state_reference.estimate_display, o.unit) + " (" + moeWithUnit(o.state_reference.moe_display, o.unit) + ")" +
+    const line = (o) => o.label + ": " + valueWithUnit(o.estimate_display, o.unit) + " (" + (C.moeStatus(o) || moeWithUnit(o.moe_display, o.unit)) + "; " + o.universe + "; " + o.period_label + ")" +
+      (o.state_reference ? " — State of Hawaiʻi " + valueWithUnit(o.state_reference.estimate_display, o.unit) + " (" + (C.moeStatus(o.state_reference) || moeWithUnit(o.state_reference.moe_display, o.unit)) + ")" +
         (o.state_reference.difference ? "; point difference " + o.state_reference.difference.display + " " + o.state_reference.difference.unit : "") : "");
     return h("div", { class: "ia-outreach" },
       h("p", { class: "ia-claim-text", id: id + "-text" }, h("strong", { text: (c.label || "Outreach hypothesis") + "." }), " " + ((c.program || {}).name || "") + " · " + shortGeo(c.geography && c.geography.label)),
@@ -1383,11 +1431,18 @@
     limitFreq = new Map();
     res.claims.forEach((c) => (Array.isArray(c.limitations) ? c.limitations : []).forEach((l) => limitFreq.set(l, (limitFreq.get(l) || 0) + 1)));
     limitMax = Math.max(0, ...limitFreq.values());
-    const rec = recommendedBrief(res), ans = answerCurrent(res), key = ans ? null : rec.claims[0];
+    const rec = recommendedBrief(res), ans = answerCurrent(res), key = ans ? null : rec.claims[0], mixed = key ? C.recommendationGuard(res, rec) : null;
     const start = key ? h("div", { class: "ia-start", id: "ia-start" }, h("h3", { class: "ia-group-title", text: "Start here" }),
       h("p", { text: findingText(key) }),
+      mixed ? h("p", { class: "hint", text: "These results name programs that do not match one recommended brief, so no agency action is suggested. Select findings below and choose an agency action or none; see Choose this brief yourself in the Brief panel." }) :
       rec.claims.length > 1 || rec.card ? h("p", { class: "hint", text: "The recommended brief adds " + rec.claims.slice(1).map(claimShortName).concat(rec.card ? ["the agency verification step for " + programLabel(rec.card.program_id) + ", which prints the program's recorded referral, open questions and sources"] : []).join("; ") + ". Choose Create recommended brief in the Brief panel, or select findings below; the program reference and every other finding stay available." }) : null) : null;
-    const nodes = [start, h("p", { class: "hint", text: "Findings for " + districtLabel(res.plan.district) + " from the last applied plan." + (dirty ? " The draft has unapplied edits; these findings do not include them yet." : "") + " Select findings for the brief: up to 8 can be selected; one-page fit is measured when you create the brief." })];
+    // A selected finding kept as support of other findings has no tile below; it is named here with its way out.
+    const support = C.supportingSelections(state);
+    const supportNote = support.length ? h("div", { class: "ia-supporting", id: "ia-supporting" },
+      h("p", { class: "hint", text: plural(support.length, "selected finding has", "selected findings have") + " no tile of its own below:" }),
+      h("ul", { class: "hint" }, support.map((x) => h("li", {}, claimShortName(x.claim) + ". " + supportingText(x) + " ",
+        btn("Show in Selected findings", () => { const t = document.getElementById("ia-sel-" + x.claim_ref.semantic_hash.slice(7, 19) + "-rm"); if (t) t.focus(); }, { class: "btn-link", id: "ia-supporting-go-" + x.claim_ref.semantic_hash.slice(7, 19), "aria-label": "Show " + claimShortName(x.claim) + " in Selected findings, where Remove takes it out of the brief" }))))) : null;
+    const nodes = [start, supportNote, h("p", { class: "hint", text:"Findings for " + districtLabel(res.plan.district) + " from the last applied plan." + (dirty ? " The draft has unapplied edits; these findings do not include them yet." : "") + " Select findings for the brief: up to 8 can be selected; one-page fit is measured when you create the brief." })];
     res.steps.forEach((s, i) => {
       const refs = Array.isArray(s.claim_refs) ? s.claim_refs : [];
       const n = res.plan.steps.findIndex((x) => x.step_id === s.step_id);
@@ -1546,6 +1601,12 @@
   function useRecommended() {
     const res = C.currentResults(state), rec = currentRecommendation(res);
     if (!rec.claims.length) return false;
+    // Mixed programs, references that differ from the hypothesis, or one program that is not the guided issue's: the
+    // shortcut never chooses for staff. Nothing is selected or changed; the Brief panel names the choices.
+    if (C.recommendationGuard(res, rec)) {
+      notice = "Nothing was selected or changed: these results name programs that do not match one recommended brief. Choose findings, an agency action or no agency action, then Create brief from my selection.";
+      render(); const box = $("#ia-conflict-h"); if (box) box.focus(); else $("#ia-brief-reason").focus(); return false;
+    }
     // A selected finding with a staff note is never dropped by a shortcut: the note would leave the brief and every
     // case file. Staff keep it with "Create brief from my selection" or remove the finding or note themselves.
     const notes = C.active(state).staff_edits.finding_notes || {};
@@ -1599,22 +1660,41 @@
     $("#ia-tray-capacity").textContent = "You can select up to 8 findings. What fits on one printed page depends on the findings, their sources, the agency action and your title and notes; the recommended brief is sized to fit, and the fit is measured when the brief is created.";
     const rec = res && !busy && !dirty ? currentRecommendation(res) : { claims: [] }, focused = rec === briefFocus;
     const recOn = rec.claims.length && rec.claims.every((c) => b.selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref))) && rec.claims.length === nSel && C.actionKey(rec.action || null) === C.actionKey(b.selected_action_ref || null);
-    $("#ia-recommend").hidden = !rec.claims.length;
+    // Mixed or mismatched programs: the shortcut is not offered; the panel names the choices staff make themselves.
+    const conflict = rec.claims.length ? C.recommendationGuard(res, rec) : null;
+    renderConflict(conflict, rec, res);
+    $("#ia-recommend").hidden = !rec.claims.length || !!conflict;
     const recMade = !!recOn && C.printStatus(state).ok;
     $("#ia-recommend-btn").disabled = recMade;
     $("#ia-recommend-btn").textContent = recMade ? (focused ? "Brief from this answer created" : "Recommended brief created") : focused ? "Create brief from this answer" : "Create recommended brief";
     $("#ia-recommend-what").textContent = (focused ? "Focused on your question. " : "") + (rec.claims.length ? (recMade ? "Shown under One-page brief. It uses " : "Selects ") + rec.claims.map((c) => (KIND_LABEL[c.kind] || humanWords(c.kind)).toLowerCase() + ": " + claimShortName(c)).join("; ") + (rec.card ? "; agency action: verify " + programLabel(rec.card.program_id) + " with the agency" : rec.action_note === "no_matching_action" ? "; no agency action (no single agency action matches this answer)" : "") + (recMade ? "." : ", then creates the brief." + (nSel && !recOn ? " Replaces the current selection." : "")) + (focused ? focusNote(rec) : "") : "");
+    const supporting = new Map(C.supportingSelections(state).map((x) => [C.refKey(x.claim_ref), x]));
     fill($("#ia-selected"), nSel ? b.selected_claim_refs.map((r, i) => {
-      const c = claims.get(C.refKey(r)), sid = "ia-sel-" + r.semantic_hash.slice(7, 19);
+      const c = claims.get(C.refKey(r)), sid = "ia-sel-" + r.semantic_hash.slice(7, 19), sup = supporting.get(C.refKey(r));
       return h("li", { id: sid }, h("span", { class: "tray-label", text: findingText(c) }),
+        sup ? h("p", { class: "hint ia-supporting-why", id: sid + "-why", text: supportingText(sup) + " It stays selected because exactly this finding is in the current results; Remove takes it out of the brief." }) : null,
         h("span", { class: "ia-step-tools" },
           btn("Move up", () => set(C.moveSelection(state, r, -1)), { class: "btn-link", id: sid + "-up", disabled: i === 0, "aria-label": "Move finding " + (i + 1) + " up" }),
           btn("Move down", () => set(C.moveSelection(state, r, 1)), { class: "btn-link", id: sid + "-down", disabled: i === b.selected_claim_refs.length - 1, "aria-label": "Move finding " + (i + 1) + " down" }),
-          btn("Remove", () => set(C.toggleClaim(state, r, false), "Finding removed from the brief selection."), { class: "btn-link btn-danger", id: sid + "-rm", "aria-label": "Remove finding " + (i + 1) + " from brief" })),
+          btn("Remove", (event) => {
+            const removed = set(C.toggleClaim(state, r, false), "Finding removed from the brief selection.");
+            if (removed && sup && event.detail === 0 && !activeDate()) $("#ia-tray-h").focus();
+          }, { class: "btn-link btn-danger", id: sid + "-rm", "aria-label": "Remove finding " + (i + 1) + " from brief" + (sup ? ": " + claimShortName(c) + ", supporting finding" : ""), "aria-describedby": sup ? sid + "-why" : null })),
         textField(sid + "-note", "Staff note on: " + claimShortName(c), notes[r.semantic_hash], 160, (v, defer) => set(C.setFindingNote(state, r.semantic_hash, v), null, defer)));
     }) : [h("li", { class: "muted", text: "Use “Select for brief” on a finding." })]);
-    const retired = state.retired[b.branch_id] || [];
-    fill($("#ia-retired"), retired.length ? [h("p", { class: "hint", text: plural(retired.length, "saved selection was", "saved selections were") + " not reselected:" }), h("ul", { class: "hint" }, retired.map((r) => h("li", { text: r.claim_ref ? savedFindingName(r.claim_ref) + ": " + droppedReason(r, res) : "The agency action chosen earlier: it is not offered for this plan, so it was not reselected." })))] : []);
+    const fork = liveMapFork(), forkOrigin = fork ? C.branchOf(state, fork.origin_branch_id) : null;
+    const proof = fork ? C.mapReselection(state, fork) : null, resolved = new Set(proof ? proof.resolved : []);
+    const retired = (state.retired[b.branch_id] || []).filter((r) => !r.claim_ref || !resolved.has(C.refKey(r.claim_ref)));
+    const mapYear = forkOrigin ? forkOrigin.plan.map_session : null;
+    const offer = fork && res && !fork.consumed && !dirty ? mapForkNotice(fork, res, retired, proof) : null;
+    // In a map-only fork the retired selections and action carry the earlier map year; they are named as such.
+    const why = (r) => mapYear ? "selected with the " + mapYear + " map display. Its recorded identity changed with the map year. It is not selected in this context." +
+      (!offer ? " Choose from the current findings under Findings and evidence." : "") : droppedReason(r, res);
+    const retiredHeading = mapYear ? plural(retired.length, "saved selection is", "saved selections are") + " not selected in this context:"
+      : plural(retired.length, "saved selection was", "saved selections were") + " not reselected:";
+    fill($("#ia-retired"), retired.length ? [h("p", { class: "hint", text: retiredHeading }), h("ul", { class: "hint" }, retired.map((r) => h("li", { text: r.claim_ref ? savedFindingName(r.claim_ref) + ": " + why(r) :
+      mapYear ? "The agency action chosen earlier: it was chosen with the " + mapYear + " map display and is not carried. Choose it again under Agency verification if it still applies." : "The agency action chosen earlier: it is not offered for this plan, so it was not reselected." }))),
+      offer] : []);
 
     // agency checklist
     const card = res && b.selected_action_ref ? res.responses.find((c) => c.action_ref && C.actionKey(c.action_ref) === C.actionKey(b.selected_action_ref)) : null;
@@ -1657,7 +1737,9 @@
     const t = b.tracking || { label: "", baseline: null, as_of: null };
     const track = (patch, defer) => { const n = Object.assign({ label: "", baseline: null, as_of: null }, C.active(state).tracking, patch); return set(C.setTracking(state, !n.label && n.baseline === null && !n.as_of ? null : n), null, defer); };
     const excl = (key) => (ex.has(key) ? h("p", { class: "hint" }, "Left out of the next brief. ", btn("Include again", () => set(C.setExclusion(state, key, false)), { class: "btn-link", id: "ia-incl-" + key })) : null);
-    const food = b.plan.issue_id === "food_assistance_outreach";
+    // SNAP tracking wording applies to a SNAP outreach plan that still uses SNAP. When its program steps were rescoped to
+    // other programs, neutral wording is shown; saved tracking entries and the recipe reference are unchanged.
+    const planProgs = C.planPrograms(b.plan), food = b.plan.issue_id === "food_assistance_outreach" && (!planProgs.length || planProgs.includes("snap_hi"));
     fillDateFields($("#ia-staff"), [
       textField("ia-title", "Brief title", b.staff_edits.title, 90, (v, defer) => set(C.setStaffText(state, "title", v), null, defer)), excl("title"),
       textField("ia-note", "Summary", b.staff_edits.note, 400, (v, defer) => set(C.setStaffText(state, "note", v), null, defer), true), excl("note"),
@@ -1718,6 +1800,41 @@
     $("#ia-brief-reason").classList.toggle("is-ready", !block && !printBlocked);
     $("#ia-clean-brief-btn").hidden = staff.empty && !parked.length;
     $("#ia-clean-brief-btn").disabled = busy || !res || dirty || !b.selected_claim_refs.length;
+  }
+
+  // In place of the recommended-brief shortcut when programs are mixed or not the guided issue's: names the issue, the
+  // program references and hypotheses in the results and the agency actions on offer (including none), and points to
+  // the existing controls. Suggested findings are only named; nothing here selects or changes anything.
+  function renderConflict(conflict, rec, res) {
+    const box = $("#ia-recommend-conflict");
+    if (!box) return;
+    box.hidden = !conflict;
+    if (!conflict) { fill(box, []); return; }
+    const issue = ISSUE_LABEL[conflict.issue_id] || humanWords(conflict.issue_id), claims = claimMap(res);
+    const names = (list) => (list.length ? list.map(programLabel).join("; ") : "None");
+    const agency = (card) => { const prog = card.program_claim_ref ? claims.get(C.refKey(card.program_claim_ref)) : null, a = prog && prog.program && prog.program.agency; return programLabel(card.program_id) + (a ? " (" + hawaiiDisplay(a) + ")" : ""); };
+    const row = (k, v) => h("div", {}, h("dt", { text: k }), h("dd", { text: v }));
+    const mismatch = conflict.reasons.includes("issue_program_mismatch");
+    const why = mismatch ? "The program steps use " + names(conflict.programs) + ", not " + programLabel(conflict.issue_program) + ", the program of the " + issue + " recipe."
+      : "These results name more than one program" + (conflict.reasons.includes("reference_hypothesis_mismatch") ? ", and the program references and outreach hypotheses differ" : "") + ".";
+    fill(box, [h("h3", { class: "ia-group-title", id: "ia-conflict-h", tabindex: "-1", text: "Choose this brief yourself" }),
+      h("p", { id: "ia-conflict-why", text: why + " The app does not choose findings or an agency action for you, so " + (rec === briefFocus ? "Create brief from this answer" : "Create recommended brief") + " is not offered here. These suggestions leave your selections unchanged." }),
+      h("dl", { class: "kv ia-conflict-facts" },
+        row("Guided issue", issue + (conflict.issue_program ? " (its recipe uses " + programLabel(conflict.issue_program) + ")" : " (no recipe program)")),
+        row("Program references in these results", names(conflict.references)),
+        row("Outreach hypotheses in these results", names(conflict.hypotheses)),
+        row("Agency actions you can choose", (conflict.cards.length ? conflict.cards.map(agency).join("; ") + "; or " : "") + "No agency action in the brief"),
+        rec.claims.length ? row("Suggested findings", rec.claims.map(claimShortName).join("; ")) : null),
+      mismatch ? h("p", { class: "hint", id: "ia-conflict-custom", text: "The issue stays " + issue + ", and its recipe and saved references are unchanged. If this context is no longer " + issue + ", staff can choose Custom under District and issue." }) : null,
+      h("ol", { class: "ia-conflict-steps" },
+        h("li", {}, "Select findings under Findings and evidence. ", btn("Go to Findings and evidence", () => $("#ia-evidence-h").focus(), { class: "btn-link", id: "ia-conflict-evidence" })),
+        h("li", {}, "Choose one agency action, or No agency action in the brief, under Agency verification. ", btn("Go to Agency verification", () => $("#ia-responses-h").focus(), { class: "btn-link", id: "ia-conflict-agency" })),
+        h("li", { text: "Choose Create brief from my selection below." }))]);
+  }
+  // Why a selected finding has no tile of its own: it is support of listed findings in these results.
+  function supportingText(sup) {
+    const parents = sup.parents.map(claimShortName);
+    return "Supporting finding: it has no tile of its own in these results" + (parents.length ? "; it is part of the basis of " + parents.join("; ") + "." : "; it supports another finding here.");
   }
 
   // One staff contribution as a labelled sentence (case preview, review list, import preview).
@@ -1929,11 +2046,11 @@
             notice = "The work at risk changed since this preview opened. Nothing was sent. Review the updated list, then choose Replay and open this case again, or Cancel.";
             render(); const w = $("#ia-import-risk"); if (w && !activeDate()) w.focus(); return;
           }
-          const r = C.beginImport(state, importing, { accept_staff_work: accept.checked }, ids); if (r.error) return alertUser(r.error.message); state = r.state; notice = "Replaying the file's active plan. Only the plan and references are sent, never the file."; send(r.request); holdFocus(); }, { class: "btn btn-primary", id: "ia-import-go", disabled: busy, "aria-describedby": "ia-import-replace" }) : null,
+          const r = C.beginImport(state, importing, { accept_staff_work: accept.checked }, ids); if (r.error) return alertUser(r.error.message); mapFork = null; state = r.state; notice = "Replaying the file's active plan. Only the plan and references are sent, never the file."; send(r.request); holdFocus(); }, { class: "btn btn-primary", id: "ia-import-go", disabled: busy, "aria-describedby": "ia-import-replace" }) : null,
         btn(p.runtime_match ? "Cancel" : "Close", () => {
           // After Replay and open, Cancel also cancels the pending replay (as Cancel request does), so the reply is ignored.
           const replaying = !!(state.pending && state.pending.kind === "import");
-          if (replaying) state = C.cancelPending(state);
+          if (replaying) { state = C.cancelPending(state); mapFork = null; }
           importing = null;
           notice = replaying ? "Import cancelled. Your current case is kept and editing is back on; a late reply for the file will be ignored." : "Import cancelled. Your current case is unchanged.";
           render(); $("#ia-import-file").focus();
@@ -1958,6 +2075,44 @@
       h("div", {}, h("dt", { text: "Statistics boundary" }), h("dd", { text: "2024 session" })),
       h("div", {}, h("dt", { text: "Map boundary shown" }), h("dd", { text: b.plan.map_session + " session (display only)" })),
       h("div", {}, h("dt", { text: "Area for program questions" }), h("dd", { text: b.plan.service_area_id ? AREA_LABEL[b.plan.service_area_id] + " (staff choice, not a geographic finding)" : "None chosen" }))]);
+  }
+
+  // The live map-only fork, while it still describes exactly what is on screen: same case, the forked context with the
+  // plan it was applied with, and (after its run committed) the same results revision. Anything else forgets it.
+  function liveMapFork() {
+    const f = mapFork;
+    if (!f) return null;
+    const b = C.active(state), origin = C.branchOf(state, f.origin_branch_id);
+    if (state.case.case_id !== f.case_id || !origin || origin.last_ready_revision !== f.origin_revision ||
+        b.branch_id !== f.branch_id || C.canonical(b.plan) !== f.plan) { mapFork = null; return null; }
+    return b.last_ready_revision === f.revision ? f : null;
+  }
+  // The Select again offer for the retired findings of a live map-only fork, or why it is not available.
+  function mapForkNotice(f, res, retired, proof) {
+    const origin = C.branchOf(state, f.origin_branch_id), b = C.active(state);
+    if (!origin || !retired.some((r) => r.claim_ref)) return null;
+    const was = origin.plan.map_session + " map display", now = b.plan.map_session + " map display", where = districtLabel(b.plan.district);
+    const dropped = retired.filter((r) => r.claim_ref).length, one = dropped === 1;
+    if (!proof.ok) return h("div", { class: "ia-reselect", id: "ia-reselect" },
+      h("p", { id: "ia-reselect-why", text: (one ? "This finding was" : "These findings were") + " selected with the " + was + ". A finding's recorded identity includes the map display year, and that identity changed. " + (one ? "It is" : "They are") + " not selected in this context. Choose from the current findings under Findings and evidence." }),
+      btn("Go to Findings and evidence", () => $("#ia-evidence-h").focus(), { class: "btn-link", id: "ia-reselect-evidence" }));
+    const names = proof.pairs.map((x) => claimShortName(claimMap(res).get(C.refKey(x.current_ref))));
+    const fits = Math.min(proof.free, proof.pairs.length), many = proof.pairs.length > 1;
+    return h("div", { class: "ia-reselect", id: "ia-reselect" },
+      h("p", { id: "ia-reselect-why", text: (many ? "These findings were" : "This finding was") + " selected with the " + was + " in " + contextName(origin.branch_id) + ". A finding's recorded identity includes the map display year, so " + (many ? "they were" : "it was") + " not kept automatically. " +
+        "The server reports that the 2024 and 2026 boundaries of " + where + " are the same, and the current results (" + now + ") list " + (many ? "each one" : "it") + " with the same values, sources and step." }),
+      h("ul", { class: "hint" }, names.map((n) => h("li", { text: n }))),
+      fits < proof.pairs.length ? h("p", { class: "hint", id: "ia-reselect-cap", text: fits ? "The brief holds at most 8 findings, so Select again adds the first " + plural(fits, "finding", "findings") + " in this list." : "The brief already holds 8 findings. Remove one under Selected findings to select these again." } ) : null,
+      btn("Select again", () => selectAgain(), { class: "btn", id: "ia-reselect-btn", disabled: !fits || !!state.pending, "aria-describedby": "ia-reselect-why ia-reselect-what" }),
+      h("p", { class: "hint", id: "ia-reselect-what", text: "Selects the current findings with the ordinary selection. No agency action, staff note or checklist entry is carried, and the earlier context keeps its own selections." }));
+  }
+  function selectAgain() {
+    const f = liveMapFork(), r = f ? C.reselectMapFork(state, f) : null;
+    if (!r || r.error) { notice = "These findings can no longer be matched to the current results. Nothing was selected."; mapFork = null; render(); if (!activeDate()) $("#ia-evidence-h").focus(); return; }
+    state = r.state;
+    f.consumed = true;
+    notice = plural(r.added.length, "finding was", "findings were") + " selected again from the current results." + (r.left.length ? " " + plural(r.left.length, "finding was", "findings were") + " not selected: the brief holds at most 8 findings." : "") + " No agency action, staff note or checklist entry was carried.";
+    render(); if (!activeDate()) $("#ia-tray-h").focus();
   }
 
   // ------------------------------------------------------------------ wiring
@@ -2022,6 +2177,8 @@
       const p = state.pending, typed = !!(p && p.kind === "interpret" && interp && interp.status === "pending" && interp.request_id === p.tokens.request_id);
       const fromCancel = document.activeElement === $("#ia-cancel");
       if (typed) interp = Object.assign({}, interp, { status: "cancelled" });
+      // A cancelled request also ends any Select again offer for a map-only fork; it is not offered on a later run.
+      if (p && p.kind !== "interpret" && p.kind !== "brief") mapFork = null;
       pendingAnswer = null; state = C.cancelPending(state); notice = "Request cancelled. Any late reply will be ignored. Earlier results are unchanged."; render();
       if (typed && fromCancel) $("#ia-interpretation").focus();
     });

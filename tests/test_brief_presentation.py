@@ -5,6 +5,7 @@ import sys
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -87,6 +88,113 @@ class BriefPresentationTests(unittest.TestCase):
                 self.assertIn(comparison['universe'], visible(native['html']))
                 if metric == 'unemployment_rate':
                     self.assertIn('Civilian labor force age 16 years and over', visible(native['html']))
+
+    def test_controlled_comparisons_explain_each_operand_and_keep_workbook_evidence(self):
+        cases = (
+            ('senate', '008', 'total_population', 'HI-STATE-2024', 2, None),
+            ('house', '001', 'population_65_plus', 'HI-COUNTY-003-2024', 1, '±'),
+            ('senate', '008', 'total_population', 'HI-HOUSE-001-2024', 1, '±'),
+        )
+        for chamber, code, metric, ref, controlled_count, numeric in cases:
+            with self.subTest(chamber=chamber, code=code):
+                def plan(district):
+                    return {'district': district, 'map_session': 2024, 'issue_id': 'custom',
+                            'service_area_id': None, 'steps': [{'step_id': 's1', 'operation': 'compare',
+                            'args': {'metric_ids': [metric], 'comparison_geography': ref}}]}
+
+                request, result = run(chamber, code, plan, 'custom/1')
+                claim = next(c for c in result['claims'] if c['kind'] == 'comparison')
+                self.assertIsNone(claim['difference'])
+                self.assertIn('No statistical difference test was performed.', claim['text'])
+                table = render.result_html({'status': 'ok', 'resolution': {'task': 'compare'},
+                                            'findings': [claim], 'limitations': result['limitations'], 'next_actions': []})
+                request.update(mode='brief', selected_claim_refs=[claim['claim_ref']], selected_action_ref=None,
+                               staff_edits={}, checklist_edits=[], tracking=None, edits_reviewed_for=None)
+                native = I.handle(request)['brief']
+                for shown in (claim['text'], table, native['html']):
+                    self.assertEqual(shown.lower().count('controlled estimate; no numeric margin of error published'), controlled_count)
+                    self.assertNotIn('*****', shown)
+                    self.assertNotIn('acs_controlled_estimate_guidance', shown)
+                self.assertEqual(claim['text'].count('90% margin of error'), int(numeric is not None))
+                self.assertEqual(claim['text'].count('±'), int(numeric is not None))
+                self.assertEqual(table.count('90% MOE'), int(numeric is not None))
+                self.assertIn('ACS help page on controlled estimates from the U.S. Census Bureau', native['html'])
+                for copy_text in (' '.join(claim['limitations']), table, native['html']):
+                    self.assertIn('describe the full five-year period', copy_text)
+                    self.assertNotIn('with published 90% margins of error', copy_text)
+                self.assertNotIn('survey estimates with margins of error', native['html'])
+                for side in (claim['left'], claim['right']):
+                    src = side['source']
+                    cite = next(c for c in native['citations'] if c['source_id'] == src['source_id'])
+                    self.assertEqual(cite['url'], src['url'])
+                    loc = src['locator']
+                    self.assertIn(f"{loc['sheet']}!{loc['estimate_cell']} (MOE {loc['moe_cell']})", cite['locators'])
+                    if side['margin_of_error'] is None:
+                        self.assertEqual(side['moe_display'], '*****')
+                        self.assertEqual(side['moe_annotation'], '*****')
+                        self.assertNotIn('*****', render._stat_row(side))
+                        detail = render.source_html(I.core.source(src['source_id'], side['finding_id']))
+                        self.assertIn('<dt>Source marker</dt><dd>*****</dd>', detail)
+                        self.assertIn('ACS help page on controlled estimates', detail)
+                        self.assertNotIn('Margin of error (90%)', detail)
+                        self.assertNotIn('whole areas, with margins of error', detail)
+                    else:
+                        detail = render.source_html(I.core.source(src['source_id'], side['finding_id']))
+                        self.assertIn('whole areas, with margins of error', detail)
+
+    def test_unavailable_margin_keeps_intensive_point_difference_and_other_margin(self):
+        left, right, metric = 'HI-HOUSE-028-2024', 'HI-STATE-2024', 'poverty_rate_65_plus'
+        numeric = I.core.cmp_finding(left, right, metric)
+        right_id = f'{right}:{metric}'
+        original = I.core.observations[right_id]
+        unavailable = dict(original, margin_of_error=None, raw_cells=dict(original['raw_cells'], moe=None))
+        with patch.dict(I.core.observations, {right_id: unavailable}):
+            claim = I.core.cmp_finding(left, right, metric)
+            self.assertEqual(claim['difference'], numeric['difference'])
+            self.assertIsNone(claim['right']['moe_display'])
+            self.assertIn('margin of error unavailable', claim['text'])
+            self.assertIn(f"90% margin of error {numeric['left']['moe_display']}", claim['text'])
+            self.assertIn('Margin of error unavailable', render.compare_html({'findings': [claim]}))
+            brief = I.core.brief(left, [claim['finding_id']], {})['data']['brief']
+            printable = render.brief_doc_html(brief)
+            self.assertIn('margin of error unavailable', printable)
+            for shown in (' '.join(claim['limitations']), printable):
+                self.assertIn('describe the full five-year period', shown)
+                self.assertNotIn('with published 90% margins of error', shown)
+            right_side = claim['right']
+            detail = render.source_html(I.core.source(right_side['source']['source_id'], right_side['finding_id']))
+            self.assertIn('Margin of error unavailable', detail)
+            self.assertNotIn('whole areas, with margins of error', detail)
+
+    def test_acs_period_caveat_follows_profiles_and_selected_findings(self):
+        def plan(district):
+            return {'district': district, 'map_session': 2024, 'issue_id': 'custom', 'service_area_id': None,
+                    'steps': [{'step_id': 's1', 'operation': 'profile',
+                               'args': {'metric_ids': ['total_population', 'median_age']}}]}
+
+        scope = 'HI-SENATE-008-2024'
+        request, out = run('senate', '008', plan, 'custom/1')
+        claims = {c['metric']['metric_id']: c for c in out['claims']}
+        marked, numeric = claims['total_population'], claims['median_age']
+        for ids in (['total_population'], ['total_population', 'median_age']):
+            profile = I.core.profile(scope, ids)
+            self.assertIn('describe the full five-year period', ' '.join(profile['limitations']))
+            self.assertNotIn('with published 90% margins of error', ' '.join(profile['limitations']))
+        for limits in (out['limitations'], marked['limitations']):
+            self.assertIn('describe the full five-year period', ' '.join(limits))
+            self.assertNotIn('with published 90% margins of error', ' '.join(limits))
+        self.assertIn('with published 90% margins of error', ' '.join(numeric['limitations']))
+        request.update(mode='brief', selected_action_ref=None, staff_edits={}, checklist_edits=[],
+                       tracking=None, edits_reviewed_for=None)
+        for chosen in ([marked], [marked, numeric], [numeric]):
+            selected = dict(request, selected_claim_refs=[c['claim_ref'] for c in chosen])
+            html = I.handle(selected)['brief']['html']
+            self.assertEqual('with published 90% margins of error' in html, marked not in chosen)
+            self.assertEqual('describe the full five-year period' in html, marked in chosen)
+
+        compared = I.core.compare(scope, ['median_age', 'total_population'], 'HI-STATE-2024')
+        self.assertIn('describe the full five-year period', ' '.join(compared['limitations']))
+        self.assertNotIn('with published 90% margins of error', ' '.join(compared['limitations']))
 
     def test_comparison_heavy_briefs_refused_before_two_printed_pages(self):
         # Measured in headless Chrome on US letter (app print stylesheet): the 7 longest House 028 comparisons

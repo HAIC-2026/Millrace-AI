@@ -680,7 +680,7 @@ test("a literal proposal changes only the draft; a separate plan action makes th
     part("  function renderInterpretation() {", "  function renderSteps");
   function harness(proposed) {
     const buttons = [], requests = [];
-    const ctx = { C, ids, state: run(C.createState(RUNTIME, ids)), notice: "", preview: null,
+    const ctx = { C, ids, state: run(C.createState(RUNTIME, ids)), notice: "", preview: null, mapFork: null,
       interp: { status: "ok", utterance: "use house 13", matched_fields: [], inherited_fields: [], choices: [], reason: null, proposed_plan: null },
       h: (...a) => a, $: () => ({ focus() {}, getBoundingClientRect: () => ({ height: 0 }) }), window: { innerHeight: 900 }, fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
       fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
@@ -1931,4 +1931,351 @@ test("Phase 1 typed replies retain the exact originating case, context, revision
     const foreign = { ...original, case: { ...original.case, case_id: ids.uuid() } };
     assert.equal(C.interpretationCurrent(foreign, result.origin), false);
   }
+});
+
+// ------------------------------------------------------------------ Phase 3: mixed programs (#4), supporting selections (#20)
+// The stand-in plus the program object real program claims carry (program_id from the claim's own finding).
+function progReply(request) {
+  const r = reply(request);
+  r.claims.forEach((c) => { const m = /^(?:prog|hyp):[^:]+:(.+)$/.exec(c.claim_ref.finding_id); if (m) c.program = { program_id: m[1], name: m[1], agency: "Agency of " + m[1] }; });
+  return r;
+}
+function runP(state) { const b = C.beginRun(state, ids); assert.equal(b.error, undefined); const r = C.applyResponse(b.state, progReply(b.request), meta(b.request)); assert.equal(r.outcome, "committed"); return r.state; }
+const RUNTIME_FOOD = Object.assign({}, RUNTIME, { recipe_versions: RUNTIME.recipe_versions.concat(["food_assistance_outreach/1"]) });
+function resFor(plan) { return C.currentResults(runP(C.createState(plan.issue_id === "food_assistance_outreach" ? RUNTIME_FOOD : RUNTIME, ids, plan))); }
+function agingPlan(edit) { const p = clone(C.defaultPlan()); if (edit) edit(p); return p; }
+
+test("Phase 3 coherent recipes, reference-only and staff-composed single programs keep the recommended brief", () => {
+  for (const [key, res] of Object.entries(RB_CASES)) assert.equal(C.recommendationConflict(res), null, key);
+  assert.equal(C.recommendationConflict(resFor(agingPlan())), null, "default care recipe");
+  assert.equal(C.recommendationConflict(resFor(agingPlan((p) => { p.steps = p.steps.filter((s) => s.step_id !== "s4"); }))), null, "reference only, recipe program");
+  assert.equal(C.recommendationConflict(resFor(agingPlan((p) => { p.issue_id = "custom"; p.steps[2].args.program_ids = ["snap_hi"]; p.steps[3].args.program_id = "snap_hi"; }))), null, "Custom with one program has no recipe program");
+  assert.equal(C.recommendationConflict(null), null);
+});
+
+test("Phase 3 mixed references and hypotheses, both step orders, and a sole off-issue program are conflicts", () => {
+  const A = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; })));
+  assert.deepEqual(A.reasons, ["multiple_programs", "reference_hypothesis_mismatch"]);
+  assert.deepEqual(A.references, ["snap_hi"]); assert.deepEqual(A.hypotheses, ["kupuna_care_hi"]);
+  assert.deepEqual(A.cards.map((c) => c.program_id).sort(), ["kupuna_care_hi", "snap_hi"]);
+  assert.equal(A.issue_id, "aging_at_home"); assert.equal(A.issue_program, "kupuna_care_hi");
+  const B = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[3].args.program_id = "snap_hi"; })));
+  assert.deepEqual(B.references, ["kupuna_care_hi"]); assert.deepEqual(B.hypotheses, ["snap_hi"]);
+  // D: the same mixed plan with the program steps in either order gives the same decision and program set.
+  const D1 = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; })));
+  const D2 = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; p.steps = [p.steps[0], p.steps[1], p.steps[3], p.steps[2]]; })));
+  assert.deepEqual(D1.reasons, D2.reasons); assert.deepEqual(D1.programs.slice().sort(), D2.programs.slice().sort());
+  assert.deepEqual(D2.programs, ["kupuna_care_hi", "snap_hi"], "programs named in plan order");
+  const refsOnly = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["kupuna_care_hi", "snap_hi"]; p.steps = p.steps.slice(0, 3); })));
+  assert.deepEqual(refsOnly.reasons, ["multiple_programs"], "two references and no hypothesis"); assert.deepEqual(refsOnly.hypotheses, []);
+  const full = C.recommendationConflict(resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; p.steps[3].args.program_id = "snap_hi"; })));
+  assert.deepEqual(full.reasons, ["issue_program_mismatch"]); assert.deepEqual(full.programs, ["snap_hi"]);
+  const food = clone(C.setContext(C.defaultPlan(), { issue_id: "food_assistance_outreach" }).plan);
+  food.steps[1].args.program_ids = ["medquest_hi"]; food.steps[2].args.program_id = "medquest_hi";
+  const mq = C.recommendationConflict(resFor(food));
+  assert.deepEqual(mq.reasons, ["issue_program_mismatch"]); assert.equal(mq.issue_program, "snap_hi"); assert.deepEqual(mq.programs, ["medquest_hi"]);
+  assert.deepEqual(C.planPrograms(food), ["medquest_hi"]); assert.equal(food.issue_id, "food_assistance_outreach", "the recipe stays as recorded");
+});
+
+test("Phase 3 the guard keeps an answer-focused brief about one program and withholds every other shortcut", () => {
+  const res = resFor(agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; }));
+  assert.ok(C.recommendationGuard(res, C.recommendedBrief(res)), "ordinary shortcut withheld");
+  const onProgram = C.focusedBrief(res, ["s3"], {});
+  assert.equal(onProgram.program_scoped, true); assert.equal(C.recommendationGuard(res, onProgram), null, "Ask-scoped program answer keeps its own rule");
+  const onMeasure = C.focusedBrief(res, ["s1"], {});
+  assert.equal(onMeasure.program_scoped, false); assert.ok(C.recommendationGuard(res, onMeasure), "a measure answer would guess the agency action");
+});
+
+test("Phase 3 Create recommended brief on mixed results changes nothing and creates no brief", () => {
+  for (const edit of [(p) => { p.steps[2].args.program_ids = ["snap_hi"]; }, (p) => { p.steps[3].args.program_id = "snap_hi"; }, (p) => { p.steps[2].args.program_ids = ["snap_hi"]; p.steps[3].args.program_id = "snap_hi"; }]) {
+    let s = runP(C.createState(RUNTIME, ids, agingPlan(edit)));
+    s = ok(C.toggleClaim(s, claim(s, "stat:house028:population_65_plus"), true));   // a manual selection stays exactly as made
+    s = ok(C.setStaffText(s, "title", "Synthetic title"));
+    const before = C.canonical(s), t = briefActionHarness(s);
+    t.run("createRecommended()");
+    assert.equal(C.canonical(t.ctx.state), before, "selections, action, staff text and draft unchanged");
+    assert.equal(t.briefs.length, 0); assert.equal(t.runs.length, 0); assert.equal(t.ctx.preview, null);
+    assert.match(t.ctx.notice, /^Nothing was selected or changed/);
+  }
+  // The same harness on coherent results still runs the shortcut (protected default).
+  const s = run(C.createState(RUNTIME, ids)), t = briefActionHarness(s);
+  t.run("createRecommended()");
+  assert.equal(t.briefs.length, 1, "default recipe creates its recommended brief");
+  // A program-scoped answer in mixed results keeps its Ask rule: its own program's action, then the brief.
+  const m = runP(C.createState(RUNTIME, ids, agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; })));
+  const focus = C.focusedBrief(C.currentResults(m), ["s3"], {}), u = briefActionHarness(m, { briefFocus: focus });
+  u.run("createRecommended()");
+  assert.equal(u.briefs.length, 1); assert.equal(C.active(u.briefs[0]).selected_action_ref.action_id, "snap_verify/1");
+});
+
+test("Phase 3 a no-action manual selection uses the existing null and the ordinary brief request", () => {
+  let s = run(C.createState(RUNTIME, ids, agingPlan((p) => { p.steps[2].args.program_ids = ["snap_hi"]; })));
+  s = ok(C.toggleClaim(s, claim(s, "cmp:house028"), true));
+  const pick = C.chooseAction(s, C.availableActions(s).find((a) => a.action_id === "snap_verify/1"));
+  s = ok(C.confirmChange(s, pick.proposal, ids));
+  s = ok(C.confirmChange(s, C.chooseAction(s, null).proposal, ids));
+  assert.equal(C.active(s).selected_action_ref, null);
+  const b = C.beginBrief(s, {}, ids);
+  assert.equal(b.error, undefined); assert.equal(b.request.selected_action_ref, null);
+  assert.deepEqual(Object.keys(C.active(s)).sort(), Object.keys(C.createState(RUNTIME, ids).case.branches[0]).sort(), "no new stored field");
+});
+
+test("Phase 3 a retained selection with no tile of its own is named with the findings it supports", () => {
+  const withDeps = (request) => { const r = reply(request); const stat = r.claims.find((c) => c.claim_ref.finding_id === "stat:house028:poverty_rate_65_plus");
+    r.claims.filter((c) => c.kind === "comparison").forEach((c) => { c.dependencies = [stat.claim_ref]; }); return r; };
+  const plan = agingPlan((p) => { p.steps = [p.steps[0], p.steps[1]]; });
+  let s = C.createState(RUNTIME, ids, plan); let b = C.beginRun(s, ids); s = C.applyResponse(b.state, withDeps(b.request), meta(b.request)).state;
+  s = ok(C.toggleClaim(s, claim(s, "stat:house028:poverty_rate_65_plus"), true));
+  assert.deepEqual(C.supportingSelections(s), [], "listed by the profile step: an ordinary tile");
+  const narrowed = clone(plan); narrowed.steps[0].args.metric_ids = ["population_65_plus"];
+  const p = C.proposeChange(s, { plan: narrowed }); s = ok(C.confirmChange(s, p, ids));
+  b = C.beginRun(s, ids); s = C.applyResponse(b.state, withDeps(b.request), meta(b.request)).state;
+  assert.equal(C.active(s).selected_claim_refs.length, 1, "server-validated retention is kept");
+  const sup = C.supportingSelections(s);
+  assert.equal(sup.length, 1); assert.equal(sup[0].claim_ref.finding_id, "stat:house028:poverty_rate_65_plus");
+  assert.deepEqual(sup[0].parents.map((c) => c.kind), ["comparison"]);
+  s = ok(C.toggleClaim(s, sup[0].claim_ref, false));
+  assert.deepEqual(C.supportingSelections(s), []); assert.equal(C.active(s).selected_claim_refs.length, 0, "the ordinary Remove takes it out");
+});
+
+test("Phase 3 margin status per operand: controlled marker, no margin, or the published numeric margin", () => {
+  assert.equal(C.moeStatus({ moe_annotation: "*****", moe_display: "*****", margin_of_error: null }), "Controlled estimate; no numeric margin of error published");
+  assert.equal(C.moeStatus({ moe_annotation: null, moe_display: "*****", margin_of_error: null }), C.MOE_STATUS.controlled);
+  assert.equal(C.moeStatus({ moe_annotation: null, moe_display: null, margin_of_error: null }), "Margin of error unavailable");
+  assert.equal(C.moeStatus({ moe_annotation: "(X)", moe_display: "(X)", margin_of_error: null }), C.MOE_STATUS.unavailable);
+  assert.equal(C.moeStatus({ moe_annotation: null, moe_display: "±4.3", margin_of_error: 4.3 }), null);
+  assert.equal(C.moeStatus(null), null);
+});
+
+// The app's own margin wording (finding line, details rows, answer item), through the actual investigation.js functions.
+function marginHarness(state) {
+  const vm = require("node:vm");
+  const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
+  const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
+  const code = part("  // ------------------------------------------------------------------ labels", "  // ------------------------------------------------------------------ state plumbing") +
+    part("  const shortGeo = ", "  // Short name used in accessible names") + part("  // Short name used in accessible names", "  function claimChoiceText(c)") +
+    part("  // Every value below is a trusted field", "  // The concise limit beside a result") +
+    part("  // The finding(s) the latest executed question asked for", "  // The answer's own brief action");
+  const kids = (n, out) => { if (Array.isArray(n)) n.forEach((x) => kids(x, out)); else if (n && typeof n === "object") { if (n.text) out.push(n.text); kids(n.kids || [], out); } else if (typeof n === "string") out.push(n); return out; };
+  const ctx = { C, state, catalog: { metrics: [], geographies: [], unavailable_geographies: [], programs: [] }, questionSource: null,
+    h: (tag, attrs, ...k) => ({ tag, attrs: attrs || {}, kids: k, text: (attrs && attrs.text) || "" }), btn: (label) => ({ tag: "button", text: label, kids: [] }), renderLanguage() {}, set() {} };
+  vm.createContext(ctx); vm.runInContext(code, ctx);
+  return { run: (x) => vm.runInContext(x, ctx), ctx, text: (node) => kids(node, []).join(" | ") };
+}
+const P3_STAT = (over) => Object.assign({ kind: "statistic", claim_ref: { snapshot_id: RUNTIME.snapshot_id, finding_id: "stat:x", semantic_hash: sha("x") }, metric: { label: "Total population" },
+  geography: { label: "Senate District 008 (boundary session 2024)" }, estimate_display: "73,731", estimate: 73731, unit: "persons", moe_display: "*****", moe_annotation: "*****", margin_of_error: null, moe_confidence_level: 0.9 }, over || {});
+
+test("Phase 3 #11 finding lines, details and answers state each operand's margin; numeric-only wording is unchanged", () => {
+  const u = marginHarness(run(C.createState(RUNTIME, ids)));
+  const controlled = P3_STAT(), unavailable = P3_STAT({ moe_display: null, moe_annotation: null }), numeric = P3_STAT({ geography: { label: "House District 028 (boundary session 2024)" }, metric: { label: "Poverty rate, age 65 and over" }, estimate_display: "29.0", unit: "percent", moe_display: "±4.3", moe_annotation: null, margin_of_error: 4.3 });
+  Object.assign(u.ctx, { __a: controlled, __b: unavailable, __n: numeric });
+  assert.equal(u.run("statLine(__a)"), "Total population, Senate 008: 73,731 persons (Controlled estimate; no numeric margin of error published).");
+  assert.equal(u.run("statLine(__b)"), "Total population, Senate 008: 73,731 persons (Margin of error unavailable).");
+  assert.equal(u.run("statLine(__n)"), "Poverty rate, age 65 and over, House 028: 29.0% (90% margin of error ±4.3 percentage points).", "numeric wording unchanged");
+  assert.equal(u.run("moeText(__a)"), "73,731 persons · Controlled estimate; no numeric margin of error published");
+  assert.equal(u.run("moeText(__n)"), "29.0% · 90% margin of error ±4.3 percentage points");
+  const cmp = (l, r) => ({ kind: "comparison", claim_ref: { snapshot_id: RUNTIME.snapshot_id, finding_id: "cmp:x", semantic_hash: sha("c") }, metric: { label: "M" }, left: l, right: r, difference: null, not_differenced_reason: "side by side", unit: l.unit });
+  const rows = (c) => Object.fromEntries(u.run("claimRows(__c)".replace("__c", JSON.stringify(c))).map((r) => [r[0], r[1]]));
+  let r = rows(cmp(controlled, Object.assign({}, controlled, { geography: { label: "State of Hawaiʻi" }, estimate_display: "1,445,235" })));
+  assert.equal(r["District"], "Senate District 008 (boundary session 2024): 73,731 (Controlled estimate; no numeric margin of error published)");
+  assert.equal(r["Compared with"], "State of Hawaiʻi: 1,445,235 (Controlled estimate; no numeric margin of error published)");
+  r = rows(cmp(Object.assign({}, numeric, { unit: "persons", estimate_display: "4,000", moe_display: "±300", margin_of_error: 300 }), Object.assign({}, unavailable, { geography: { label: "Honolulu County" } })));
+  assert.equal(r["District"], "House District 028 (boundary session 2024): 4,000 (90% margin of error ±300)", "a numeric side beside a marked one names its own 90% level");
+  assert.equal(r["Compared with"], "Honolulu County: 73,731 (Margin of error unavailable)");
+  r = rows(cmp(numeric, Object.assign({}, numeric, { geography: { label: "State of Hawaiʻi" }, estimate_display: "9.2", moe_display: "±0.5", margin_of_error: 0.5 })));
+  assert.equal(r["District"], "House District 028 (boundary session 2024): 29.0 (margin of error ±4.3)", "numeric pairs keep their earlier wording");
+  assert.equal(r["Compared with"], "State of Hawaiʻi: 9.2 (margin of error ±0.5)");
+  // Answer items: a controlled statistic and a mixed comparison.
+  const st = { step_id: "s2" };
+  u.ctx.__st = st;
+  let t = u.text(u.run("answerItem(__a, __st)"));
+  assert.match(t, /Controlled estimate; no numeric margin of error published/); assert.doesNotMatch(t, /\*{5}|not published as a number/);
+  u.ctx.__m = cmp(Object.assign({}, numeric, { geography: { label: "House District 001 (boundary session 2024)" } }), Object.assign({}, controlled, { geography: { label: "Honolulu County" } }));
+  t = u.text(u.run("answerItem(__m, __st)"));
+  assert.match(t, /House 001: 29\.0% \(90% margin of error ±4\.3 percentage points\)/); assert.match(t, /Honolulu County: 73,731 persons \(Controlled estimate; no numeric margin of error published\)/);
+  const caption = u.run("answerCaptions([__m])").join(" ");
+  assert.match(caption, /90% margins of error where a numeric margin is published/); assert.match(caption, /A controlled estimate has no numeric margin of error, and none is substituted\./);
+  assert.match(u.run("answerCaptions([__n])").join(" "), /^Survey estimates are published ACS 2020–2024 figures with 90% margins of error, shown as recorded\. A comparison makes no statistical significance test\./, "numeric-only caption unchanged");
+});
+
+// ------------------------------------------------------------------ Phase 3: map-only fork reselection (#6)
+// Stand-in for the exact projection. Browser cases use the real Investigation response.
+function mapReply(request, tamper) {
+  const r = progReply(request), ms = request.plan.map_session, other = ms === 2026 ? 2024 : 2026;
+  const mapRef = (ref, session) => ({ ...ref, semantic_hash: sha([ref.semantic_hash, "map", session]) });
+  const original = new Map(r.claims.map((c) => [c.claim_ref.finding_id, c.claim_ref]));
+  const current = (ref) => ref ? mapRef(ref, ms) : null;
+  r.claims.forEach((c) => {
+    c.claim_ref = current(c.claim_ref);
+    c.geography = { geography_id: C.geographyIdOf(request.plan.district) };
+  });
+  r.steps.forEach((st) => { st.claim_refs = st.claim_refs.map(current); });
+  r.responses.forEach((x) => {
+    x.program_claim_ref = current(x.program_claim_ref);
+    x.hypothesis_claim_ref = current(x.hypothesis_claim_ref);
+    if (x.action_ref) x.action_ref.semantic_hash = sha([x.action_ref.semantic_hash, "map", ms]);
+  });
+  const profileRefs = r.steps.filter((step) => step.operation === "profile").flatMap((step) => step.claim_refs);
+  r.map_reselection = { from_map_session: other, to_map_session: ms,
+    refs: profileRefs.map((ref) => ({ previous_ref: mapRef(original.get(ref.finding_id), other), current_ref: { ...ref } })) };
+  if (tamper) tamper(r);
+  const known = new Set(r.claims.map((c) => C.refKey(c.claim_ref)));
+  r.selection_review = (request.selected_claim_refs || []).map((ref) => ({ claim_ref: ref, state: known.has(C.refKey(ref)) ? "retained" : "retired" }));
+  r.action_review = request.selected_action_ref ? { action_ref: request.selected_action_ref, state: r.responses.some((x) => x.action_ref && C.actionKey(x.action_ref) === C.actionKey(request.selected_action_ref)) ? "retained" : "retired" } : null;
+  return r;
+}
+function mapRun(state, tamper) {
+  const b = C.beginRun(state, ids);
+  assert.equal(b.error, undefined);
+  const r = C.applyResponse(b.state, mapReply(b.request, tamper), meta(b.request));
+  assert.equal(r.outcome, "committed");
+  return r.state;
+}
+const MAP_STAT = "stat:house028:population_65_plus";
+const MAP_STAT_2 = "stat:house028:poverty_rate_65_plus";
+const MAP_CMP = "cmp:house028:poverty_rate_65_plus:HI-STATE-2024";
+function forkRecord(s, origin) {
+  const b = C.active(s);
+  return { case_id: s.case.case_id, origin_branch_id: origin.branch_id, origin_revision: origin.last_ready_revision, branch_id: b.branch_id, revision: b.last_ready_revision };
+}
+function mapFork(opts = {}) {
+  let s = mapRun(C.createState(RUNTIME, ids, opts.plan), opts.prior);
+  for (const id of opts.selections || [MAP_CMP, MAP_STAT, MAP_STAT_2]) s = ok(C.toggleClaim(s, claim(s, id), true));
+  const action = C.chooseAction(s, C.availableActions(s)[0]).proposal;
+  assert.equal(action.fork, false);
+  s = ok(C.confirmChange(s, action, ids));
+  s = ok(C.setFindingNote(s, C.active(s).selected_claim_refs[0].semantic_hash, "Synthetic finding note"));
+  const origin = C.active(s), plan = { ...clone(origin.plan), map_session: 2024 };
+  if (opts.edit) opts.edit(plan);
+  const proposal = C.proposeChange(s, { plan });
+  const c = C.confirmChange(s, proposal, ids);
+  assert.ok(c.forked);
+  const after = mapRun(c.state, opts.tamper);
+  return { s: after, origin, fork: forkRecord(after, origin), proposal };
+}
+
+test("Phase 3 a proven map-only fork offers only exact profile statistics and uses ordinary selection", () => {
+  const f = mapFork();
+  assert.deepEqual(f.proposal.kinds, ["map_session"]);
+  assert.ok(C.mapOnlyChange(f.origin.plan, C.active(f.s).plan));
+  assert.equal(C.active(f.s).selected_claim_refs.length, 0);
+  assert.equal(C.active(f.s).selected_action_ref, null);
+  const proof = C.mapReselection(f.s, f.fork);
+  assert.equal(proof.ok, true);
+  assert.deepEqual(proof.pairs.map((x) => x.finding_id), [MAP_STAT, MAP_STAT_2]);
+  for (const pair of proof.pairs) {
+    assert.notEqual(pair.prior_ref.semantic_hash, pair.current_ref.semantic_hash);
+    assert.equal(pair.prior_ref.finding_id, pair.current_ref.finding_id);
+  }
+  const r = C.reselectMapFork(f.s, f.fork);
+  const b = C.active(r.state);
+  assert.deepEqual(b.selected_claim_refs, proof.pairs.map((x) => x.current_ref));
+  assert.equal(b.selected_action_ref, null);
+  assert.deepEqual(b.staff_edits, {});
+  assert.deepEqual(b.checklist_edits, []);
+  assert.equal(b.tracking, null);
+  assert.deepEqual(C.branchOf(r.state, f.fork.origin_branch_id), f.origin);
+  assert.equal(C.mapReselection(r.state, f.fork).ok, false);
+  const c2 = C.confirmChange(r.state, C.proposeChange(r.state, { plan: { ...clone(b.plan), map_session: 2026 } }), ids);
+  assert.ok(c2.forked);
+  const back = mapRun(c2.state);
+  assert.deepEqual(C.mapReselection(back, forkRecord(back, b)).pairs.map((x) => x.finding_id), [MAP_STAT, MAP_STAT_2]);
+  assert.ok(!JSON.stringify(C.exportCase(back, {})).includes("map_reselection"));
+});
+
+test("Phase 3 missing or wrong-direction server geometry proof gives no reselection", () => {
+  for (const tamper of [
+    (r) => { delete r.map_reselection; }, // A run with differing geometry omits proof.
+    (r) => { r.map_reselection.from_map_session = 2024; },
+    (r) => { r.map_reselection.to_map_session = "2024"; },
+    (r) => { r.map_reselection.refs = null; },
+    (r) => { r.status = "unsupported"; },
+  ]) {
+    const f = mapFork({ tamper });
+    assert.equal(C.mapReselection(f.s, f.fork).reason, "proof_unavailable");
+    assert.equal(C.reselectMapFork(f.s, f.fork).error.code, "not_proven");
+  }
+});
+
+test("Phase 3 multi-field changes, new revisions, another case or context, and replay give no map-only offer", () => {
+  for (const edit of [(p) => { p.service_area_id = "oahu"; }, (p) => { p.steps[1].args.comparison_geography = "HI-COUNTY-003-2024"; }, (p) => { p.steps = p.steps.slice(0, 3); }]) {
+    const f = mapFork({ edit });
+    assert.equal(C.mapReselection(f.s, f.fork).reason, "not_map_only");
+  }
+  const f = mapFork();
+  const draft = { ...clone(f.s.draft), service_area_id: "oahu" };
+  assert.equal(C.mapReselection({ ...f.s, draft }, f.fork).reason, "draft_changed");
+  assert.equal(C.mapReselection(mapRun(f.s), f.fork).reason, "results_changed");
+  assert.equal(C.mapReselection(f.s, { ...f.fork, origin_revision: 999 }).reason, "results_changed");
+  assert.equal(C.mapReselection(f.s, { ...f.fork, case_id: ids.uuid() }).reason, "not_this_case");
+  assert.equal(C.mapReselection(f.s, { ...f.fork, branch_id: f.fork.origin_branch_id }).reason, "not_this_context");
+  const b = C.beginRestore(f.s, f.fork.branch_id, ids);
+  const restored = C.applyResponse(b.state, mapReply(b.request), meta(b.request)).state;
+  assert.equal(C.currentResults(restored).map_reselection, undefined);
+  assert.equal(C.mapReselection(restored, forkRecord(restored, f.origin)).reason, "proof_unavailable");
+  const parsed = C.parseCaseFile(JSON.stringify(C.exportCase(f.s, { include_staff_work: false })), RUNTIME);
+  const ib = C.beginImport(C.createState(RUNTIME, ids), parsed, {}, ids);
+  const imported = C.applyResponse(ib.state, mapReply(ib.request), meta(ib.request)).state;
+  assert.equal(C.currentResults(imported).map_reselection, undefined);
+  assert.equal(C.mapReselection(imported, forkRecord(imported, f.origin)).ok, false);
+  const run = C.beginRun(f.s, ids), cancelled = C.cancelPending(run.state);
+  const late = C.applyResponse(cancelled, mapReply(run.request), meta(run.request));
+  assert.equal(late.outcome, "discarded");
+  assert.equal(C.currentResults(late.state).revision, f.fork.revision);
+});
+
+test("Phase 3 stale hashes, foreign snapshots and dependency-only results fail the exact pair match", () => {
+  const cases = [
+    (r) => { for (const x of r.map_reselection.refs) x.previous_ref.semantic_hash = sha("wrong previous hash"); },
+    (r) => { for (const x of r.map_reselection.refs) x.current_ref.semantic_hash = sha("wrong current hash"); },
+    (r) => { for (const x of r.map_reselection.refs) x.current_ref.snapshot_id = sha("other snapshot"); },
+    (r) => { for (const c of r.claims) c.geography.geography_id = "HI-HOUSE-013-2024"; },
+    (r) => { r.steps[1].claim_refs.push(...r.steps[0].claim_refs); r.steps[0].claim_refs = []; },
+    (r) => { r.status = "partial"; r.steps[0].status = "error"; },
+  ];
+  for (const tamper of cases) {
+    const f = mapFork({ tamper });
+    assert.equal(C.mapReselection(f.s, f.fork).ok, false, tamper.toString());
+  }
+  const f = mapFork({ prior: (r) => { r.steps[0].claim_refs = []; } });
+  assert.equal(C.mapReselection(f.s, f.fork).ok, false, "a prior dependency-only result");
+  const comparison = mapFork({ selections: [MAP_CMP] });
+  assert.equal(C.mapReselection(comparison.s, comparison.fork).ok, false);
+  const partial = mapFork({ tamper: (r) => { r.status = "partial"; r.steps[1].status = "error"; } });
+  assert.equal(C.mapReselection(partial.s, partial.fork).ok, true, "an unrelated failed step");
+});
+
+test("Phase 3 Select again keeps intervening staff choices and the eight-finding cap", () => {
+  const plan = agingPlan((p) => { p.steps[0].args.metric_ids = C.AGING_METRICS.concat(["median_age", "total_population", "median_household_income", "poverty_rate_all_people", "total_households"]); });
+  const g = mapFork({ plan });
+  let full = g.s;
+  for (const ref of C.currentResults(full).steps[0].claim_refs.filter((r) => ![MAP_STAT, MAP_STAT_2].includes(r.finding_id))) {
+    full = ok(C.toggleClaim(full, ref, true));
+  }
+  assert.equal(C.active(full).selected_claim_refs.length, 7);
+  const proof = C.mapReselection(full, g.fork);
+  assert.equal(proof.pairs.length, 2);
+  assert.equal(proof.free, 1);
+  const r = C.reselectMapFork(full, g.fork);
+  assert.equal(r.added.length, 1);
+  assert.equal(r.left.length, 1);
+  assert.equal(C.active(r.state).selected_claim_refs.length, 8);
+  assert.deepEqual(C.active(r.state).selected_claim_refs.slice(0, 7), C.active(full).selected_claim_refs);
+  const h = mapFork();
+  const first = C.mapReselection(h.s, h.fork).pairs[0];
+  const t = ok(C.toggleClaim(h.s, first.current_ref, true));
+  const resolved = [C.refKey(first.prior_ref)];
+  assert.deepEqual(C.mapReselection(t, h.fork).pairs.map((x) => x.finding_id), [MAP_STAT_2]);
+  assert.deepEqual(C.mapReselection(t, h.fork).resolved, resolved);
+  const dirty = { ...t, draft: { ...t.draft, service_area_id: "oahu" } };
+  assert.deepEqual(C.mapReselection(dirty, h.fork).resolved, resolved);
+  assert.equal(C.reselectMapFork(dirty, h.fork).error.code, "not_proven");
+  const used = { ...h.fork, consumed: true };
+  assert.deepEqual(C.mapReselection(t, used).resolved, resolved);
+  assert.deepEqual(C.mapReselection(ok(C.toggleClaim(t, first.current_ref, false)), used).resolved, []);
+  assert.equal(C.reselectMapFork(t, used).error.code, "not_proven");
+  assert.deepEqual(C.mapReselection(mapRun(t), h.fork).resolved, []);
+  const tampered = clone(t);
+  C.currentResults(tampered).map_reselection.refs.find((p) => p.current_ref.finding_id === first.finding_id).current_ref.semantic_hash = sha("not this statistic binding");
+  assert.deepEqual(C.mapReselection(tampered, h.fork).resolved, []);
 });

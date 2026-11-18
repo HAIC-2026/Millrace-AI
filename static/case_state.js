@@ -761,6 +761,10 @@
       limitations: Array.isArray(response.limitations) ? response.limitations : [],
       data_snapshot_id: response.data_snapshot_id || null, metadata_snapshot_id: response.metadata_snapshot_id || null,
     };
+    if (pending.kind === "run" && http === 200 && ["ok", "partial"].includes(response.status) &&
+        same(b.plan, pending.plan) && same(response.normalized_plan, pending.plan) && isObj(response.map_reselection)) {
+      out.results[b.branch_id].map_reselection = clone(response.map_reselection);
+    }
     out.retired[b.branch_id] = retired;
     delete out.briefs[b.branch_id];
     delete out.reviewed[b.branch_id];
@@ -1017,7 +1021,141 @@
       if (programs.length === 1 && cards.length === 1) { action = cards[0].action_ref; card = cards[0]; }
       else { action = null; card = null; note = "no_matching_action"; }
     }
-    return { claims: comparison ? [comparison] : stats.length ? stats.slice(0, 2) : [lead[0]], action: action, card: card, requested: lead.length, action_note: note };
+    return { claims: comparison ? [comparison] : stats.length ? stats.slice(0, 2) : [lead[0]], action: action, card: card, requested: lead.length, action_note: note, program_scoped: programs.length > 0 };
+  }
+
+  // ------------------------------------------------------------------ mixed programs (display guidance only)
+  // The program each guided issue's recipe uses. Custom has none. Nothing stored is changed by this.
+  const ISSUE_PROGRAMS = { aging_at_home: "kupuna_care_hi", food_assistance_outreach: "snap_hi" };
+
+  // Programs named by a plan's program steps, in plan order (references and hypotheses together).
+  function planPrograms(plan) {
+    const out = [];
+    (plan && Array.isArray(plan.steps) ? plan.steps : []).forEach((s) => {
+      const ids = s.operation === "program_evidence" && s.args && Array.isArray(s.args.program_ids) ? s.args.program_ids : s.operation === "outreach_lead" && s.args ? [s.args.program_id] : [];
+      ids.forEach((p) => { if (typeof p === "string" && !out.includes(p)) out.push(p); });
+    });
+    return out;
+  }
+
+  // Why the recommended brief cannot choose an agency action for staff: the results name more than one program,
+  // their references and hypotheses differ, or their one program is not the program of the guided issue's recipe.
+  // Null when the results are coherent. Read from successful steps of the current results only.
+  function recommendationConflict(res) {
+    if (!res || !isObj(res.plan) || !Array.isArray(res.claims)) return null;
+    const byRef = new Map(res.claims.filter((c) => isObj(c) && c.claim_ref).map((c) => [refKey(c.claim_ref), c]));
+    const references = [], hypotheses = [];
+    (res.steps || []).filter((s) => isObj(s) && s.status === "ok").forEach((s) => (Array.isArray(s.claim_refs) ? s.claim_refs : []).forEach((r) => {
+      const c = isObj(r) ? byRef.get(refKey(r)) : null, p = c && c.program && c.program.program_id;
+      if (typeof p !== "string") return;
+      if (c.kind === "program_relevance" && !references.includes(p)) references.push(p);
+      if (c.kind === "outreach_hypothesis" && !hypotheses.includes(p)) hypotheses.push(p);
+    }));
+    const programs = planPrograms(res.plan).filter((p) => references.includes(p) || hypotheses.includes(p));
+    references.concat(hypotheses).forEach((p) => { if (!programs.includes(p)) programs.push(p); });
+    const expected = ISSUE_PROGRAMS[res.plan.issue_id] || null, reasons = [];
+    if (programs.length > 1) reasons.push("multiple_programs");
+    if (references.length && hypotheses.length && (references.some((p) => !hypotheses.includes(p)) || hypotheses.some((p) => !references.includes(p)))) reasons.push("reference_hypothesis_mismatch");
+    if (programs.length === 1 && expected && programs[0] !== expected) reasons.push("issue_program_mismatch");
+    if (!reasons.length) return null;
+    const cards = (res.responses || []).filter((c) => isObj(c) && c.action_ref && c.tier === "verification_action" && programs.includes(c.program_id));
+    return { reasons: reasons, issue_id: res.plan.issue_id, issue_program: expected, references: references, hypotheses: hypotheses, programs: programs, cards: clone(cards) };
+  }
+
+  // The one-step recommended brief is withheld when the results conflict, unless it is an answer-focused brief whose
+  // action was decided by the program the question asked about (its existing Ask-scoped rule).
+  function recommendationGuard(res, rec) {
+    const conflict = recommendationConflict(res);
+    return conflict && !(rec && rec.program_scoped === true) ? conflict : null;
+  }
+
+  // Selected findings that are exact current results but listed by no successful step (for example a measure that
+  // stays only as support of a comparison or hypothesis). Each names the listed findings that depend on it.
+  function supportingSelections(state) {
+    const b = active(state), res = currentResults(state);
+    if (!res) return [];
+    const byRef = new Map(res.claims.map((c) => [refKey(c.claim_ref), c]));
+    const listed = new Set((res.steps || []).filter((s) => s.status === "ok").flatMap((s) => (Array.isArray(s.claim_refs) ? s.claim_refs : []).filter(isObj).map(refKey)));
+    return b.selected_claim_refs.filter((r) => byRef.has(refKey(r)) && !listed.has(refKey(r))).map((r) => ({
+      claim_ref: clone(r), claim: byRef.get(refKey(r)),
+      parents: res.claims.filter((c) => listed.has(refKey(c.claim_ref)) && Array.isArray(c.dependencies) && c.dependencies.some((d) => isObj(d) && refKey(d) === refKey(r))),
+    }));
+  }
+
+  // Margin-of-error status of one published operand, worded as the server words it: a controlled estimate (publisher
+  // marker) or no margin at all. Null when a numeric published margin applies. The raw marker stays in the data.
+  const MOE_STATUS = { controlled: "Controlled estimate; no numeric margin of error published", unavailable: "Margin of error unavailable" };
+  function moeStatus(x) {
+    if (!isObj(x)) return null;
+    if (x.moe_annotation === "*****" || x.moe_display === "*****") return MOE_STATUS.controlled;
+    if ((x.margin_of_error === null || x.margin_of_error === undefined) && !/[0-9]/.test(String(x.moe_display == null ? "" : x.moe_display))) return MOE_STATUS.unavailable;
+    return null;
+  }
+
+  // ------------------------------------------------------------------ map-only fork reselection
+  // True when two committed plans differ only in their map display session (same district, issue, area and steps).
+  function mapOnlyChange(a, b) {
+    if (!isObj(a) || !isObj(b) || a.map_session === b.map_session) return false;
+    const c = classifyChange(a, b);
+    return c.kinds.length === 1 && c.kinds[0] === "map_session" && canonical(Object.assign({}, a, { map_session: b.map_session })) === canonical(b);
+  }
+  function profileStepsFor(res, ref) {
+    const key = refKey(ref), geography = geographyIdOf(res.plan.district);
+    if (!res.claims.some((c) => c.kind === "statistic" && c.geography && c.geography.geography_id === geography && refKey(c.claim_ref) === key)) return [];
+    const planned = new Set(res.plan.steps.filter((s) => s.operation === "profile").map((s) => s.step_id));
+    return res.steps.filter((s) => planned.has(s.step_id) && s.operation === "profile" && s.status === "ok" &&
+      Array.isArray(s.claim_refs) && s.claim_refs.some((r) => validRef(r) && refKey(r) === key)).map((s) => s.step_id);
+  }
+  // A live fork can offer only server-issued pairs for the same successful district profile step in both results.
+  function mapReselection(state, fork) {
+    const no = (reason, resolved = []) => ({ ok: false, reason: reason, pairs: [], resolved: resolved, free: 0 });
+    if (!isObj(fork) || !state || state.case.case_id !== fork.case_id) return no("not_this_case");
+    const cur = active(state), origin = branchOf(state, fork.origin_branch_id), rt = state.runtime;
+    if (!cur || cur.branch_id !== fork.branch_id || !origin || origin.branch_id === cur.branch_id) return no("not_this_context");
+    if (!Number.isInteger(fork.revision) || cur.last_ready_revision !== fork.revision || origin.last_ready_revision !== fork.origin_revision) return no("results_changed");
+    if (!mapOnlyChange(origin.plan, cur.plan)) return no("not_map_only");
+    if (![origin, cur].every((x) => runtimeMatches(state, x) && x.snapshot_id === rt.snapshot_id)) return no("snapshot_mismatch");
+    const prior = currentResults(state, origin.branch_id), now = currentResults(state);
+    if (!prior || !now || canonical(prior.plan) !== canonical(origin.plan) || canonical(now.plan) !== canonical(cur.plan)) return no("results_unavailable");
+    const proof = now.map_reselection;
+    if (!exactKeys(proof, ["from_map_session", "to_map_session", "refs"]) || proof.from_map_session !== origin.plan.map_session ||
+        proof.to_map_session !== cur.plan.map_session || !Array.isArray(proof.refs)) return no("proof_unavailable");
+    const selected = new Set(cur.selected_claim_refs.map(refKey));
+    const retired = new Set((state.retired[cur.branch_id] || []).filter((r) => r.state === "retired" && validRef(r.claim_ref)).map((r) => refKey(r.claim_ref)));
+    const pairs = [], resolved = [];
+    origin.selected_claim_refs.forEach((r) => {
+      if (!validRef(r) || r.snapshot_id !== rt.snapshot_id || !retired.has(refKey(r))) return;
+      const priorSteps = profileStepsFor(prior, r);
+      if (!priorSteps.length) return;
+      const pair = proof.refs.find((p) => {
+        if (!exactKeys(p, ["previous_ref", "current_ref"]) || !validRef(p.previous_ref) || refKey(p.previous_ref) !== refKey(r)) return false;
+        const q = p.current_ref;
+        return validRef(q) && q.snapshot_id === rt.snapshot_id && q.finding_id === r.finding_id && q.semantic_hash !== r.semantic_hash &&
+          profileStepsFor(now, q).some((id) => priorSteps.includes(id));
+      });
+      if (!pair) return;
+      if (selected.has(refKey(pair.current_ref))) resolved.push(refKey(r));
+      else pairs.push({ finding_id: r.finding_id, prior_ref: clone(r), current_ref: clone(pair.current_ref) });
+    });
+    // The notice tracks committed selections even while a draft edit or an already-used shortcut blocks activation.
+    if (!same(state.draft, cur.plan)) return no("draft_changed", resolved);
+    if (fork.consumed) return no("offer_used", resolved);
+    const free = Math.max(0, LIMITS.selections - cur.selected_claim_refs.length);
+    return { ok: pairs.length > 0, reason: pairs.length ? null : "nothing_to_reselect", pairs: pairs, resolved: resolved, free: free };
+  }
+  // Select again: the proof is checked once more, then each current equivalent is selected with the ordinary selection
+  // operation, in the origin's order, up to the eight-finding limit. Nothing else (action, notes, checklist) changes.
+  function reselectMapFork(state, fork) {
+    const proof = mapReselection(state, fork);
+    if (!proof.ok) return Object.assign(err("not_proven", "These findings can no longer be matched to the current results. Nothing was selected."), { reason: proof.reason });
+    let next = state;
+    const added = [], left = [];
+    proof.pairs.forEach((x) => {
+      const r = toggleClaim(next, x.current_ref, true);
+      if (r.error) { left.push(x); return; }
+      next = r.state; added.push(x);
+    });
+    return { state: next, added: added, left: left };
   }
 
   return {
@@ -1029,5 +1167,7 @@
     copyParked, leaveParked, pendingReview, setExclusion, activeStaff, staffDigest, markReviewed, reviewCurrent,
     beginInterpret, interpretationCurrent, beginRun, beginRestore, beginBrief, cancelPending, applyResponse, applyTransportFailure, shorteningChoices, printStatus,
     exportCase, staffExportPreview, parseCaseFile, beginImport, interpretationSegments, recommendedBrief, focusedFindings, focusedBrief,
+    ISSUE_PROGRAMS, MOE_STATUS, planPrograms, recommendationConflict, recommendationGuard, supportingSelections, moeStatus,
+    mapOnlyChange, mapReselection, reselectMapFork,
   };
 });

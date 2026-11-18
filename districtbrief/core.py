@@ -97,13 +97,12 @@ INTENSIVE_UNITS = {"percent": "percentage points", "years": "years",
                    "2024 inflation-adjusted USD": "2024 inflation-adjusted USD",
                    "USD per month": "USD per month"}
 
-CONTROLLED_MOE_MEANING = (
-    "'*****' in the MOE column marks a controlled estimate: it is made to conform to official "
-    "Population Estimates Program totals and is not subject to sampling variability, so no "
-    "numeric MOE is published (source: acs_controlled_estimate_guidance). It is not a zero MOE."
-)
+CONTROLLED_MOE_GUIDANCE_ID = "acs_controlled_estimate_guidance"
+CONTROLLED_MOE_GUIDANCE_LABEL = "ACS help page on controlled estimates"
+CONTROLLED_MOE_STATUS = "Controlled estimate; no numeric margin of error published"
 L_ACS = ("ACS 2020–2024 5-year estimates (DBEDT republication) with published 90% margins of error; "
          "values describe the five-year period, not a single year.")
+L_ACS_PERIOD = "ACS 2020–2024 5-year estimates (DBEDT republication) describe the full five-year period."
 L_FIXTURE = ("ACS statistics cover published normalized district and county profiles in this snapshot. "
              "Other workbook measures are not normalized.")
 L_COMPARE = ("Point differences of published estimates only; no derived margin of error is substituted and "
@@ -120,6 +119,22 @@ L_OVERLAP = "House and Senate districts can overlap; a comparison does not imply
 L_EDITS = "Staff edits are labeled separately and are not verified facts."
 # First sentence of the packet poverty limitation: it applies to every poverty-status measure.
 POVERTY_UNIVERSE_NOTE = "Poverty status universe excludes several populations."
+
+
+def moe_status(value, annotation) -> str | None:
+    if annotation == "*****":
+        return CONTROLLED_MOE_STATUS
+    if value is None:
+        return "Margin of error unavailable"
+    return None
+
+
+def acs_period_limitations(limitations: list[str]) -> list[str]:
+    """Keep a single ACS period caveat when some estimates lack a numeric margin."""
+    if L_ACS_PERIOD in limitations:
+        return [lim for lim in limitations if lim != L_ACS]
+    return limitations
+
 
 STATUS_TEXT = {
     "reference_checked": "Reference checked",
@@ -326,7 +341,8 @@ class Core:
         src = self.packet.sources.get(o["source_id"], {})
         rc = o["raw_cells"]
         metric = self.metrics[o["metric_id"]]
-        limitations = [L_ACS]
+        status = moe_status(o["margin_of_error"], o["moe_annotation"])
+        limitations = [L_ACS_PERIOD if status else L_ACS]
         # The age-specific poverty caveat below already states the joint-statistic limitation for that measure.
         if o["joint_statistic"] and o["metric_id"] != "poverty_rate_65_plus":
             limitations.append("Published joint statistic for the stated universe; it is not a count of "
@@ -340,13 +356,19 @@ class Core:
             limitations.append(self.stat_limitations[2])
         annotation_meaning = None
         if o["moe_annotation"] == "*****":
-            annotation_meaning = CONTROLLED_MOE_MEANING
-            limitations.append(CONTROLLED_MOE_MEANING)
+            guidance = self.packet.sources.get(CONTROLLED_MOE_GUIDANCE_ID, {})
+            publisher = guidance.get("publisher") or "U.S. Census Bureau"
+            annotation_meaning = (
+                "A controlled estimate conforms to official Population Estimates Program totals. "
+                "Sampling variability does not apply, so no numeric margin of error is published. "
+                f"See the {CONTROLLED_MOE_GUIDANCE_LABEL} from the {publisher}."
+            )
+            limitations.append(annotation_meaning)
         elif o["moe_annotation"] or o["annotation"]:
             annotation_meaning = "Published annotation retained as shown in the source; no numeric value is substituted."
         pid = obs_id.split(":")[0]
         geo_label = self.profiles[pid]["label"]
-        moe_text = (f"MOE {rc['moe']} (controlled estimate; no sampling MOE)" if o["moe_annotation"] == "*****"
+        moe_text = (status.lower() if status
                     else f"±{rc['moe'].lstrip('±')} {('percentage points ' if o['unit'] == 'percent' else '')}90% MOE")
         return {
             "finding_id": f"stat:{obs_id}",
@@ -385,6 +407,14 @@ class Core:
     @staticmethod
     def _value_text(display: str, unit: str) -> str:
         return display if unit == "percent" else f"{display} {unit}"
+
+    def _comparison_operand_text(self, operand: dict, status: str | None) -> str:
+        value = (self._value_text(operand["estimate_display"], operand["unit"])
+                 if operand["estimate"] is not None else "estimate unavailable")
+        if status is None:
+            level = "90% " if operand["moe_confidence_level"] == 0.9 else ""
+            status = f"{level}margin of error ±{operand['moe_display'].lstrip('±')}"
+        return f"{operand['geography']['label']} {value} ({status.lower()})"
 
     def cmp_finding(self, left_pid: str, right_pid: str, metric_id: str) -> dict:
         if metric_id not in self.metrics:
@@ -442,7 +472,19 @@ class Core:
                 if lim not in limitations:
                     limitations.append(lim)
         metric = self.metrics[metric_id]
-        if difference:
+        left_status = moe_status(left["margin_of_error"], left["moe_annotation"])
+        right_status = moe_status(right["margin_of_error"], right["moe_annotation"])
+        if left_status or right_status:
+            left_text = self._comparison_operand_text(left, left_status)
+            right_text = self._comparison_operand_text(right, right_status)
+            if difference:
+                summary = (f"{metric['label']}: {left_text} vs {right_text}. "
+                           f"Point difference {difference['display']} {difference['unit']} (no significance implied). "
+                           f"{left['period']['label']}.")
+            else:
+                summary = (f"{metric['label']}: {left_text} and {right_text}, shown side by side. No point difference was computed. "
+                           f"{left['period']['label']}.")
+        elif difference:
             summary = (f"{metric['label']}: {left['geography']['label']} {self._value_text(left['estimate_display'], lo['unit'])} "
                        f"(±{left['moe_display'].lstrip('±')}) vs {right['geography']['label']} "
                        f"{self._value_text(right['estimate_display'], ro['unit'])} (±{right['moe_display'].lstrip('±')}); "
@@ -469,7 +511,7 @@ class Core:
             "period": left["period"],
             "transformation": difference["method"] if difference else "None: side-by-side published values.",
             "text": summary,
-            "limitations": limitations,
+            "limitations": acs_period_limitations(limitations),
         }
 
     def _unavailable_geo_reason(self, pid: str) -> str:
@@ -805,7 +847,7 @@ class Core:
             for lim in f["limitations"]:
                 if lim not in lims:
                     lims.append(lim)
-        return {"findings": findings, "limitations": lims,
+        return {"findings": findings, "limitations": acs_period_limitations(lims),
                 "data": {"geography_id": profile_id, "label": prof["label"], "identity": identity,
                          "coverage": {"observations": len(findings), "metrics_total": len(self.metrics),
                                       "missing_estimates": missing, "annotated": annotated,
@@ -820,7 +862,7 @@ class Core:
             for lim in f["limitations"]:
                 if lim not in lims:
                     lims.append(lim)
-        return {"findings": findings, "limitations": lims,
+        return {"findings": findings, "limitations": acs_period_limitations(lims),
                 "data": {"geography_id": profile_id, "comparison_geography": comparison_geography}}
 
     def program_population_context(self) -> dict:
@@ -940,6 +982,7 @@ class Core:
             for lim in f["limitations"]:
                 if lim not in lims:
                     lims.append(lim)
+        lims = acs_period_limitations(lims)
         staff = {k: edits[k] for k in ("title", "note", "next_steps") if edits.get(k)}
         units = (sum(print_units(en["text"]) + ENTRY_OVERHEAD + (COMPARISON_OVERHEAD if en["kind"] == "comparison" else 0)
                      for en in entries)

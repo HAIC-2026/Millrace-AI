@@ -349,7 +349,10 @@ class StatewideChecks(AdapterChecks):
                 if f['finding_id']=='stat:HI-SENATE-008-2024:total_population':
                     # The one district annotation in the workbooks: a controlled estimate has no sampling MOE.
                     self.assertEqual((f['margin_of_error'],f['moe_display'],f['moe_annotation']),(None,'*****','*****'))
-                    self.assertIn('not a zero MOE',f['annotation_meaning']); self.assertIn('MOE ***** (controlled estimate',f['text'])
+                    self.assertIn('Sampling variability does not apply',f['annotation_meaning'])
+                    self.assertIn('controlled estimate; no numeric margin of error published',f['text'])
+                    self.assertNotIn('*****',f['text'])
+                    self.assertNotIn('with published 90% margins of error',' '.join(f['limitations']))
                     annotated.append(f['finding_id'])
                 else:
                     self.assertIsInstance(f['margin_of_error'],float); self.assertIsNone(f['moe_annotation'])

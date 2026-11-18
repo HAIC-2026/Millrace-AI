@@ -16,7 +16,8 @@ assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(base.hostname), "Use a pr
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true, ...(process.env.FOCUS_TEST_CHROME ? { executablePath: process.env.FOCUS_TEST_CHROME } : {}) }); });
 after(async () => { if (browser) await browser.close(); });
-async function page() {
+async function page(url = base) {
+  assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(url.hostname), "Use a private loopback app");
   const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await p.route("**/*", async route => {
     const u = new URL(route.request().url());
@@ -26,7 +27,7 @@ async function page() {
     }
     return route.continue();
   });
-  await p.goto(base.href);
+  await p.goto(url.href);
   await p.waitForFunction(() => document.querySelector("#ia-recommend-btn") && !document.querySelector("#ia-recommend").hidden && document.querySelector("#ia-cancel").hidden);
   return p;
 }
@@ -1724,5 +1725,588 @@ test("Phase 2 an untouched initial plan with no results never says it already ra
     assert.equal(await p.locator("#ia-apply").textContent(), "Run again");
     assert.equal((await focus(p)).id, "ia-evidence-h", "existing contract: busy Apply hands focus to Cancel, then to the findings");
     await proof(p, "phase2-initial-no-results", { reason });
+  } finally { await p.close(); }
+});
+
+// ------------------------------------------------------------------ Phase 3
+async function p3Advanced(p) { if (await p.locator("#ia-advanced").getAttribute("open") === null) await p.locator("#ia-advanced > summary").click(); }
+async function p3Scope(p, step) { await p3Advanced(p); await p.evaluate(s => { document.querySelector("#ia-scope-" + s).open = true; }, step); }
+async function p3Programs(p, step, programs) {
+  await p3Scope(p, step);
+  for (const want of [true, false]) {
+    const values = await p.$$eval(`input[id^="ia-${step}-programs-"]`, xs => xs.map(x => [x.value, x.checked]));
+    for (const [v, on] of values) {
+      const box = p.locator(`input[id^="ia-${step}-programs-"][value="${v}"]`);
+      if (want && programs.includes(v) && !on) await box.check();
+      if (!want && !programs.includes(v) && on) await box.uncheck();
+    }
+  }
+}
+async function p3Lead(p, step, program) { await p3Scope(p, step); await p.locator("#ia-" + step + "-program").selectOption(program); }
+async function p3Apply(p) {
+  await p3Advanced(p);
+  await p.locator("#ia-apply").click();
+  if (await p.locator("#ia-preview").isVisible()) await p.locator("#ia-preview-confirm").click();
+  await requestDone(p);
+}
+const p3Tray = p => p.evaluate(() => ({ count: document.querySelector("#ia-tray-count").textContent, selected: document.querySelectorAll("#ia-selected > li[id]").length,
+  action: (document.querySelector('input[name="ia-action"]:checked') || {}).id || null, recommendHidden: document.querySelector("#ia-recommend").hidden,
+  conflictHidden: document.querySelector("#ia-recommend-conflict").hidden, conflict: document.querySelector("#ia-recommend-conflict").textContent }));
+const P3_MIXED = {
+  "A reference switched": async p => { await p3Programs(p, "s3", ["snap_hi"]); },
+  "B hypothesis switched": async p => { await p3Lead(p, "s4", "snap_hi"); },
+  "C complete switch": async p => { await p3Programs(p, "s3", ["snap_hi"]); await p3Lead(p, "s4", "snap_hi"); },
+  "D reference switched, hypothesis step first": async p => { await p3Programs(p, "s3", ["snap_hi"]); await p.locator("#ia-up-s4").click(); },
+};
+for (const [label, edit] of Object.entries(P3_MIXED)) {
+  test("Phase 3 #4 " + label + ": Create recommended brief is withheld before any selection or action change", { timeout: 45000 }, async () => {
+    const p = await page();
+    try {
+      await edit(p); await p3Apply(p);
+      const calls = investigationCalls(p);
+      await p.locator('#ia-evidence input[aria-label^="Select for brief: Population age 65 and over, House"]').first().check();   // a manual choice
+      const t = await p3Tray(p);
+      assert.equal(t.recommendHidden, true, "the shortcut is not offered"); assert.equal(t.conflictHidden, false);
+      assert.equal(t.count, "1 finding selected · no agency action."); assert.equal(t.action, "ia-act-none");
+      assert.match(t.conflict, /Choose this brief yourself/);
+      assert.match(t.conflict, /Guided issue\s*Older-adult support at home \(its recipe uses Kūpuna Care\)/);
+      assert.match(t.conflict, /Agency actions you can choose\s*.*Supplemental Nutrition Assistance Program \(SNAP\).*; or No agency action in the brief/);
+      assert.match(t.conflict, /These suggestions leave your selections unchanged\./);
+      if (label.startsWith("C")) assert.match(t.conflict, /not Kūpuna Care, the program of the Older-adult support at home recipe/);
+      else {
+        assert.match(t.conflict, /more than one program, and the program references and outreach hypotheses differ/);
+        assert.match(t.conflict, /Program references in these results\s*(Supplemental Nutrition Assistance Program \(SNAP\)|Kūpuna Care)/);
+      }
+      assert.match(await p.locator("#ia-start").innerText(), /no agency action is suggested/);
+      await p.locator("#ia-conflict-agency").click();
+      assert.equal((await focus(p)).id, "ia-responses-h");
+      assert.deepEqual(await p3Tray(p).then(x => [x.count, x.action]), [t.count, t.action], "following the pointers changes nothing");
+      assert.equal(calls.length, 0, "no brief or run request");
+      await proof(p, "phase3-4-" + label.split(" ")[0], { conflict: t.conflict.slice(0, 400) });
+    } finally { await p.close(); }
+  });
+}
+
+test("Phase 3 #4 mixed programs: manual no-action and hypothesis briefs use the existing controls and their own checklist", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    await P3_MIXED["A reference switched"](p); await p3Apply(p);
+    const calls = investigationCalls(p);
+    await p.locator('#ia-evidence input[aria-label^="Select for brief: Poverty rate, age 65 and over, House 028 vs"]').check();
+    assert.equal((await p3Tray(p)).count, "1 finding selected · no agency action.");
+    assert.match(await p.locator('#ia-recommend-conflict dt:text-is("Suggested findings") + dd').textContent(), /Poverty rate, age 65 and over, House 028 vs State of Hawaiʻi/);
+    assert.match(await p.locator("#ia-conflict-why").textContent(), /These suggestions leave your selections unchanged\./);
+    const snap = p.locator("#ia-responses article", { hasText: "Supplemental Nutrition Assistance Program" }).locator('input[name="ia-action"]');
+    await snap.check(); await p.waitForTimeout(50);
+    assert.match(await p.locator("#ia-checklist").innerText(), /^Supplemental Nutrition Assistance Program \(SNAP\) — office checklist/);
+    await p.locator("#ia-act-none").check(); await p.waitForTimeout(50);
+    assert.match(await p.locator("#ia-checklist").innerText(), /No agency action selected/);
+    await p.locator("#ia-brief-btn").click(); await requestDone(p);
+    await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
+    const brief = calls.filter(c => c.mode === "brief");
+    assert.equal(brief.length, 1); assert.equal(brief[0].selected_action_ref, null, "the existing null, sent explicitly");
+    assert.doesNotMatch(await p.locator("#ia-brief-out").innerText(), /AGENCY ACTION/i);
+    // Hypothesis by hand: the Kūpuna hypothesis finding and its own agency action and checklist.
+    await p.locator('#ia-evidence input[aria-label^="Select for brief: Outreach hypothesis"]').check();
+    await p.locator("#ia-responses article", { hasText: "Kūpuna Care" }).locator('input[name="ia-action"]').check(); await p.waitForTimeout(50);
+    assert.match(await p.locator("#ia-checklist").innerText(), /^Kūpuna Care — office checklist/);
+    await p.locator("#ia-brief-btn").click(); await requestDone(p);
+    const last = calls.filter(c => c.mode === "brief").pop();
+    assert.equal(last.selected_action_ref.action_id, "kupuna_verify/1");
+    assert.equal(await p3Tray(p).then(x => x.recommendHidden), true);
+    await proof(p, "phase3-4-manual", { briefs: calls.filter(c => c.mode === "brief").length });
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #4 reference-only plans: the recipe program keeps its shortcut; two references are withheld", { timeout: 45000 }, async () => {
+  const p = await page();
+  try {
+    await p3Advanced(p); await p.locator("#ia-rm-s4").click(); await p3Apply(p);
+    let t = await p3Tray(p);
+    assert.equal(t.recommendHidden, false); assert.equal(t.conflictHidden, true);
+    await recommend(p);
+    assert.equal((await p3Tray(p)).action, "ia-act-0", "the recipe's Kūpuna Care action");
+    await p3Programs(p, "s3", ["kupuna_care_hi", "snap_hi"]); await p3Apply(p);
+    t = await p3Tray(p);
+    assert.equal(t.recommendHidden, true); assert.match(t.conflict, /Outreach hypotheses in these results\s*None/);
+    await proof(p, "phase3-4-reference-only", {});
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #4 a complete Med-QUEST rescope keeps the SNAP recipe and saved tracking, names Med-QUEST and uses neutral tracking guidance", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    await p.locator("#ia-issue").selectOption("food_assistance_outreach"); await p3Apply(p);
+    await p.locator("#ia-tracking-summary").click();
+    await p.locator("#ia-track-preset").click();
+    assert.equal(await p.locator("#ia-track-label").inputValue(), "Office requests for SNAP information");
+    await p3Programs(p, "s2", ["medquest_hi"]); await p3Lead(p, "s3", "medquest_hi"); await p3Apply(p);
+    await p.locator("#ia-review button", { hasText: "Copy into this context" }).first().click();
+    if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+    assert.equal(await p.locator("#ia-track-label").inputValue(), "Office requests for SNAP information", "saved tracking unchanged");
+    assert.match(await p.locator("#ia-tracking > p.hint").textContent(), /^A staff record such as/);
+    assert.equal(await p.locator("#ia-track-preset").count(), 0);
+    assert.equal(await p.locator('label[for="ia-track-date"]').textContent(), "As of");
+    assert.match(await p.locator("#ia-context-summary").textContent(), /SNAP outreach \(program steps use Med-QUEST/);
+    assert.match(await p.locator("#ia-issue-help").textContent(), /use Med-QUEST.*not Supplemental Nutrition Assistance Program \(SNAP\).*staff can choose Custom/);
+    const t = await p3Tray(p);
+    assert.equal(t.recommendHidden, true); assert.match(t.conflict, /Guided issue\s*SNAP outreach \(its recipe uses Supplemental Nutrition Assistance Program \(SNAP\)\)/);
+    assert.match(t.conflict, /staff can choose Custom/);
+    assert.equal(await p.locator("#ia-issue").inputValue(), "food_assistance_outreach", "Custom stays a staff choice");
+    const saved = await savedCase(p), b = saved.branches.find(x => x.branch_id === saved.active_branch_id);
+    assert.equal(b.recipe_version, "food_assistance_outreach/1"); assert.equal(b.plan.issue_id, "food_assistance_outreach");
+    assert.deepEqual(b.plan.steps.filter(s => s.operation !== "profile").map(s => s.args), [{ program_ids: ["medquest_hi"] }, { program_id: "medquest_hi" }]);
+    await proof(p, "phase3-4-medquest", { conflict: t.conflict.slice(0, 300) });
+  } finally { await p.close(); }
+});
+
+// A controlled language reply (as the date-race checks use): one proposal for the next question, nothing sent anywhere else.
+async function p3Ask(p, question, plan, typedDiff) {
+  const catalog = await (await p.request.get(new URL("/api/catalog", base).href)).json();
+  let envelope;
+  await p.unroute("**/api/language/*");
+  await p.route("**/api/language/*", async route => {
+    const request = route.request().postDataJSON();
+    if (route.request().url().endsWith("/start")) {
+      const c = request.context;
+      envelope = { schema_version: "ia-language/1", request_id: request.request_id, context: c, context_digest: "sha256:" + "b".repeat(64),
+        tokens: { schema_version: "ia-language/1", release_id: catalog.investigation.release_id, ...Object.fromEntries(["case_id", "branch_id", "revision", "snapshot_id", "operation_version", "recipe_version"].map(k => [k, c[k]])) } };
+      return route.fulfill({ status: 202, json: { ...envelope, status: "pending" } });
+    }
+    if (route.request().url().endsWith("/cancel")) return route.fulfill({ json: { ...envelope, status: "cancelled" } });
+    return route.fulfill({ json: { ...envelope, status: "propose", intent: "replace_plan", normalized_plan: plan, typed_diff: typedDiff } });
+  });
+  await p.locator("#ia-question-text").fill(question);
+  await p.locator("#ia-question-submit").click();
+  await p.waitForFunction(() => document.querySelector("#ia-question-cancel").hidden && !document.querySelector("#ia-question-result .loading"));
+  if (await p.locator("#ia-proposal-run").isVisible()) await p.locator("#ia-proposal-run").click();
+  if (await p.locator("#ia-preview").isVisible()) await p.locator("#ia-preview-confirm").click();
+  await requestDone(p);
+  await p.locator("#ia-answer-h").waitFor({ state: "visible" });
+}
+
+test("Phase 3 #4 Ask: an answer about one program keeps its own action; a measure answer in mixed results is not a shortcut", { timeout: 90000 }, async () => {
+  const p = await page();
+  try {
+    if (await p.locator("#ia-question-form").isHidden()) return;   // language questions are off in this app
+    await P3_MIXED["A reference switched"](p); await p3Apply(p);
+    const applied = (await savedCase(p)).branches.pop().plan, calls = investigationCalls(p);
+    const withMq = JSON.parse(JSON.stringify(applied)); withMq.steps.push({ step_id: "s5", operation: "program_evidence", args: { program_ids: ["medquest_hi"] } });
+    await p3Ask(p, "What does Med-QUEST offer in House 28?", withMq, [{ field: "steps", change: "added", step_id: "s5", after: withMq.steps[4] }]);
+    assert.equal(await p.locator("#ia-answer-brief").isVisible(), true, "the Ask-scoped program answer keeps its brief");
+    assert.match(await p.locator("#ia-answer-brief-what").textContent(), /agency verification step for Med-QUEST/);
+    assert.equal(await p.locator("#ia-recommend-conflict").isHidden(), true);
+    await p.locator("#ia-answer-brief").click(); await requestDone(p);
+    assert.equal(calls.filter(c => c.mode === "brief").pop().selected_action_ref.action_id, "medquest_verify/1");
+    const county = JSON.parse(JSON.stringify(withMq)); county.steps[1].args.comparison_geography = "HI-COUNTY-003-2024";
+    await p3Ask(p, "Compare senior poverty in House 28 with Honolulu County.", county, [{ field: "steps", change: "changed", step_id: "s2", before: withMq.steps[1], after: county.steps[1] }]);
+    const before = await p3Tray(p);
+    assert.equal(await p.locator("#ia-answer-brief").count(), 0, "no one-step answer brief that would guess the agency action");
+    assert.match(await p.locator("#ia-answer-brief-what").textContent(), /not offered.*No agency action in the brief.*Create brief from my selection/);
+    await p.locator("#ia-answer-brief-choices").click();
+    assert.equal((await focus(p)).id, "ia-conflict-h");
+    assert.deepEqual(await p3Tray(p), before, "nothing selected or changed");
+    await proof(p, "phase3-4-ask", {});
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #20 a retained supporting selection with no tile is explained, removable and still briefable", { timeout: 45000 }, async () => {
+  const p = await page();
+  try {
+    await p.locator('#ia-evidence input[aria-label^="Select for brief: Poverty rate, age 65 and over, House 028"]:not([aria-label*=" vs "])').check();
+    await p3Scope(p, "s1"); await p.locator('input[id^="ia-s1-metrics-"][value="poverty_rate_65_plus"]').uncheck();
+    await p3Apply(p);
+    assert.equal((await p3Tray(p)).count, "1 finding selected · no agency action.", "the server retained the exact finding");
+    const why = p.locator(".ia-supporting-why");
+    assert.match(await why.textContent(), /^Supporting finding: it has no tile of its own in these results; it is part of the basis of Poverty rate, age 65 and over, House 028 vs State of Hawaiʻi; Outreach hypothesis, Kūpuna Care\./);
+    assert.match(await p.locator("#ia-supporting").innerText(), /1 selected finding has no tile of its own below/);
+    const go = p.locator('#ia-supporting button');
+    await go.focus(); await p.keyboard.press("Enter");
+    const f = await focus(p);
+    assert.match(f.id, /^ia-sel-[0-9a-f]{12}-rm$/);
+    assert.equal(await p.locator("#" + f.id).getAttribute("aria-describedby"), f.id.replace(/-rm$/, "-why"));
+    await p.locator("#ia-brief-btn").click(); await requestDone(p);
+    await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
+    await p.locator("#" + f.id).focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-tray-h");
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-recommend-btn");
+    assert.equal((await p3Tray(p)).count, "No findings selected yet.");
+    assert.equal(await p.locator("#ia-supporting").count(), 0);
+    await proof(p, "phase3-20-supporting", {});
+  } finally { await p.close(); }
+});
+
+async function p3MapChange(p, year, extra) {
+  await p.locator("#ia-map-session").selectOption(String(year));
+  if (extra) await extra(p);
+  await p.locator("#ia-context-apply-btn").click();
+  const preview = await p.locator("#ia-preview").isVisible() ? await p.locator("#ia-preview").innerText() : null;
+  if (preview) await p.locator("#ia-preview-confirm").click();
+  await requestDone(p);
+  return preview;
+}
+const p3Stat = '#ia-evidence input[aria-label^="Select for brief: Poverty rate, age 65 and over, House 028"]:not([aria-label*=" vs "])';
+const p3Population = '#ia-evidence input[aria-label^="Select for brief: Population age 65 and over, House 028"]';
+const p3Comparison = '#ia-evidence input[aria-label^="Select for brief: Poverty rate, age 65 and over, House 028 vs"]';
+
+function p3Response(p, mode, year) {
+  return p.waitForResponse((r) => {
+    if (new URL(r.url()).pathname !== "/api/investigation" || r.request().method() !== "POST") return false;
+    const wire = r.request().postDataJSON();
+    return wire.mode === mode && wire.plan.map_session === year;
+  });
+}
+async function p3Brief(p, year) {
+  const reply = p3Response(p, "brief", year);
+  await p.locator("#ia-brief-btn").click();
+  await requestDone(p);
+  await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
+  const response = await reply;
+  assert.equal(response.status(), 200);
+  return (await response.json()).brief;
+}
+async function p3Unavailable(p) {
+  assert.equal(await p.locator("#ia-reselect-btn").count(), 0);
+  assert.match(await p.locator("#ia-reselect-why").textContent(), /recorded identity includes the map display year, and that identity changed/);
+  await p.locator("#ia-reselect-evidence").click();
+  assert.equal((await focus(p)).id, "ia-evidence-h");
+  assert.equal((await p3Tray(p)).count, "No findings selected yet.");
+}
+
+test("Phase 3 #6 House 028 2026→2024: explained up front, keyboard Select again uses current refs, the brief keeps the same estimate", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    await recommend(p);
+    await p.locator(p3Comparison).uncheck();
+    await p.locator(p3Stat).check();
+    const firstBrief = await p3Brief(p, 2026);
+    const before = await savedCase(p), origin = before.branches[0];
+    assert.ok(origin.selected_action_ref);
+    const geometry = [];
+    p.on("request", (request) => {
+      const u = new URL(request.url());
+      if (u.pathname === "/api/geometry") geometry.push(u.searchParams.get("session"));
+    });
+    const run = p3Response(p, "run", 2024);
+    const preview = await p3MapChange(p, 2024);
+    const { map_reselection: issued } = await (await run).json();
+    assert.equal(issued.from_map_session, 2026);
+    assert.equal(issued.to_map_session, 2024);
+    const pair = issued.refs.find((x) => x.previous_ref.finding_id === origin.selected_claim_refs[0].finding_id);
+    assert.deepEqual(pair.previous_ref, origin.selected_claim_refs[0]);
+    assert.match(preview, /map display year is part of each district finding's recorded identity, so 1 selected finding is not kept automatically/);
+    assert.match(preview, /matches a selected profile statistic to the current results, you can choose Select again in the Brief panel\. The agency action is not carried/);
+    await p.locator("#ia-reselect-btn").waitFor({ state: "visible" });
+    assert.deepEqual(geometry, ["2024"], "only the displayed boundary map was fetched");
+    assert.match(await p.locator("#ia-retired").innerText(), /selected with the 2026 map display\. Its recorded identity changed with the map year/);
+    assert.match(await p.locator("#ia-reselect-why").textContent(), /server reports that the 2024 and 2026 boundaries of House 028 are the same/);
+    assert.equal((await p3Tray(p)).count, "No findings selected yet.");
+    const calls = investigationCalls(p);
+    await p.locator("#ia-reselect-btn").focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-tray-h");
+    assert.equal(calls.length, 0, "Select again is an ordinary local selection");
+    const t = await p3Tray(p);
+    assert.equal(t.count, "1 finding selected · no agency action.");
+    assert.equal(t.action, "ia-act-none");
+    assert.equal(await p.locator("#ia-reselect-btn").count(), 0);
+    // The tray and status agree: the reselected statistic is no longer listed as not reselected; the action note stays.
+    assert.match(await p.locator("#ia-status").textContent(), /^1 finding was selected again from the current results\./);
+    const retiredAfter = await p.locator("#ia-retired").innerText();
+    assert.doesNotMatch(retiredAfter, /Poverty rate, age 65 and over, House 028:/);
+    assert.doesNotMatch(retiredAfter, /saved wording no longer matches/);
+    assert.match(retiredAfter, /^1 saved selection is not selected in this context:[\s\S]*The agency action chosen earlier: it was chosen with the 2026 map display and is not carried/);
+    const secondBrief = await p3Brief(p, 2024);
+    assert.equal(firstBrief.entries[0].kind, "statistic");
+    assert.equal(secondBrief.entries[0].text, firstBrief.entries[0].text);
+    assert.equal(secondBrief.entries[0].finding_id, pair.current_ref.finding_id);
+    const after = await savedCase(p), [b0, b1] = after.branches;
+    assert.deepEqual(b0.selected_claim_refs, origin.selected_claim_refs);
+    assert.deepEqual(b0.selected_action_ref, origin.selected_action_ref);
+    assert.equal(b1.plan.map_session, 2024);
+    assert.deepEqual(b1.selected_claim_refs, [pair.current_ref]);
+    assert.notEqual(pair.current_ref.semantic_hash, pair.previous_ref.semantic_hash);
+    assert.equal(b1.selected_action_ref, null);
+    assert.deepEqual(calls[0].selected_claim_refs, [pair.current_ref]);
+    await p.route("**/api/investigation", async (route) => {
+      const wire = route.request().postDataJSON();
+      if (wire.mode !== "brief") return route.fallback();
+      return route.continue({ postData: JSON.stringify({ ...wire, selected_claim_refs: [pair.previous_ref] }) });
+    }, { times: 1 });
+    const refused = p3Response(p, "brief", 2024);
+    await p.locator("#ia-brief-btn").click();
+    const response = await refused;
+    assert.equal(response.status(), 409);
+    assert.equal((await response.json()).code, "selection_conflict");
+    await requestDone(p);
+    await proof(p, "phase3-6-2026-to-2024", { geometry });
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #6 House 028 2024→2026 reselects two primary statistics and creates the brief", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    await p3MapChange(p, 2024);
+    await p.locator(p3Stat).check();
+    await p.locator(p3Population).check();
+    const firstBrief = await p3Brief(p, 2024);
+    const run = p3Response(p, "run", 2026);
+    const preview = await p3MapChange(p, 2026);
+    const { map_reselection: issued } = await (await run).json();
+    assert.equal(issued.from_map_session, 2024);
+    assert.equal(issued.to_map_session, 2026);
+    assert.match(preview, /so 2 selected findings are not kept automatically/);
+    assert.equal((await p3Tray(p)).count, "No findings selected yet.");
+    await p.locator("#ia-reselect-btn").focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-tray-h");
+    assert.equal((await p3Tray(p)).count, "2 findings selected · no agency action.");
+    assert.match(await p.locator("#ia-status").textContent(), /^2 findings were selected again from the current results\./);
+    assert.equal(await p.locator("#ia-retired").innerText(), "", "nothing reselected is listed as not reselected");
+    assert.equal(await p.locator("#ia-reselect-btn").count(), 0, "one explicit use");
+    const secondBrief = await p3Brief(p, 2026);
+    const saved = await savedCase(p);
+    assert.deepEqual(saved.branches.map((b) => b.plan.map_session), [2026, 2024, 2026]);
+    assert.deepEqual(secondBrief.entries.map((e) => e.text), firstBrief.entries.map((e) => e.text));
+    const expected = saved.branches[1].selected_claim_refs.map((ref) => {
+      const pair = issued.refs.find((x) => x.previous_ref.finding_id === ref.finding_id);
+      assert.deepEqual(pair.previous_ref, ref);
+      assert.notEqual(pair.current_ref.semantic_hash, ref.semantic_hash);
+      return pair.current_ref;
+    });
+    assert.deepEqual(saved.branches[2].selected_claim_refs, expected);
+    await proof(p, "phase3-6-2024-to-2026", {});
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #6 after Select again of a statistic, the unpaired old comparison keeps its map-year explanation", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    await recommend(p);   // comparison and agency action
+    await p.locator(p3Stat).check();
+    const before = await savedCase(p), origin = before.branches[0];
+    assert.equal(origin.selected_claim_refs.length, 2);
+    await p3MapChange(p, 2024);
+    await p.locator("#ia-reselect-btn").waitFor({ state: "visible" });
+    await p.locator("#ia-reselect-btn").focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-tray-h");
+    assert.equal(await p.locator("#ia-reselect-btn").count(), 0, "one explicit use");
+    assert.equal((await p3Tray(p)).count, "1 finding selected · no agency action.");
+    assert.match(await p.locator("#ia-status").textContent(), /^1 finding was selected again from the current results\./);
+    const retired = await p.locator("#ia-retired").innerText();
+    assert.match(retired, /^2 saved selections are not selected in this context:/);
+    assert.match(retired, /Poverty rate, age 65 and over, House 028 vs State of Hawaiʻi: selected with the 2026 map display\. Its recorded identity changed with the map year\. It is not selected in this context\. Choose from the current findings under Findings and evidence\./);
+    assert.match(retired, /The agency action chosen earlier: it was chosen with the 2026 map display and is not carried/);
+    assert.doesNotMatch(retired, /Poverty rate, age 65 and over, House 028:/, "the reselected statistic is not listed");
+    assert.doesNotMatch(retired, /saved wording no longer matches/);
+    const after = await savedCase(p);
+    assert.deepEqual(after.branches[0], origin, "the original context is unchanged");
+    await proof(p, "phase3-6-mixed-consumed", {});
+  } finally { await p.close(); }
+});
+
+for (const useOffer of [true, false]) {
+  test("Phase 3 #6 paired retired notices track " + (useOffer ? "manual selection and one use of Select again" : "all-manual selections"), { timeout: 45000 }, async () => {
+    const p = await page();
+    try {
+      const profile = p.locator('#ia-evidence input[aria-label^="Select for brief:"]');
+      const first = profile.nth(0), second = profile.nth(1);
+      const firstNotice = /Male householders age 65\+ living alone, House 028: selected with the 2026 map display/;
+      const secondNotice = /Female householders age 65\+ living alone, House 028: selected with the 2026 map display/;
+      const comparisonNotice = /House 028 vs State of Hawaiʻi: selected with the 2026 map display/;
+      const retired = p.locator("#ia-retired"), offer = p.locator("#ia-reselect-btn");
+      await first.check();
+      await second.check();
+      await p.locator(p3Comparison).check();
+      const origin = (await savedCase(p)).branches[0];
+      const reply = p3Response(p, "run", 2024);
+      await p3MapChange(p, 2024);
+      const { map_reselection: proof } = await (await reply).json();
+      const currentRefs = origin.selected_claim_refs.slice(0, 2).map((ref) => proof.refs.find((x) => x.previous_ref.semantic_hash === ref.semantic_hash).current_ref);
+      assert.match(await retired.innerText(), firstNotice);
+      assert.match(await retired.innerText(), secondNotice);
+      await first.check();
+      assert.doesNotMatch(await retired.innerText(), firstNotice, "the manually selected exact stat is recovered");
+      assert.match(await retired.innerText(), secondNotice);
+      assert.equal(await offer.count(), 1);
+      await p.locator("#ia-service").selectOption("oahu");
+      assert.equal(await offer.count(), 0);
+      assert.doesNotMatch(await retired.innerText(), firstNotice, "unapplied edits do not change the committed refs");
+      await p.locator("#ia-service").selectOption("");
+      assert.equal(await offer.count(), 1);
+      if (useOffer) {
+        await offer.focus();
+        await p.keyboard.press("Enter");
+        assert.equal((await focus(p)).id, "ia-tray-h");
+      } else {
+        await second.check();
+      }
+      assert.equal(await offer.count(), 0);
+      assert.doesNotMatch(await retired.innerText(), firstNotice);
+      assert.doesNotMatch(await retired.innerText(), secondNotice);
+      assert.match(await retired.innerText(), comparisonNotice);
+      assert.match(await retired.innerText(), /Findings and evidence/);
+      const after = await savedCase(p);
+      assert.deepEqual(after.branches[0], origin);
+      assert.deepEqual(after.branches[1].selected_claim_refs, currentRefs);
+      const brief = await p3Brief(p, 2024);
+      assert.deepEqual(brief.entries.map((entry) => entry.finding_id), currentRefs.map((ref) => ref.finding_id));
+      await first.uncheck();
+      assert.match(await retired.innerText(), firstNotice);
+      assert.match(await retired.innerText(), /It is not selected in this context\./);
+      assert.doesNotMatch(await retired.innerText(), /was not reselected/);
+      assert.equal(await offer.count(), useOffer ? 0 : 1, "the shortcut remains single-use");
+      await first.check();
+      assert.doesNotMatch(await retired.innerText(), firstNotice);
+      assert.equal(await offer.count(), 0);
+    } finally { await p.close(); }
+  });
+}
+
+for (const [label, change] of Object.entries({
+  "the server omits its proof": (body) => { delete body.map_reselection; },
+  "the previous hash differs": (body) => { for (const pair of body.map_reselection.refs) pair.previous_ref.semantic_hash = "sha256:" + "1".repeat(64); },
+  "the current hash differs": (body) => { for (const pair of body.map_reselection.refs) pair.current_ref.semantic_hash = "sha256:" + "2".repeat(64); },
+  "the proof reports another snapshot": (body) => { for (const pair of body.map_reselection.refs) pair.current_ref.snapshot_id = "sha256:" + "3".repeat(64); },
+  "the map direction differs": (body) => { body.map_reselection.from_map_session = 2024; },
+  "the matching profile step failed": (body) => { body.status = "partial"; body.steps.find((s) => s.operation === "profile").status = "error"; },
+})) {
+  test("Phase 3 #6 no Select again when " + label, { timeout: 45000 }, async () => {
+    const p = await page();
+    try {
+      await p.locator(p3Stat).check();
+      await p.route("**/api/investigation", async (route) => {
+        const wire = route.request().postDataJSON();
+        if (wire.mode !== "run" || wire.plan.map_session !== 2024) return route.fallback();
+        const response = await route.fetch();
+        const json = await response.json();
+        assert.ok(json.map_reselection.refs.length);
+        change(json);
+        return route.fulfill({ response, json });
+      });
+      await p3MapChange(p, 2024);
+      await p3Unavailable(p);
+    } finally { await p.close(); }
+  });
+}
+
+test("Phase 3 #6 House 028 comparison stays a manual selection after a map fork", { timeout: 45000 }, async () => {
+  const p = await page();
+  try {
+    await p.locator(p3Comparison).check();
+    const reply = p3Response(p, "run", 2024);
+    await p3MapChange(p, 2024);
+    const result = await (await reply).json();
+    assert.ok(result.map_reselection.refs.length);
+    assert.ok(result.map_reselection.refs.every((pair) => pair.current_ref.finding_id.startsWith("stat:")));
+    await p3Unavailable(p);
+    await p.locator(p3Comparison).check();
+    const brief = await p3Brief(p, 2024);
+    assert.equal(brief.entries[0].kind, "comparison");
+    assert.equal(brief.action, null);
+  } finally { await p.close(); }
+});
+
+const differingGeometryUrl = process.env.FOCUS_TEST_DIFFERENT_GEOMETRY_URL;
+test("Phase 3 #6 the server gives no proof for differing House 028 geometry", { timeout: 45000, skip: !differingGeometryUrl }, async () => {
+  const p = await page(new URL(differingGeometryUrl));
+  try {
+    await p.locator(p3Stat).check();
+    const reply = p3Response(p, "run", 2024);
+    await p3MapChange(p, 2024);
+    assert.equal((await (await reply).json()).map_reselection, undefined);
+    await p3Unavailable(p);
+    await proof(p, "phase3-6-different-boundary", {});
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #6 a map change with another field, a cancelled fork run and an old case replay never offer Select again", { timeout: 90000 }, async () => {
+  const p = await page();
+  try {
+    await p.locator(p3Stat).check();
+    // Map display and program area together: not a map-only fork.
+    const preview = await p3MapChange(p, 2024, async q => { await q.locator("#ia-service").selectOption("oahu"); });
+    assert.doesNotMatch(preview, /map display year is part/);
+    assert.match(preview, /kept only if exactly the same finding appears/);
+    await p.waitForTimeout(300);
+    assert.equal(await p.locator("#ia-reselect").count(), 0); assert.equal(await p.locator("#ia-reselect-why").count(), 0);
+    assert.match(await p.locator("#ia-retired").innerText(), /saved wording no longer matches the replayed evidence/);
+  } finally { await p.close(); }
+  const q = await page();
+  try {
+    await q.locator(p3Stat).check();
+    const before = await savedCase(q);
+    // The fork's run is cancelled; a later run of the same context is not the live fork.
+    const gate = await gateInvestigation(q, "run");
+    await q.locator("#ia-map-session").selectOption("2024");
+    await q.locator("#ia-context-apply-btn").click(); await q.locator("#ia-preview-confirm").click();
+    await gate.received; await q.locator("#ia-cancel").click(); gate.open();
+    await p3Advanced(q); await q.locator("#ia-apply").click(); await requestDone(q);
+    await q.waitForTimeout(300);
+    assert.equal(await q.locator("#ia-reselect").count(), 0);
+    // An old case file whose 2024 context presents the 2026 references: exact replay retires them; nothing is offered.
+    const old = JSON.parse(JSON.stringify(before));
+    const ctx = JSON.parse(JSON.stringify(old.branches[0])); ctx.branch_id = "0f0e0d0c-0b0a-4908-8706-050403020100"; ctx.plan.map_session = 2024; ctx.selected_action_ref = null;
+    old.branches.push(ctx); old.active_branch_id = ctx.branch_id;
+    await chooseCase(q, old); await replayCase(q);
+    assert.match(await q.locator("#ia-retired").innerText(), /saved wording no longer matches the replayed evidence/);
+    assert.equal(await q.locator("#ia-reselect").count(), 0);
+    assert.equal((await p3Tray(q)).count, "No findings selected yet.");
+    // Restoring the original context replays its own exact identities.
+    await q.locator("#ia-restore-0").click(); await requestDone(q);
+    assert.equal((await p3Tray(q)).count, "1 finding selected · no agency action.");
+    assert.equal(await q.locator("#ia-reselect").count(), 0);
+    await proof(q, "phase3-6-not-offered", {});
+  } finally { await q.close(); }
+});
+
+test("Phase 3 #6 an unapplied draft edit hides Select again", { timeout: 45000 }, async () => {
+  const p = await page();
+  try {
+    await p.locator(p3Stat).check();
+    await p3MapChange(p, 2024);
+    assert.equal(await p.locator("#ia-reselect-btn").count(), 1);
+    await p.locator("#ia-service").selectOption("oahu");
+    assert.equal(await p.locator("#ia-reselect-btn").count(), 0);
+    assert.equal((await p3Tray(p)).count, "No findings selected yet.");
+  } finally { await p.close(); }
+});
+
+test("Phase 3 #11 each comparison operand states its own margin: controlled, mixed and numeric pairs", { timeout: 60000 }, async () => {
+  const p = await page();
+  try {
+    const details = async (cmpLabel) => {
+      const node = p.locator("#ia-evidence .ia-claim", { has: p.locator(`input[aria-label^="Select for brief: ${cmpLabel}"]`) });
+      await node.locator("details").first().evaluate(d => { d.open = true; });
+      return node.innerText();
+    };
+    // Numeric pair (House 028 default): unchanged wording.
+    let text = await details("Poverty rate, age 65 and over, House 028 vs");
+    assert.match(text, /House District 028 \(boundary session 2024\): 29\.0% \(margin of error ±4\.3\)/);
+    assert.match(text, /State of Hawaiʻi: 9\.2% \(margin of error ±0\.5\)/);
+    // Controlled pair: Senate 008 total population with the State.
+    await p.locator("#ia-district").selectOption("senate:008"); await p.locator("#ia-issue").selectOption("custom");
+    await p3Scope(p, "s2");
+    await p.locator('input[id^="ia-s2-metrics-"][value="total_population"]').check();
+    await p.locator('input[id^="ia-s2-metrics-"][value="poverty_rate_65_plus"]').uncheck();
+    await p3Apply(p);
+    text = await details("Total population, Senate 008 vs");
+    assert.match(text, /Senate District 008 \(boundary session 2024\): 73,731 \(Controlled estimate; no numeric margin of error published\)/);
+    assert.match(text, /State of Hawaiʻi: 1,445,235 \(Controlled estimate; no numeric margin of error published\)/);
+    assert.doesNotMatch(text.split(/Depends on/)[0].replace(/^[\s\S]*?Definition, margin of error and method/, ""), /\*{5}/, "no raw marker in the app's own rows");
+    // Mixed pair: House 001 age 65 and over with Honolulu County.
+    await p.locator("#ia-district").selectOption("house:001");
+    await p3Scope(p, "s2");
+    await p.locator('input[id^="ia-s2-metrics-"][value="population_65_plus"]').check();
+    await p.locator('input[id^="ia-s2-metrics-"][value="total_population"]').uncheck();
+    await p.locator("#ia-s2-geo").selectOption("HI-COUNTY-003-2024");
+    await p3Apply(p);
+    text = await details("Population age 65 and over, House 001 vs");
+    assert.match(text, /House District 001 \(boundary session 2024\): [\d,]+ \(90% margin of error ±[\d,]+\)/);
+    assert.match(text, /Honolulu County: [\d,]+ \(Controlled estimate; no numeric margin of error published\)/);
+    await proof(p, "phase3-11-margins", {});
   } finally { await p.close(); }
 });

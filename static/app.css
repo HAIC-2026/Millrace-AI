@@ -4181,3 +4181,44 @@ details.ia-plan[open] > summary {
     }
   }
 }
+
+/* Brief choices staff make themselves when programs are mixed, Select again after a map-only fork, and a selected
+   supporting finding. Screen only; the printed brief is unchanged. */
+.ia-recommend-conflict {
+  margin: 0.45rem 0 0.25rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 4px solid var(--amber-line);
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+  border-radius: 4px;
+}
+.ia-tray .ia-recommend-conflict .ia-group-title {
+  margin: 0 0 0.3rem;
+  padding-top: 0;
+  border-top: 0;
+  color: var(--amber-ink);
+}
+.ia-recommend-conflict p { margin: 0.25rem 0; }
+.ia-recommend-conflict .kv {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0.45rem 0;
+  font-size: 0.9rem;
+}
+.ia-recommend-conflict .kv > div { border-bottom-color: #ead9b0; }
+.ia-recommend-conflict .kv dt { color: var(--amber-ink); }
+.ia-conflict-steps { margin: 0.4rem 0 0; padding-left: 1.25rem; }
+.ia-conflict-steps li { margin: 0.25rem 0; }
+.ia-reselect {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--tint);
+}
+.ia-reselect p, .ia-reselect ul { margin: 0.25rem 0; }
+.ia-supporting { margin: 0 0 0.8rem; }
+.ia-supporting ul { margin: 0.2rem 0 0; }
+.ia-supporting-why { margin: 0.2rem 0 0.1rem; }
+@media print {
+  .ia-recommend-conflict, .ia-reselect, .ia-supporting { display: none; }
+}

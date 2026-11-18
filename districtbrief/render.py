@@ -12,6 +12,7 @@ import re
 from html import escape
 
 from .contract import EDIT_LIMITS, TEMPLATES
+from .core import CONTROLLED_MOE_GUIDANCE_ID, CONTROLLED_MOE_GUIDANCE_LABEL, L_ACS_PERIOD, moe_status
 
 
 def e(value) -> str:
@@ -41,7 +42,7 @@ SOURCE_LABELS = {
     "acs_2024_B17001_metadata": "ACS 2024 5-year table B17001 variable list",
     "acs_2024_api_examples": "ACS 2024 5-year data examples page",
     "acs_derived_moe_guidance": "ACS general handbook (2020), chapter 8 (PDF)",
-    "acs_controlled_estimate_guidance": "ACS help page on controlled estimates",
+    CONTROLLED_MOE_GUIDANCE_ID: CONTROLLED_MOE_GUIDANCE_LABEL,
     "acs_2024_geography_documentation": "ACS 2024 geography boundaries page",
     "tigerweb_acs2024_service": "TIGERweb ACS 2024 map service",
     "tigerweb_current_service": "TIGERweb legislative map service",
@@ -127,21 +128,9 @@ def value_with_unit(display, unit) -> str:
     return f"{display} {unit}".strip()
 
 
-# Screen wording for the publisher's "*****" margin-of-error marker (controlled estimate, no MOE published).
-# The marker itself stays visible; stored data and the printed brief text are unchanged.
-MOE_NOT_PUBLISHED = "Not published (source marker *****: controlled estimate)"
-
-
-def _moe_cell(display) -> str:
-    return ('Not published <span class="fine">(source marker *****)</span>' if str(display) == "*****"
-            else e(display))
-
-
 def moe_with_unit(moe, unit) -> str:
     """Margin of error with its unit: ±4.3 percentage points · ±542 persons · ±$1,121."""
     moe, unit = str(moe or ""), str(unit or "")
-    if moe == "*****":
-        return MOE_NOT_PUBLISHED
     if not moe.startswith("±"):
         return moe
     if unit == "percent":
@@ -331,9 +320,7 @@ def header_html(resolution: dict | None, status: str, input_mode: str | None, re
 # ------------------------------------------------------------- findings
 def _stat_row(f, selectable=True) -> str:
     badges = []
-    if f["moe_annotation"] == "*****":
-        badges.append('<span class="badge badge-note" title="Controlled estimate">controlled estimate</span>')
-    elif f["annotation"] or f["moe_annotation"]:
+    if f["moe_annotation"] != "*****" and (f["annotation"] or f["moe_annotation"]):
         badges.append(f'<span class="badge badge-note">annotation {e(f["annotation"] or f["moe_annotation"])}</span>')
     if f["metric"]["joint_statistic"]:
         badges.append('<span class="badge">joint statistic</span>')
@@ -344,7 +331,7 @@ def _stat_row(f, selectable=True) -> str:
         f'<th scope="row"><span class="metric-label">{e(f["metric"]["label"])}</span> {"".join(badges)}'
         f'<div class="fine">{e(readable_label(f["metric"]["official_variable_label"]))}</div></th>'
         f'<td class="{est_cls}">{e(est)}</td>'
-        f'<td class="num">{_moe_cell(f["moe_display"])}</td>'
+        f'<td class="num">{e(moe_status(f["margin_of_error"], f["moe_annotation"]) or f["moe_display"])}</td>'
         f'<td>{e(f["unit"])}</td>'
         f'<td class="universe">{e(f["universe"])}</td>'
         f'<td>{e(f["period"]["label"])}</td>'
@@ -405,13 +392,21 @@ def compare_html(env) -> str:
         else:
             diff = f'<span class="muted">Not differenced</span><div class="fine">{e(f["not_differenced_reason"])}</div>'
         checks = ", ".join(k.replace("_", " ") for k, v in f["compatibility"]["checks"].items() if v)
+        left_status = moe_status(L["margin_of_error"], L["moe_annotation"])
+        right_status = moe_status(R["margin_of_error"], R["moe_annotation"])
+        operands = []
+        for side, status in ((L, left_status), (R, right_status)):
+            estimate = side["estimate_display"] if side["estimate"] is not None else "Unavailable"
+            level = "90% " if side["moe_confidence_level"] == 0.9 and (left_status or right_status) else ""
+            margin = status or f"{level}MOE {side['moe_display']}"
+            label = side["geography"]["label"]
+            source = _source_button(side["source"]["source_id"], side["finding_id"], context=label)
+            operands.append(f'<td><span class="num">{e(estimate)}</span> <span class="moe">{e(margin)}</span>'
+                            f'<div class="fine">{e(label)}</div>{source}</td>')
         rows.append(
             f'<tr id="row-{e(f["finding_id"])}"><th scope="row">{e(f["metric"]["label"])}'
             f'<div class="fine">{e(f["universe"])} · {e(f["unit"])} · {e(f["period"]["label"])}</div></th>'
-            f'<td><span class="num">{e(L["estimate_display"])}</span> <span class="moe">MOE {e(L["moe_display"])}</span>'
-            f'<div class="fine">{e(L["geography"]["label"])}</div>{_source_button(L["source"]["source_id"], L["finding_id"], context=L["geography"]["label"])}</td>'
-            f'<td><span class="num">{e(R["estimate_display"])}</span> <span class="moe">MOE {e(R["moe_display"])}</span>'
-            f'<div class="fine">{e(R["geography"]["label"])}</div>{_source_button(R["source"]["source_id"], R["finding_id"], context=R["geography"]["label"])}</td>'
+            + "".join(operands) +
             f'<td>{diff}</td><td class="fine">Matched: {e(checks)}</td>'
             f'<td class="actions">{_select_box(f["finding_id"], f["metric"]["label"] + " comparison")}</td></tr>')
     return ('<table class="data-table"><caption>Compatible comparison</caption><thead><tr>'
@@ -867,6 +862,8 @@ def brief_doc_html(brief: dict) -> str:
     for name, kinds in _GROUPS:
         chosen = [en for en in brief["entries"] if en["kind"] in kinds]
         if chosen:
+            if "statistic" in kinds and L_ACS_PERIOD in brief["limitations"]:
+                name = "Published survey estimates"
             groups.append(f'<p class="brief-group">{e(name)}</p><ol class="brief-findings">{"".join(item(en) for en in chosen)}</ol>')
     known = {k for _, ks in _GROUPS for k in ks}
     other = [en for en in brief["entries"] if en["kind"] not in known]
@@ -984,7 +981,8 @@ def catalog_rows_html(cat: dict, observations) -> str:
     rows = "".join(
         f'<tr data-geo="{e(o["geography_id"])}" data-metric="{e(o["metric_id"])}" data-finding-id="{e(o["finding_id"])}">'
         f'<td>{e(geos[o["geography_id"]])}</td><th scope="row">{e(metrics[o["metric_id"]]["label"])}</th>'
-        f'<td class="num">{e(o["estimate_display"])}</td><td class="num">{_moe_cell(o["moe_display"])}</td>'
+        f'<td class="num">{e(o["estimate_display"])}</td>'
+        f'<td class="num">{e(moe_status(o["moe_display"] or None, o["moe_annotation"]) or o["moe_display"])}</td>'
         f'<td>{e(o["unit"])}</td><td class="universe fine">{e(metrics[o["metric_id"]]["universe"])}</td>'
         f'<td>{_source_button(o["source_id"], o["finding_id"], context=geos[o["geography_id"]] + ", " + metrics[o["metric_id"]]["label"])}</td></tr>'
         for o in observations)
@@ -1099,9 +1097,10 @@ def sources_html(cat: dict) -> str:
             f'<script type="application/json" id="source-label-data">{data}</script>')
 
 
+_STATISTICS_LIMIT = "They cannot identify eligible residents, individual need or current service capacity."
 _CANNOT = {
     "statistics": "Published survey estimates for whole areas, with margins of error, describing a five-year period. "
-                  "They cannot identify eligible residents, individual need or current service capacity.",
+                  + _STATISTICS_LIMIT,
     "programs": "A dated program reference. It cannot establish current availability, wait time, cost or any "
                 "person's eligibility; the administering agency decides eligibility.",
     "participation": "Recorded state, county or island counts. They are not district counts and cannot measure a "
@@ -1123,9 +1122,13 @@ def _supports_html(ref: dict, source_id: str) -> str:
         m, g, per = ref.get("metric") or {}, ref.get("geography") or {}, ref.get("period") or {}
         value = ref.get("estimate_display")
         moe = ref.get("moe_display")
+        status = moe_status(ref.get("margin_of_error"), ref.get("moe_annotation"))
+        margin_label = "Margin of error (90%)" if status is None and ref.get("moe_confidence_level") == 0.9 else "Margin of error"
         return ('<dl class="kv">' + _row("Measure", m.get("label")) + _row("Area", g.get("label"))
                 + _row("Published value", value_with_unit(value, ref.get("unit")) if value is not None else None)
-                + _row("Margin of error (90%)", moe_with_unit(moe, ref.get("unit"))) + _row("Universe", ref.get("universe"))
+                + _row(margin_label, status or moe_with_unit(moe, ref.get("unit")))
+                + (_row("Source marker", moe) if ref.get("moe_annotation") == "*****" else "")
+                + _row("Universe", ref.get("universe"))
                 + _row("Period", per.get("label")) + _row("ACS table", m.get("table_id"))
                 + _row("Official variable label", readable_label(m.get("official_variable_label")))
                 + _row("Note", ref.get("annotation_meaning")) + '</dl>')
@@ -1162,10 +1165,12 @@ def source_html(res: dict) -> str:
     label = _screen_source_label(s["source_id"], s.get("url"))
     kind = detail.get("type")
     where, supports = "", ""
+    affected_statistic = False
     if kind == "sheet_cell":
         if not detail.get("available"):
             supports = '<p class="alert">The workbook copy is not available in this app, so its cells cannot be shown.</p>'
         else:
+            affected_statistic = detail["published_display"]["moe"] in (None, "", "*****")
             cells = "".join(f'<tr><td>{e(human_words(c["role"]))}</td><td>Sheet {e(detail["locator"]["sheet"])}, cell {e(c["ref"])}</td>'
                             f'<td>{e(c["stored_text"])}</td></tr>' for c in detail["cells"])
             supports = (f'<table class="data-table compact"><caption>Workbook cells used</caption><thead><tr>'
@@ -1185,7 +1190,9 @@ def source_html(res: dict) -> str:
                     + (f'<p>Text in the source cell: “{e(detail["stored_text"])}”</p>' if "stored_text" in detail else ""))
         where = _locator_from_dict(detail.get("locator") or {})
     elif kind == "projection_reference":
-        supports = _supports_html(detail.get("normalized_reference") or {}, s["source_id"])
+        ref = detail.get("normalized_reference") or {}
+        supports = _supports_html(ref, s["source_id"])
+        affected_statistic = ref.get("kind") == "statistic" and moe_status(ref.get("margin_of_error"), ref.get("moe_annotation")) is not None
         where = _locator_from_dict(detail.get("locator")) if detail.get("locator") else ""
     elif kind == "text_spans":
         supports = '<ul class="support-list">' + "".join(
@@ -1195,7 +1202,9 @@ def source_html(res: dict) -> str:
     family = s.get("family")
     limitations = _CANNOT.get(family, "It records only what is shown above; other facts need separate confirmation.")
     copy_detail = "The recorded values and their location are kept."
-    if family == "participation":
+    if family == "statistics" and affected_statistic:
+        limitations = "Published survey estimates for whole areas describing a five-year period. " + _STATISTICS_LIMIT
+    elif family == "participation":
         rows_used = len((res.get("cited_by") or {}).get("participation") or [])
         if rows_used:
             limitations = f"The app uses {rows_used} administrative rows from this source. " + limitations

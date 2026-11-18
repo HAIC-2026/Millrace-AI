@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:f600b82680954406bfbc7c39043547be1b694e2671a4b74544b28f579ec4d27a",
+  "source_identity": "sha256:43f002f4f2d98a1ecf5818d2408889e040d78bbc45bd187ba22621641b2df038",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -121,8 +121,8 @@
     },
     {
       "path": "districtbrief/core.py",
-      "bytes": 65189,
-      "sha256": "be64714ddcf1eb0c3cefea9a0a8e2f00efe7418267cbb5f23a223642fe8da80a"
+      "bytes": 67609,
+      "sha256": "095bbc06bb36e816888770f42a206819b3a87c555dab26473bbcac78e176a24f"
     },
     {
       "path": "districtbrief/geography.py",
@@ -171,8 +171,8 @@
     },
     {
       "path": "districtbrief/investigation.py",
-      "bytes": 22266,
-      "sha256": "2710bc22dd76888b0da0fe14fc527f078f02ab98758c454b5906cc49ade3c5a1"
+      "bytes": 24407,
+      "sha256": "3744a56dd52b83d5b086417430432001d656cbf5203e6dc80b5dedc40cacfc9b"
     },
     {
       "path": "districtbrief/packet.py",
@@ -191,8 +191,8 @@
     },
     {
       "path": "districtbrief/render.py",
-      "bytes": 74659,
-      "sha256": "f92b5fd9b882efea24c3e805630998e6ce3f10827653be69cf42ef47461d4e18"
+      "bytes": 75507,
+      "sha256": "c06a00d9d225f5415cfec72835153f61cb0582bb5d15581ef972b46bd4abfbbc"
     },
     {
       "path": "districtbrief/resolve.py",
@@ -326,8 +326,8 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 77405,
-      "sha256": "3f99c58054c05381bba4c7548ef57004174824c1cfcba8bdd93762ca7e35eaeb"
+      "bytes": 78754,
+      "sha256": "a3dd9c03250739268d99664eb53ae5d65915888fc818843397d394dbba9f8b9f"
     },
     {
       "path": "static/app.js",
@@ -336,18 +336,18 @@
     },
     {
       "path": "static/case_state.js",
-      "bytes": 73178,
-      "sha256": "4ac625796a495a1ea6e6fd99a29f4f5cceb75449cc746820f3e25c7e2a18f006"
+      "bytes": 83795,
+      "sha256": "3075571bee7a203d0ced5510456021da07840103e361d6e3b8e00979d892218f"
     },
     {
       "path": "static/index.html",
-      "bytes": 26065,
-      "sha256": "402ade8160f14fb9b445285ac3e4741c746ddf4f0c23ab813a876cc88d0ffe33"
+      "bytes": 26164,
+      "sha256": "2d1d4225cd8e9b2e99864c196ceb550da0906a1903be464331ea752a87a71a10"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 194340,
-      "sha256": "81477d3735363eeea4b6117f906bb0e770da3b35a579c54c26f84913164d1128"
+      "bytes": 212474,
+      "sha256": "6ecd04d6c6b664f98aa7015952724173239475fbc09cde8bf207dd786a4c1cc0"
     },
     {
       "path": "static/language_state.js",
@@ -416,8 +416,8 @@
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 101191,
-      "sha256": "d9c9bbf2e5d880c4192a8e24f1c5cebfc9807a67882587f78a31a9c309eec2e9"
+      "bytes": 139333,
+      "sha256": "a8585215025dc4dbbe8c4045021563252908cab66d9ad234c7a37a31b9781dae"
     },
     {
       "path": "tests/language_funding_fixture.py",
@@ -436,8 +436,8 @@
     },
     {
       "path": "tests/test_brief_presentation.py",
-      "bytes": 8398,
-      "sha256": "701c714d7deb37018de989e492d853197dd9a03bd6d77a449bfa96064e9cc9df"
+      "bytes": 16314,
+      "sha256": "b9f8c749db48f735eb355f5713f9e91a329e99dc1bdf22c329ca08b1069739e3"
     },
     {
       "path": "tests/test_case_replay.py",
@@ -446,8 +446,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 157175,
-      "sha256": "817677a1fb67d78e6d06fb8917ec1609ce4dce2036504fc5964078e77b489e33"
+      "bytes": 184753,
+      "sha256": "9613decae17d0e3c205ad802ac2dd96f8647d1220edbd68b11c2c9c365b80fcc"
     },
     {
       "path": "tests/test_catalog_pagination.py",
@@ -456,8 +456,8 @@
     },
     {
       "path": "tests/test_claim_bindings.py",
-      "bytes": 2898,
-      "sha256": "ff3f719bb0c99699b68e152bace6a8cd351ac2bcbc99959709abb4662cbfcbfa"
+      "bytes": 9632,
+      "sha256": "dbbbf9fe04c586151aea1d243d91588b54b56414a9a36bb9537a73e66d0dbeb4"
     },
     {
       "path": "tests/test_completion.py",
@@ -671,8 +671,8 @@
     },
     {
       "path": "tests/test_release.py",
-      "bytes": 33305,
-      "sha256": "89ab592e9af585ff2d011e83d350b3b27c7b8e9d4d6d181afdec73ff44d9e2e0"
+      "bytes": 33531,
+      "sha256": "7a52196aedef8e7960f3fb6d46e0c66fc7040037e6eafcc53c394ca391849cdf"
     },
     {
       "path": "tests/test_scope.py",

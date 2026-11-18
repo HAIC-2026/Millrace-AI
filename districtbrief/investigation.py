@@ -5,7 +5,7 @@ import json
 from . import render
 from .case_contract import InvestigationError, OPERATION_VERSION, SCHEMA_VERSION, TOKEN_KEYS, validate_request, admitted_recipes
 from .claim_binding import ClaimBindings, digest, plan_hash
-from .core import Unsupported, BRIEF_PRINT_BUDGET, print_units, L_ACS, L_COMPARE, L_NO_GAP, L_NO_ELIG, L_HYPOTHESIS, SMALL_TEXT_WEIGHT
+from .core import Unsupported, BRIEF_PRINT_BUDGET, acs_period_limitations, print_units, L_ACS, L_COMPARE, L_NO_GAP, L_NO_ELIG, L_HYPOTHESIS, SMALL_TEXT_WEIGHT
 from .interpret import interpret, recipe
 from .geography import indicator_payload
 from .rationale import PROGRAM_RATIONALE
@@ -87,6 +87,34 @@ class Investigation:
             state,reason='retired','comparison_not_in_current_steps'
         elif ref['finding_id'] in bindings.claims and bindings.claims[ref['finding_id']]['claim_ref']==ref:state,reason='retained','exact_canonical_identity'
         return {'claim_ref':ref,'state':state,'reason_code':reason}
+    def _map_reselection(self, plan, pid, steps, bindings):
+        profile_ids = dict.fromkeys(ref['finding_id'] for step in steps
+                                    if step['operation'] == 'profile' and step['status'] == 'ok'
+                                    for ref in step['claim_refs'])
+        district = plan['district']
+        if not profile_ids or self.core.geo.geometry_equal_across_sessions(district['chamber'], district['code']) is not True:
+            return None
+        to_session = plan['map_session']
+        from_session = 2024 if to_session == 2026 else 2026
+        pairs = []
+        for finding_id in profile_ids:
+            claim = bindings.claims[finding_id]
+            binding = claim['binding']
+            geography = binding['geography'] or {}
+            if binding['kind'] != 'statistic' or geography.get('geography_id') != pid:
+                continue
+            compatibility = geography.get('compatibility', {})
+            if compatibility.get('equal') is not True or compatibility.get('map_session') != to_session:
+                continue
+            # Reconstruct the alternate ref without changing the current binding or its admission.
+            previous = copy.deepcopy(binding)
+            previous['geography']['compatibility']['map_session'] = from_session
+            current_ref = claim['claim_ref']
+            previous_ref = dict(current_ref, semantic_hash=digest(previous))
+            pairs.append({'previous_ref': previous_ref, 'current_ref': current_ref})
+        if pairs:
+            return {'from_map_session': from_session, 'to_map_session': to_session, 'refs': pairs}
+        return None
     def _responses(self,plan,bindings,programs,hypotheses):
         responses=[];pid=self.core.profile_id_for(plan['district']['chamber'],plan['district']['code'],2024)
         for program_id in programs:
@@ -195,6 +223,7 @@ class Investigation:
         if failures:out['status']='partial' if any(s['status']=='ok' for s in out['steps']) else ('error' if any(s['status']=='error' for s in failures) else 'unsupported')
         out['responses']=self._responses(plan,bindings,programs,hypotheses)
         out['claims']=[{k:v for k,v in c.items() if k!='binding'} for c in bindings.claims.values()]
+        out['limitations']=acs_period_limitations(out['limitations'])
         comparison_results=[ref for step in out['steps'] if step['operation']=='compare' and step['status']=='ok' for ref in step['claim_refs']]
         out['selection_review']=[self._review(ref,bindings,pid,comparison_results) for ref in r['selected_claim_refs']]
         action=r['selected_action_ref'];selected_response=next((x for x in out['responses'] if x['action_ref']==action),None) if action else None
@@ -240,7 +269,7 @@ class Investigation:
                 row.update(item);row['staff_edited']=True
             brief['tracking']=r['tracking']
             required_limits=[L_ACS,L_COMPARE,L_NO_GAP,L_NO_ELIG,L_HYPOTHESIS]
-            brief['limitations']=list(dict.fromkeys(brief['limitations']+required_limits))
+            brief['limitations']=acs_period_limitations(list(dict.fromkeys(brief['limitations']+required_limits)))
             if selected_response:
                 extra=['Current availability, capacity, wait, funding and cost remain unverified.',*selected_response['weakening_facts'],*selected_response['jurisdiction']['limitations']]
                 brief['limitations']=list(dict.fromkeys(brief['limitations']+extra))
@@ -254,4 +283,10 @@ class Investigation:
             brief['html']=render.brief_doc_html(brief);out['brief']=brief
         size=len(json.dumps(out,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8'))
         if size>524288:raise InvestigationError(409,'response_too_large','Reduce the plan or selected evidence detail.','plan.steps','reduce_plan')
+        if r['mode'] == 'run':
+            reselection = self._map_reselection(plan, pid, out['steps'], bindings)
+            if reselection:
+                out['map_reselection'] = reselection
+                if len(json.dumps(out, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > 524288:
+                    del out['map_reselection']
         return out
