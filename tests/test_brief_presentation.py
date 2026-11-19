@@ -122,6 +122,9 @@ class BriefPresentationTests(unittest.TestCase):
                 for copy_text in (' '.join(claim['limitations']), table, native['html']):
                     self.assertIn('describe the full five-year period', copy_text)
                     self.assertNotIn('with published 90% margins of error', copy_text)
+                self.assertIn('the fixture has no published rate for this measure.', claim['not_differenced_reason'])
+                self.assertIn('the data has no published rate for this measure.', native['html'])
+                self.assertNotIn('the fixture has no published rate for this measure.', native['html'])
                 self.assertNotIn('survey estimates with margins of error', native['html'])
                 for side in (claim['left'], claim['right']):
                     src = side['source']

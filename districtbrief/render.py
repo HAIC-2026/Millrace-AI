@@ -681,7 +681,7 @@ _ISSUE_NAMES = {"aging_at_home/1": "Older-adult support at home", "food_assistan
 
 
 def printed_limitations(brief) -> list:
-    from .core import L_COMPARE, L_EDITS, L_HYPOTHESIS
+    from .core import L_COMPARE, L_COUNTS, L_EDITS, L_HYPOTHESIS
     kinds = {en["kind"] for en in brief["entries"]}
     out = []
     for lim in brief["limitations"]:
@@ -692,7 +692,8 @@ def printed_limitations(brief) -> list:
             continue
         if lim == L_HYPOTHESIS and "outreach_hypothesis" not in kinds and not brief.get("action"):
             continue
-        out.append(lim)
+        # Keep the exact count comparison reason in the claim binding.
+        out.append(lim.replace("the fixture has", "the data has", 1) if lim == L_COUNTS else lim)
     return out
 
 

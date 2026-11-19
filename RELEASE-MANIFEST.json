@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:43f002f4f2d98a1ecf5818d2408889e040d78bbc45bd187ba22621641b2df038",
+  "source_identity": "sha256:9969d6f9ce60bc74e2ed88c26bacc9bcc5e2160ca0fc384d2a5a0e3bdf499d38",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -191,8 +191,8 @@
     },
     {
       "path": "districtbrief/render.py",
-      "bytes": 75507,
-      "sha256": "c06a00d9d225f5415cfec72835153f61cb0582bb5d15581ef972b46bd4abfbbc"
+      "bytes": 75662,
+      "sha256": "be69c94efc18cbf14b39deec5bf400b0ca77ec2f321a29adffdcc1fbaaea86c4"
     },
     {
       "path": "districtbrief/resolve.py",
@@ -436,8 +436,8 @@
     },
     {
       "path": "tests/test_brief_presentation.py",
-      "bytes": 16314,
-      "sha256": "b9f8c749db48f735eb355f5713f9e91a329e99dc1bdf22c329ca08b1069739e3"
+      "bytes": 16634,
+      "sha256": "5908ca52d5bf27dabd34ffa83f6426c59585ccfcea17dd01b6a591a0f92da586"
     },
     {
       "path": "tests/test_case_replay.py",
