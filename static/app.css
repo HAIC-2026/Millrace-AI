@@ -2577,8 +2577,8 @@ p.page-foot {
     background: #ffffff !important;
   }
 
-  /* Only the brief copy in #print-root is printed. */
-  body > *:not(#print-root) {
+  /* The workspace prints only its prepared brief. */
+  body:not(.guide-page) > *:not(#print-root) {
     display: none !important;
   }
 
@@ -2917,6 +2917,58 @@ details.ia-plan[open] > summary {
 
 .app-about-body p {
   margin: 0.25rem 0;
+}
+
+.app-header-link {
+  flex: none;
+  color: #fff;
+  margin-inline-end: 0.55rem;
+  font-size: 0.87rem;
+  text-underline-offset: 3px;
+}
+
+.app-header-link:visited {
+  color: #fff;
+}
+
+.guide-page .guide-header,
+.guide {
+  max-width: 50rem;
+  margin: 0 auto;
+}
+
+.guide {
+  padding: clamp(1rem, 4vw, 2.5rem) clamp(1rem, 4vw, 1.75rem);
+  line-height: 1.55;
+}
+
+.guide h1 {
+  font: 600 clamp(1.9rem, 5vw, 2.55rem)/1.15 var(--display);
+}
+
+.guide nav,
+.guide footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.guide nav,
+.guide section,
+.guide footer {
+  margin-top: 1.5rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--rule);
+}
+
+.guide ol {
+  padding-left: 1.4rem;
+  margin: 0.85rem 0;
+}
+
+.guide li + li,
+.guide p + p {
+  margin-top: 0.6rem;
 }
 
 #lookup-context {

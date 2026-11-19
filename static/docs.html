@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User guide | District Brief Builder</title>
+  <meta name="description" content="Create a sourced Hawaiʻi district brief on the website or connect District Brief Builder to ChatGPT.">
+  <link rel="canonical" href="https://haic.millrace.ai/docs">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="guide-page">
+  <a class="skip-link" href="#guide">Skip to main content</a>
+  <header class="app-header">
+    <div class="app-header-inner guide-header">
+      <a class="app-header-link" href="/">District Brief Builder</a>
+    </div>
+  </header>
+  <main id="guide" class="guide" tabindex="-1">
+    <h1>User guide</h1>
+    <p>Use public Hawaiʻi district data to build a brief for agency follow-up.</p>
+    <nav aria-label="On this page">
+      <a href="#website">Use the website</a>
+      <a href="#chatgpt">Use it in ChatGPT</a>
+    </nav>
+
+    <section aria-labelledby="website">
+      <h2 id="website" tabindex="-1">Use the website</h2>
+      <p><a href="/">Open District Brief Builder</a>. The guided example opens on House 028 and shows findings about older-adult support at home. You can follow these steps without an account or an AI question.</p>
+      <ol>
+        <li>Under <strong>Findings and evidence</strong>, find <strong>Poverty rate, age 65 and over</strong>. Choose the <strong>Inspect ACS</strong> button on that finding to check the estimate period, margin of error and workbook location.</li>
+        <li>In the <strong>Brief</strong> panel, choose <strong>Create recommended brief</strong>. Look for the comparison with statewide figures and the Kūpuna Care agency verification step.</li>
+        <li>Under <strong>One-page brief</strong>, choose <strong>Print or save as PDF</strong>. Use your browser’s print dialog to print or save the brief.</li>
+      </ol>
+      <p>For another district, choose it under <strong>District and issue</strong> and follow the prompts to apply the change. You can also use <strong>Ask about this district</strong> for a plain-language question, such as “How many people age 65 and over live in House 28?” If the AI preview is unavailable, use the guided controls or <strong>Single lookup</strong>.</p>
+      <p>The site sends questions entered in the AI preview to OpenAI. Use public data questions and leave out names, resident information and confidential details.</p>
+    </section>
+
+    <section aria-labelledby="chatgpt">
+      <h2 id="chatgpt" tabindex="-1">Use it in ChatGPT</h2>
+      <p>The connector lets ChatGPT look up public district figures, inspect sources and build a text brief. Installing a custom connector requires an eligible ChatGPT account and workspace.</p>
+      <ol>
+        <li>Open <a href="https://chatgpt.com/plugins">ChatGPT Plugins</a>, select the plus button, then choose <strong>Add custom MCP server</strong>.</li>
+        <li>Name it <strong>HAIC District Briefs</strong> and describe it as “Public Hawaiʻi district data and briefs.” Enter <code>https://haic.millrace.ai/mcp</code> as the server URL and choose <strong>No authentication</strong>.</li>
+        <li>Review ChatGPT’s notice, choose <strong>Create as a plugin</strong>, and install the plugin. In a new chat, type <kbd>@</kbd> and select it.</li>
+        <li>Ask “For Senate District 17, how many people are 65 and over, and what is their poverty rate? Show the source and build a brief.”</li>
+      </ol>
+      <p>Check the district, period and source citations in the reply. For a printable PDF or if custom connectors are unavailable, <a href="/">use the website</a>.</p>
+      <p>ChatGPT handles questions under your account’s terms and sends tool requests to the District Brief Builder connector. The connector logs tool names, status and duration. Network providers may keep connection logs. <a href="https://github.com/HAIC-2026/Millrace-AI/blob/haic-mcp-20261116/haic_mcp/README.md#results-sources-and-privacy-limits">Connector privacy details</a></p>
+      <p>Use public data questions and leave out names, resident information and confidential details.</p>
+    </section>
+
+    <footer aria-label="More about District Brief Builder">
+      <a href="https://github.com/HAIC-2026/Millrace-AI/blob/main/docs/METHODOLOGY.md">Data and methodology</a>
+      <a href="https://github.com/HAIC-2026/Millrace-AI/blob/main/PRIVACY.md">Website privacy</a>
+      <a href="https://github.com/HAIC-2026/Millrace-AI">Source code</a>
+    </footer>
+  </main>
+</body>
+</html>

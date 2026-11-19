@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:40786286707a35fa9ff3ecc173b99ba881d699e68f8e786cc5ff0b6fc0b09ed4",
+  "source_identity": "sha256:d056eab80ac863d807e6a6c41042a3054272aa743fab1bfae788cd6ea6fbd0e0",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -56,8 +56,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 11857,
-      "sha256": "2707b8d5e9688fe32d55d55182b566d28b60dff3c66a98b0451c237787c43428"
+      "bytes": 11970,
+      "sha256": "0041d86f333bfcb0d397200f487a98d5f21a8e8133c4dd9d9ae86b5918f46e61"
     },
     {
       "path": "candidate-metadata/MANIFEST.json",
@@ -261,8 +261,8 @@
     },
     {
       "path": "public_app.py",
-      "bytes": 26547,
-      "sha256": "5b616efd1d29a2054a3f2d29803a21cc0375d0367c9da25c2b2cce066f4ea3d5"
+      "bytes": 26688,
+      "sha256": "8ae69be39b52bd94daf3fe606709740dca66c6439e5b91f83eaf0815be2f8150"
     },
     {
       "path": "requirements.txt",
@@ -326,8 +326,8 @@
     },
     {
       "path": "static/app.css",
-      "bytes": 78754,
-      "sha256": "a3dd9c03250739268d99664eb53ae5d65915888fc818843397d394dbba9f8b9f"
+      "bytes": 79530,
+      "sha256": "2968164d5d85f2eb1852253e1148a9ce0edd54d62883c131ed00d879a643b501"
     },
     {
       "path": "static/app.js",
@@ -340,9 +340,14 @@
       "sha256": "49a5d9cd750069a670938f72fc7a2dde1dcbb9b4f5b88238c09b27a126352b81"
     },
     {
+      "path": "static/docs.html",
+      "bytes": 4601,
+      "sha256": "b0201e0160fe6456cb3540a6f941903f22f324ba391f501b72daae5ce50d0f19"
+    },
+    {
       "path": "static/index.html",
-      "bytes": 26428,
-      "sha256": "471a10fe16d050f8e55b0963d28a32eb383bf83a34eb34476f5b72ccc01ca27a"
+      "bytes": 26485,
+      "sha256": "ca69e997a99e255afa4f2939bc8cf3fcfce391042793af30b0e6906419c69263"
     },
     {
       "path": "static/investigation.js",
@@ -671,8 +676,8 @@
     },
     {
       "path": "tests/test_release.py",
-      "bytes": 33531,
-      "sha256": "7a52196aedef8e7960f3fb6d46e0c66fc7040037e6eafcc53c394ca391849cdf"
+      "bytes": 34120,
+      "sha256": "c3408c1d02fb154b186b1b28f21bcc4be98c448a77997488201f632d2f1b6940"
     },
     {
       "path": "tests/test_scope.py",
@@ -696,8 +701,8 @@
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 8255,
-      "sha256": "1bba1474b78386130837e1779a58cc358e0fe604fa25151ee5852f1c2a899bda"
+      "bytes": 8267,
+      "sha256": "9129adff77680032060cea5c7f78ec7ab96e8e063763254aa4885c3799da64b8"
     },
     {
       "path": "tools/compile_statistics.py",

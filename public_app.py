@@ -296,6 +296,8 @@ class Application:
                 _, cookie = self.session(environ)
                 if cookie: extra.append(('Set-Cookie',cookie))
                 return 200, 'text/html; charset=utf-8', (ROOT / 'static/index.html').read_bytes()
+            if path in ('/docs', '/docs/'):
+                return 200, 'text/html; charset=utf-8', (ROOT / 'static/docs.html').read_bytes()
             if path == '/favicon.ico': return 204, 'image/x-icon', b''
             if path.startswith('/static/') and path[8:] in STATIC:
                 name = path[8:]

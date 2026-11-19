@@ -6,6 +6,8 @@ Team **Millrace AI** built it for the HAIC 2026 Know Your District challenge. Mi
 
 **Try it:** [haic.millrace.ai](https://haic.millrace.ai). It needs no account, sign-in or setup.
 
+[User guide](https://haic.millrace.ai/docs) · [ChatGPT connector setup](https://haic.millrace.ai/docs#chatgpt)
+
 **Status:** working prototype. Every figure comes from deterministic operations on a bundled snapshot of published aggregate data. Guided controls, sources, the brief and case files call no AI model. **Ask about this district** is an **experimental AI preview**: an OpenAI model proposes a plan and never supplies a number. In developer checks the preview delivered no critical error, but it did not pass every preregistered quality gate.
 
 ## From a question to a brief

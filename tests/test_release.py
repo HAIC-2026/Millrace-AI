@@ -128,6 +128,17 @@ class AdapterChecks(unittest.TestCase):
         req=self.req('other-brief'); req.update(task='brief',selected_finding_ids=[aout['findings'][0]['finding_id']])
         self.assertNotIn('Visitor Private Note',self.two(b,req)['html'])
 
+    def test_docs_page_is_public_and_linked_from_home(self):
+        for path in ('/docs', '/docs/'):
+            status, headers, body=self.call('GET',path)
+            self.assertEqual(status,200)
+            self.assertEqual(headers['Content-Type'],'text/html; charset=utf-8')
+            self.assertNotIn('Set-Cookie',headers)
+            self.assertIn(b'https://haic.millrace.ai/mcp',body)
+            self.assertEqual(self.call('HEAD',path)[2],b'')
+        self.assertIn(b'href="/docs"',self.call('GET','/')[2])
+        self.assertEqual(self.call('GET','/static/docs.html')[0],404)
+
     def test_limits_routes_and_json(self):
         cookie=self.session()
         self.assertEqual(self.call('POST','/api/resolve',self.req(),cookie,CONTENT_LENGTH='65537')[0],413)

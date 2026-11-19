@@ -21,7 +21,7 @@ MODULES=('__init__','admin_labels','case_contract','candidate_metadata','claim_b
          'ia_language','ia_language_provider','ia_language_accounting','ia_language_jobs',
          'ia_language_profiles','ia_language_funding')
 DATA=('districtbrief/ia_language_profiles.json',)
-STATIC=('app.css','app.js','case_state.js','index.html','investigation.js','map.js','request.js','language_state.js')
+STATIC=('app.css','app.js','case_state.js','docs.html','index.html','investigation.js','map.js','request.js','language_state.js')
 TESTS=('test_case_replay.py','test_case_state.cjs','test_claim_bindings.py','test_geometry.py',
        'test_investigation.py','test_release.py','test_scope.py','test_public_profile.py','test_completion.py',
        'test_ia_language_contract.py','test_ia_language_provider.py','test_ia_language_accounting.py','test_ia_language_jobs.py','test_ia_language_processes.py','test_ia_language_proposals.py',
