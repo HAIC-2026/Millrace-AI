@@ -7,33 +7,27 @@ The connector does not interpret questions itself and calls no model. A client m
 ## Hosted endpoint
 
 ```text
-https://sr5cc09zyqjtqu-8080.proxy.runpod.net/mcp
+https://haic.millrace.ai/mcp
 ```
 
 The endpoint needs no authentication and serves only public data. It runs connector source commit `2439110ac9523cdedbc35b9b55aeeb43607468c1` (build `sha256:b86b4e0a409766ab87b8f7624064ac1ad8f595135000e97674ec65501b043a9d`) over engine manifest `a3a8eb8d41504c7c05506c474df8dd82a493b4423df77905a99713d9d726bec3`. The `identity` that `prepare_question` returns shows these values. Later commits that change only documentation do not change what the endpoint runs.
 
-The endpoint is one Runpod Secure Cloud CPU Pod (2 vCPU, 4 GB RAM, data center US-CA-2). [deploy/README.md](deploy/README.md) has the bootstrap script, pins and proxy details.
+The connector runs as a separate service on the AWS Lightsail host that serves District Brief Builder. Its public route moved from RunPod to this host on November 18, 2026 HST. Use the new URL when configuring a client. The [deployment notes](deploy/README.md) preserve the original RunPod procedure.
 
-These checks passed over public HTTPS, using hand-written decisions:
+These checks passed against the AWS endpoint over public HTTPS on November 18, 2026 HST:
 
 - `initialize` returned the server, and `tools/list` returned exactly the five tools.
-- A full chain passed with real engine output: prepare, validate, run, claim source, a "Why that figure?" source intent, and a brief. Each result equaled the pinned local connector's result for the same arguments.
-- An 80-claim run with eight retained selections returned complete (210,170 bytes) and equaled the local result.
-- An unknown path returned 404. A 131,073-byte body returned 413. A hostile Origin returned 403. The Origin `https://chatgpt.com` was accepted.
-- After a stop and start, the URL and identity were unchanged. In that restart the container disk was reset, and the bootstrap rebuilt the service from its pinned sources.
-
-### Cost and ownership
-
-The Pod is billed to the project maintainers' Runpod account. It costs $0.06 per hour of running compute plus $0.50 per month for its 5 GB disk. That is about $44.30 for 730 hours of continuous running. The maintainers can stop or delete the Pod at any time. Stopping ends compute billing. Deleting the Pod also removes its disk. There is no failover, high availability or uptime guarantee.
+- A prepared question ran through validation, a plan, source inspection and brief creation. An 80-claim run returned complete results.
+- A fresh ChatGPT conversation used the AWS endpoint to build a Senate District 17 brief and show its workbook citations.
 
 ## Use it in ChatGPT
 
-Custom MCP servers depend on your ChatGPT plan and workspace settings. A workspace admin can block them. The plugin was tested on ChatGPT on the web with a Pro account.
+See the [District Brief Builder user guide](https://haic.millrace.ai/docs#chatgpt) for the quickstart. Custom MCP servers depend on your ChatGPT plan and workspace settings. A workspace admin can block them. The plugin was tested on ChatGPT on the web with a Pro account.
 
 1. Open `https://chatgpt.com/plugins`.
-2. Select **Add**, then **Add custom MCP server**.
-3. Enter the name `HAIC District Briefs`.
-4. Enter the server URL `https://sr5cc09zyqjtqu-8080.proxy.runpod.net/mcp`.
+2. Select the plus button, then **Add custom MCP server**.
+3. Enter the name `HAIC District Briefs` and a description such as “Public Hawaiʻi district data and briefs.”
+4. Enter the server URL `https://haic.millrace.ai/mcp`.
 5. Select **No authentication**.
 6. Read the risk notice and acknowledge it.
 7. Select **Create as a plugin**.
@@ -44,14 +38,14 @@ This creates a private custom plugin in your own account. It is not a listing in
 Where your data goes:
 
 - ChatGPT handles your question and its tool calls under your own ChatGPT account. Normal ChatGPT usage limits and data terms apply. The connector calls no model, and the maintainers pay for no model use.
-- Runpod's HTTPS proxy also processes every request, under Runpod's terms.
-- The connector and its Caddy proxy store nothing and keep no access log. The connector logs only tool name, status and duration.
+- Cloudflare, AWS and the website's Caddy proxy handle the connection and may keep connection logs.
+- The connector logs tool name, status and duration. See [Results, sources and privacy limits](#results-sources-and-privacy-limits) for its handling of questions and results.
 - The engine uses only public data. Do not put confidential or resident details in a question.
 - The connector keeps no state between calls. ChatGPT itself can remember earlier chats, for example through account memory. The connector cannot make ChatGPT forget them.
 
 ### Tested in ChatGPT
 
-One account ran these natural questions on 2026-11-16, with the model selector set to Pro. ChatGPT did not show the underlying model ID. No numbers or decisions were supplied to the model. The results were checked against the pinned engine run directly.
+One account ran these natural questions against the original RunPod deployment on 2026-11-16, with the model selector set to Pro. ChatGPT did not show the underlying model ID. No numbers or decisions were supplied to the model. The results were checked against the pinned engine run directly.
 
 | Question | Observed result |
 | --- | --- |
@@ -187,7 +181,7 @@ The tests run against the real engine and need no credentials. They cover:
 - The ChatGPT test covers the six questions above from one account. It is not a broad accuracy or model-quality evaluation. Other questions, models and accounts are untested.
 - ChatGPT's largest tested run had 72 claims. The 80-claim, 210 KB result is tested only at the protocol level, because ChatGPT does not show result sizes.
 - `GET /mcp` still opens a server-sent event stream. Whether ChatGPT uses that stream is unknown.
-- The hosted Pod has been through a few restarts, not a long-running availability or load test.
+- The original RunPod deployment went through a few restarts. The AWS endpoint has had functional checks. Long-running availability and load remain untested.
 
 ## License
 

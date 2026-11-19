@@ -1,10 +1,14 @@
-# Runpod deployment
+# Connector deployment
 
-`runpod_boot.py` runs the HAIC MCP connector on one Runpod CPU Pod. The script is the container's entire start command. It rebuilds the pinned public source on every start, then serves `https://<pod-id>-8080.proxy.runpod.net/mcp`.
+The live MCP endpoint is `https://haic.millrace.ai/mcp`. It runs as a separate service on the same AWS Lightsail host as the website. Caddy routes the exact `/mcp` path to the connector on loopback. Use MCP `initialize` and `tools/list` to confirm that the endpoint serves all five tools. See the [user guide](https://haic.millrace.ai/docs#chatgpt) for setup in ChatGPT.
 
-This file documents the hosted endpoint in the connector README. The script is the exact bootstrap that endpoint runs (SHA-256 `4547ccbfad43987054d35f6acf2c24fcbab54ad37c4d291ab0d448cee7341e61`).
+## Original RunPod deployment (retired)
 
-## Pinned inputs
+The following procedure records the November 16 prototype deployment. The public endpoint moved to AWS on November 18, 2026 HST. The original RunPod URL is retired.
+
+`runpod_boot.py` ran the connector on a RunPod CPU Pod. It rebuilt the pinned public source on startup and served `https://<pod-id>-8080.proxy.runpod.net/mcp`. The retained bootstrap has SHA-256 `4547ccbfad43987054d35f6acf2c24fcbab54ad37c4d291ab0d448cee7341e61`.
+
+### Pinned inputs
 
 | Input | Pin |
 | --- | --- |
@@ -16,7 +20,7 @@ This file documents the hosted endpoint in the connector README. The script is t
 
 The script pins the source commit, not the commit that contains this documentation. Later documentation commits do not change what a Pod runs. To deploy a newer connector, change `SOURCE_COMMIT` and `SOURCE_SHA256` together and verify the result as a new release. GitHub-generated archives are not guaranteed to stay byte-identical. If the archive hash changes, startup fails closed.
 
-## Create a new Pod
+### Create a new Pod
 
 Create a new Pod for this purpose. Do not apply this configuration to an existing Pod that runs other work. Choose your own unique Pod name.
 
@@ -51,7 +55,7 @@ jq -n --rawfile boot haic_mcp/deploy/runpod_boot.py '{
 
 Submit the body with your own Runpod account tooling. Never put an API key in the body. Runpod assigns the Pod ID. Your endpoint is `https://<pod-id>-8080.proxy.runpod.net/mcp`.
 
-## What the script does on each start
+### What the script does on each start
 
 1. The script reads `RUNPOD_POD_ID` and derives the canonical host `<pod-id>-8080.proxy.runpod.net`.
 2. The script downloads the source archive and checks its SHA-256. Absolute paths, `..`, links and other non-file members fail the start.
@@ -64,7 +68,7 @@ Submit the body with your own Runpod account tooling. Never put an API key in th
 
 The state directory is `/opt/haic-state` on the container disk. In one tested stop and start, that disk was reset. The script rebuilt the service, and the URL and identity did not change. This was observed on one restart, not a documented provider guarantee. Each start depends on GitHub and PyPI serving the pinned files.
 
-## Proxy boundary
+### Proxy boundary
 
 The Runpod proxy terminates HTTPS. It forwards requests with an internal `Host` such as `100.65.20.83:60490`, and the internal port changed across restarts. The proxy sets its own `X-Forwarded-Host` header to the public host name. In tests, the proxy overwrote caller-supplied `X-Forwarded-Host` values. This is observed behavior, not a documented guarantee.
 
@@ -78,7 +82,7 @@ Caddy relies on that provider behavior:
 
 This boundary trusts the provider's header overwrite. A process inside the container could set `X-Forwarded-Host` itself. The Pod runs no other workloads.
 
-## Known limits
+### Known limits of the RunPod deployment
 
 - The Pod requests only `8080/http`, with `startSsh` and `startJupyter` set to false. The provider also mapped a reserved HTTP port, 19123. Its public name returned a provider 502 page, so nothing listens there. The account owner keeps authenticated provider access to the Pod.
 - One Pod in one data center. There is no failover, high availability or service-level guarantee. Provider outages, account funds and provider header changes can stop the service.
