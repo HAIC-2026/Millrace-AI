@@ -684,7 +684,7 @@ test("a literal proposal changes only the draft; a separate plan action makes th
       interp: { status: "ok", utterance: "use house 13", matched_fields: [], inherited_fields: [], choices: [], reason: null, proposed_plan: null },
       h: (...a) => a, $: () => ({ focus() {}, getBoundingClientRect: () => ({ height: 0 }) }), window: { innerHeight: 900 }, fill() {}, btn: (label, fn) => { buttons.push({ label, fn }); return {}; },
       fieldLabel: (x) => x, valueText: (f, v) => String(v), plain: (x) => x, clearAlert() {}, alertUser(m) { throw new Error(m); },
-      render() {}, syncMap() {}, holdFocus() {}, activeDate: () => null, send: (r) => requests.push(r) };
+      render() {}, syncMap() {}, holdFocus() {}, activeDate: () => null, holdIncompleteStaffDate: () => false, send: (r) => requests.push(r) };
     ctx.interp.proposed_plan = proposed(ctx.state);
     const read = C.beginInterpret(ctx.state, ctx.interp.utterance, ids);
     const result = C.applyResponse(read.state, reply(read.request), meta(read.request));
@@ -1239,12 +1239,12 @@ function briefActionHarness(state, extra) {
   const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
   const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
   const code = part("  // Selects the recommended findings and agency action.", "  function renderTray(") +
-    part("  function answerAfterRun(result) {", "  function finish(result) {") + part("  function settleAnswer() {", "  function focusAnswer()");
+    part("  function answerAfterRun(", "  function finish(result) {") + part("  function settleAnswer() {", "  function focusAnswer()");
   const briefs = [], runs = [];
   const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, answerBasis: null, briefFocus: null,
     currentRecommendation: (res) => ctx.briefFocus || C.recommendedBrief(res), briefBlock: () => null, createBrief: () => briefs.push(clone(ctx.state)),
     render() {}, flushActive: () => true, runActive() { runs.push(1); }, alertUser(m) { throw new Error(m); }, focusAnswer() {}, districtLabel: (d) => d.chamber + d.code,
-    plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: () => ({ focus() {} }), focusPreview() {} }, extra || {});
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), document: { activeElement: null, body: {} }, $: (sel) => sel === ".ia-tray" ? null : { focus() {} }, focusPreview() {} }, extra || {});
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, briefs, runs, run: (x) => vm.runInContext(x, ctx) };
 }
@@ -1343,11 +1343,12 @@ function previewHarness(state, extra) {
   const vm = require("node:vm");
   const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
   const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
-  const code = part("  function editDraft(result, message) {", "  function applyPlan() {") + part("  function renderPreview() {", "  // Exact evidence identities");
+  const code = part("  function editDraft(result, message) {", "  function applyPlan() {") + part("  const CONTEXT_FORK_TEXT", "  // Exact evidence identities");
   const buttons = {}, commits = [];
   const ctx = Object.assign({ C, ids, state, notice: "", preview: null, pendingAnswer: null, CHANGE_LABEL: {}, commits,
-    $: () => ({ focus() {}, hidden: false }), h: () => ({}), fill() {}, btn: (label, fn, attrs) => { if (attrs && attrs.id) buttons[attrs.id] = fn; return {}; },
-    plural: (n, a, b) => n + " " + (n === 1 ? a : b), render() {}, clearAlert() {}, alertUser(m) { throw new Error(m); }, commit: (p) => commits.push(p) }, extra || {});
+    $: () => ({ focus() {}, hidden: false }), h: () => ({}), fill() {}, staffDateButton: (label, fn, attrs) => { if (attrs && attrs.id) buttons[attrs.id] = fn; return {}; },
+    plural: (n, a, b) => n + " " + (n === 1 ? a : b), render() {}, clearAlert() {}, focusIncompleteStaffDate: () => false,
+    alertUser(m) { throw new Error(m); }, commit: (p) => commits.push(p) }, extra || {});
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, buttons, run: (x) => vm.runInContext(x, ctx) };
 }
@@ -1567,7 +1568,8 @@ function answerRegionHarness(state, basis) {
   const vm = require("node:vm");
   const ui = fs.readFileSync(path.join(__dirname, "../static/investigation.js"), "utf8");
   const part = (a, b) => { const i = ui.indexOf(a); assert.ok(i >= 0, a); return ui.slice(i, ui.indexOf(b, i)); };
-  const code = part("  // The finding(s) the latest executed question asked for", "  // ------------------------------------------------------------------ plan editing");
+  const code = part("  const COUNT_COMPARISON_LIMIT", "  const CHECK_LABEL") +
+    part("  // The finding(s) the latest executed question asked for", "  // ------------------------------------------------------------------ plan editing");
   const box = { hidden: false, children: [] }, briefs = [];
   const nodes = (n, out) => { if (Array.isArray(n)) n.forEach((x) => nodes(x, out)); else if (n && typeof n === "object") { out.push(n); nodes(n.kids || [], out); } return out; };
   const ctx = { C, state, answerBasis: basis, briefFocus: null, languageResult: null, lastQuestion: basis.question, notice: "", questionSource: null, OP_LABEL: {},
@@ -1621,7 +1623,7 @@ function sendHarness(state, fetchImpl, typed) {
   const code = part("  async function send(request) {", "  // A run started by a question") + part("  // A reply can arrive while staff are typing.", "  async function askLanguage(text) {");
   const input = { tagName: "INPUT", type: "text", id: "ia-title", value: typed, closest: (sel) => (sel === ".ia-tray" ? {} : null),
     dispatchEvent: (e) => { if (e.type === "change") ctx.state = ok(C.setStaffText(ctx.state, "title", input.value)); } };
-  const ctx = { C, state, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input }, render() {}, sha256Hex: async () => null,
+  const ctx = { C, state, pendingAnswer: null, Event: class { constructor(t) { this.type = t; } }, document: { activeElement: input }, render() {}, sha256Hex: async () => null,
     fetch: fetchImpl, finish: (result) => { ctx.state = result.state; ctx.outcome = result.outcome; }, answerAfterRun() {} };
   vm.createContext(ctx); vm.runInContext(code, ctx);
   return { ctx, send: (request) => vm.runInContext("send", ctx)(request) };

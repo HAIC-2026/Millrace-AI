@@ -95,3 +95,44 @@ test("named districts are read only with an explicit chamber", () => {
   assert.deepEqual([...L.namedDistricts("House 28, senate district 05 and district 10")].sort(), ["house:028", "senate:005"]);
   assert.deepEqual([...L.namedDistricts("House 2028 budget")], []);
 });
+
+test("switch review recognizes the server's HD and SD shorthand without changing other district matching", () => {
+  const s8 = recipe(D("senate", "008"));
+  assert.equal(L.switchDistrictWording("SD 8", s8), "single");
+  assert.equal(L.switchDistrictWording("hd-028", H28), "single");
+  assert.equal(L.switchDistrictWording("HD 8", s8), "review");
+  assert.equal(L.switchDistrictWording("SD 8 or 9", s8), "clarify");
+  assert.equal(L.switchDistrictWording("9 or SD 8", s8), "clarify");
+  assert.deepEqual([...L.namedDistricts("SD 8")], []);
+  assert.deepEqual(codes("SD 8", H28, s8), ["primary_changed"]);
+});
+
+test("switch review clarifies a list with a repeated location word on either side of the named district", () => {
+  const s8 = recipe(D("senate", "008"));
+  assert.equal(L.switchDistrictWording("What is the population in Senate 8 or in 9?", s8), "clarify");
+  assert.equal(L.switchDistrictWording("What is the population in 9 or in Senate 8?", s8), "clarify");
+  assert.equal(L.switchDistrictWording("What is the population in Senate 8 or district 9?", s8), "clarify");
+});
+
+test("switch review distinguishes geographic relations, omitted numbers, and planned district comparisons", () => {
+  const s8 = recipe(D("senate", "008"));
+  assert.equal(L.switchDistrictWording("What is the population of the district bordering Senate 8?", s8), "review");
+  assert.equal(L.switchDistrictWording("Senate 8 and surrounding districts", s8), "review");
+  assert.equal(L.switchDistrictWording("How many people live in Senate 8 plus 9?", s8), "clarify");
+  assert.equal(L.switchDistrictWording("Compare the population in Senate 8 vs. 9", s8), "clarify");
+  const cmp = recipe(s8.district, [{ operation: "compare", args: { comparison_geography: "HI-SENATE-009-2024" } }]);
+  assert.equal(L.switchDistrictWording("Compare the population in Senate 8 vs. 9", cmp), "review");
+});
+
+test("switch review catches omitted comparison peers and alternatives and keeps unexplained numbers in review", () => {
+  const s11 = recipe(D("senate", "011"));
+  const comparison = "Compare median household income in Senate 11 with 12.";
+  assert.equal(L.switchDistrictWording(comparison, s11), "clarify");
+  assert.equal(L.switchDistrictWording("Change to Senate 11 or to 12.", s11), "clarify");
+  assert.equal(L.switchDistrictWording("Compare Senate 11 against 12.", s11), "clarify");
+  assert.equal(L.switchDistrictWording("Compare between 12 and Senate 11.", s11), "clarify");
+  assert.equal(L.switchDistrictWording("Show Senate 11 population. What about 12?", s11), "review");
+  const cmp = recipe(s11.district, [{ operation: "compare", args: { comparison_geography: "HI-SENATE-012-2024" } }]);
+  assert.equal(L.switchDistrictWording(comparison, cmp), "review");
+  assert.equal(L.switchDistrictWording("Show Senate 11 population in 2024.", s11), "single");
+});

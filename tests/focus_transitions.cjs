@@ -16,14 +16,19 @@ assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(base.hostname), "Use a pr
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true, ...(process.env.FOCUS_TEST_CHROME ? { executablePath: process.env.FOCUS_TEST_CHROME } : {}) }); });
 after(async () => { if (browser) await browser.close(); });
-async function page(url = base) {
+async function page(url = base, { viewport = { width: 1280, height: 900 }, mockAsk = false } = {}) {
   assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(url.hostname), "Use a private loopback app");
-  const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const p = await browser.newPage({ viewport });
   await p.route("**/*", async route => {
     const u = new URL(route.request().url());
     if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return route.abort();
     if (process.env.FOCUS_TEST_BASELINE && /^\/static\/(app|investigation)\.js$/.test(u.pathname)) {
       return route.fulfill({ contentType: "application/javascript", body: fs.readFileSync(path.join(process.env.FOCUS_TEST_BASELINE, path.basename(u.pathname))) });
+    }
+    if (mockAsk && u.pathname === "/api/catalog") {
+      const response = await route.fetch(), json = await response.json();
+      json.language = { enabled: true, schema_version: "ia-language/1", limits: { deadline_seconds: 25 } };
+      return route.fulfill({ response, json });
     }
     return route.continue();
   });
@@ -1860,13 +1865,15 @@ test("Phase 3 #4 a complete Med-QUEST rescope keeps the SNAP recipe and saved tr
   } finally { await p.close(); }
 });
 
-// A controlled language reply (as the date-race checks use): one proposal for the next question, nothing sent anywhere else.
-async function p3Ask(p, question, plan, typedDiff) {
+// Controlled language replies, with no request sent to a provider.
+async function mockAskStatus(p, status) {
   const catalog = await (await p.request.get(new URL("/api/catalog", base).href)).json();
+  const calls = [];
   let envelope;
   await p.unroute("**/api/language/*");
   await p.route("**/api/language/*", async route => {
     const request = route.request().postDataJSON();
+    calls.push(new URL(route.request().url()).pathname.split("/").at(-1));
     if (route.request().url().endsWith("/start")) {
       const c = request.context;
       envelope = { schema_version: "ia-language/1", request_id: request.request_id, context: c, context_digest: "sha256:" + "b".repeat(64),
@@ -1874,16 +1881,270 @@ async function p3Ask(p, question, plan, typedDiff) {
       return route.fulfill({ status: 202, json: { ...envelope, status: "pending" } });
     }
     if (route.request().url().endsWith("/cancel")) return route.fulfill({ json: { ...envelope, status: "cancelled" } });
-    return route.fulfill({ json: { ...envelope, status: "propose", intent: "replace_plan", normalized_plan: plan, typed_diff: typedDiff } });
+    const result = await status();
+    return result ? route.fulfill({ json: { ...envelope, ...result } }) : route.abort("connectionreset");
   });
+  return calls;
+}
+
+async function offerAskProposal(p, question, plan, typedDiff) {
+  const calls = await mockAskStatus(p, () => ({ status: "propose", intent: "replace_plan", normalized_plan: plan, typed_diff: typedDiff }));
   await p.locator("#ia-question-text").fill(question);
   await p.locator("#ia-question-submit").click();
   await p.waitForFunction(() => document.querySelector("#ia-question-cancel").hidden && !document.querySelector("#ia-question-result .loading"));
+  return calls;
+}
+async function p3Ask(p, question, plan, typedDiff) {
+  await offerAskProposal(p, question, plan, typedDiff);
   if (await p.locator("#ia-proposal-run").isVisible()) await p.locator("#ia-proposal-run").click();
   if (await p.locator("#ia-preview").isVisible()) await p.locator("#ia-preview-confirm").click();
   await requestDone(p);
   await p.locator("#ia-answer-h").waitFor({ state: "visible" });
 }
+
+async function offerPopulationSwitch(p, question = "How many people live in Senate District 8? Put that next to the statewide count in a brief I can save.", comparison = "HI-STATE-2024") {
+  const { investigation } = await (await p.request.get(new URL("/api/catalog", base).href)).json();
+  const district = { ...investigation.default_plan.district, chamber: "senate", code: "008" };
+  const step = { step_id: "s5", operation: "compare", args: { metric_ids: ["total_population"], comparison_geography: comparison } };
+  const plan = { ...investigation.default_plan, district, issue_id: "custom", steps: [step] };
+  return offerAskProposal(p, question, plan, [{ field: "steps", change: "added", step_id: step.step_id, before: null, after: step }]);
+}
+
+async function assertDistrictClarification(p, question) {
+  assert.match(await p.locator("#ia-question-result").textContent(), /Which district should the investigation use\? Ask again naming one district with House or Senate/, question);
+  assert.equal(await p.locator("#ia-proposal-run").count(), 0, question);
+  assert.equal(await p.locator("#ia-proposal-draft").count(), 0, question);
+  assert.equal(await p.locator("#ia-preview").isVisible(), false, question);
+  assert.equal(await p.locator("#ia-question-text").inputValue(), question);
+}
+
+test("Ask clarifies compound district numbers before offering a switch", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p);
+    for (const question of [
+      "How many people live in Senate 8 or 9?",
+      "How many people live in 9 or Senate 8?",
+      "What is the population in Senate 8 or in 9?",
+      "What is the population in 9 or in Senate 8?",
+      "How many people live in Senate 8 plus 9?",
+      "Compare the population in Senate 8 vs. 9",
+      "Senate 8 & 28",
+      "Senate 8 and 9",
+      "Senate 8–9",
+      "Senate 8/9",
+      "Senate 8, 9",
+      "SD 8, or 9",
+    ]) {
+      // The reply includes only Senate 8. Staff need to clarify the question before any switch can be offered.
+      const language = await offerPopulationSwitch(p, question);
+      await assertDistrictClarification(p, question);
+      assert.deepEqual(language, ["start", "status"], question);
+    }
+    assert.deepEqual(calls, []);
+    assert.deepEqual(await savedCase(p), before);
+  } finally { await p.close(); }
+});
+
+test("Ask clarifies a missing comparison peer or alternate district in a profile proposal", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p);
+    const profile = { step_id: "s5", operation: "profile", args: { metric_ids: ["median_household_income"] } };
+    const defaultPlan = activeBranch(before).plan;
+    const plan = { ...defaultPlan, district: { ...defaultPlan.district, chamber: "senate", code: "011" }, issue_id: "custom", steps: [profile] };
+    for (const question of ["Compare median household income in Senate 11 with 12.", "Change to Senate 11 or to 12."]) {
+      const language = await offerAskProposal(p, question, plan, [{ field: "steps", change: "added", step_id: profile.step_id, before: null, after: profile }]);
+      await assertDistrictClarification(p, question);
+      assert.deepEqual(language, ["start", "status"], question);
+    }
+    assert.deepEqual(calls, []);
+    assert.deepEqual(await savedCase(p), before);
+  } finally { await p.close(); }
+});
+
+test("Ask keeps the separate context review for qualifiers and explicit district comparisons", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const calls = investigationCalls(p), run = p.locator("#ia-proposal-run"), preview = p.locator("#ia-preview");
+    for (const [question, comparison] of [
+      ["The district next to Senate 8"],
+      ["Population near Senate 8"],
+      ["The district containing Senate 8"],
+      ["What is the population of the district bordering Senate 8?"],
+      ["Show population, but not for Senate 8"],
+      ["Show Senate 8 population. What about 12?"],
+      ["Compare Senate 8 with Senate 9", "HI-SENATE-009-2024"],
+    ]) {
+      const language = await offerPopulationSwitch(p, question, comparison);
+      assert.equal(await run.textContent(), "Run this proposal", question);
+      assert.equal(await preview.isVisible(), false, question);
+      assert.deepEqual(calls, [], question);
+      await run.click();
+      assert.equal(await preview.isVisible(), true, question);
+      assert.deepEqual(calls, [], question);
+      await p.locator("#ia-preview-cancel").click();
+      assert.equal(await p.locator("#ia-district").inputValue(), "house:028", question);
+      assert.deepEqual(language, ["start", "status"], question);
+    }
+  } finally { await p.close(); }
+});
+
+test("Ask recognizes the Senate district abbreviation for a clean switch", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const calls = investigationCalls(p);
+    const language = await offerPopulationSwitch(p, "SD 8");
+    const run = p.locator("#ia-proposal-run");
+    assert.equal(await run.textContent(), "Switch to Senate 008 and run");
+    assert.deepEqual(calls, []);
+    await run.click();
+    await p.locator("#ia-answer-h").waitFor();
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.deepEqual(language, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+test("Ask confirms a clean district switch once at 320×568 and keeps the earlier context", { timeout: 30000 }, async () => {
+  const p = await page(base, { viewport: { width: 320, height: 568 }, mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p);
+    const dismissed = await offerPopulationSwitch(p);
+    const review = p.locator("#ia-question-result"), run = p.locator("#ia-proposal-run"), keep = p.locator("#ia-proposal-discard");
+    assert.equal(await keep.textContent(), "Keep House 028");
+    await keep.focus();
+    await p.keyboard.press("Enter");
+    assert.equal((await focus(p)).id, "ia-question-text");
+    assert.deepEqual(await savedCase(p), before);
+    assert.deepEqual(dismissed, ["start", "status"]);
+
+    const accepted = await offerPopulationSwitch(p);
+    assert.deepEqual(calls, []);
+    assert.equal(await p.locator("#ia-district").inputValue(), "house:028");
+    const reviewText = await review.innerText();
+    assert.match(reviewText, /House 028 to Senate 008/);
+    assert.match(reviewText, /new context.*Save or reopen the case/);
+    assert.equal(await run.textContent(), "Switch to Senate 008 and run");
+    assert.equal((await focus(p)).id, "ia-question-result");
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-proposal-run");
+    await p.keyboard.press("Enter");
+    await p.locator("#ia-answer-h").waitFor();
+    assert.equal((await focus(p)).id, "ia-answer-h");
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.match(await p.locator("#ia-answer").innerText(), /73,731.*1,445,235/);
+    await recommend(p);
+    assert.deepEqual(calls.map(c => c.mode), ["run", "brief"]);
+    const after = await savedCase(p);
+    assert.equal(after.branches.length, 2);
+    assert.deepEqual(after.branches.find(b => b.branch_id === before.active_branch_id), before.branches[0]);
+    const current = after.branches.find(b => b.branch_id === after.active_branch_id);
+    assert.equal(current.plan.district.chamber, "senate");
+    assert.equal(current.plan.district.code, "008");
+    assert.deepEqual(current.selected_claim_refs, calls[1].selected_claim_refs);
+    assert.equal(current.selected_claim_refs.length, 1);
+    assert.deepEqual(accepted, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+test("Ask checks the district confirmation again when there is new focused staff work", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const calls = investigationCalls(p), language = await offerPopulationSwitch(p);
+    const run = p.locator("#ia-proposal-run"), note = p.locator("#ia-title");
+    assert.equal(await run.textContent(), "Switch to Senate 008 and run");
+    await note.fill("Staff title started after the question");
+    await run.evaluate(el => el.click()); // the title still has focus and has not committed on blur
+    assert.equal((await focus(p)).id, "ia-title");
+    assert.equal(await run.textContent(), "Run this proposal");
+    assert.match(await p.locator("#ia-question-result").textContent(), /This context has staff notes or checklist entries/);
+    assert.deepEqual(calls, []);
+    await run.click();
+    await p.locator("#ia-preview-cancel").click();
+    assert.equal(await note.inputValue(), "Staff title started after the question");
+    assert.equal(await p.locator("#ia-district").inputValue(), "house:028");
+    assert.deepEqual(calls, []);
+    assert.deepEqual(language, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+async function startIncompleteTrackingDate(p) {
+  if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+  const date = p.locator("#ia-track-date");
+  await date.focus();
+  await p.keyboard.type("1116");
+  assert.equal(await date.evaluate(el => el.value === "" && el.validity.badInput), true);
+  await date.evaluate(el => { window.focusRaceDate = el; });
+  return date;
+}
+
+async function assertIncompleteTrackingDateKept(date) {
+  assert.equal(await date.evaluate(el => el === window.focusRaceDate && el === document.activeElement && el.validity.badInput), true);
+}
+
+test("Ask holds an incomplete staff date on pointer confirmation or cancellation of the clean switch", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p), run = p.locator("#ia-proposal-run");
+    const cancelled = await offerPopulationSwitch(p);
+    assert.equal(await run.textContent(), "Switch to Senate 008 and run");
+    const date = await startIncompleteTrackingDate(p);
+    await run.click();
+    assert.deepEqual(calls, []);
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    assert.match(await p.locator("#ia-status").textContent(), /Finish or clear the staff date/);
+    await assertIncompleteTrackingDateKept(date);
+    await p.locator("#ia-proposal-discard").click();
+    assert.equal(await run.count(), 0);
+    await assertIncompleteTrackingDateKept(date);
+    await p.keyboard.type("2026");
+    assert.equal(await date.inputValue(), "2026-11-16", "the year continues the existing native month and day");
+    await date.fill("");
+    assert.deepEqual(await savedCase(p), before);
+    const accepted = await offerPopulationSwitch(p);
+    await startIncompleteTrackingDate(p);
+    await run.focus(); // the invalid field must also be protected when it was already left
+    await run.click();
+    await assertIncompleteTrackingDateKept(date);
+    await date.fill("");
+    await run.click();
+    await p.locator("#ia-answer-h").waitFor();
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.deepEqual(cancelled, ["start", "status"]);
+    assert.deepEqual(accepted, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+test("Ask holds an incomplete staff date in the ordinary proposal and its separate context review", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    await p.locator("#ia-title").fill("Office title in House 028");
+    const calls = investigationCalls(p), language = await offerPopulationSwitch(p);
+    const run = p.locator("#ia-proposal-run");
+    assert.equal(await run.textContent(), "Run this proposal");
+    const date = await startIncompleteTrackingDate(p);
+    await run.click();
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    await assertIncompleteTrackingDateKept(date);
+    await date.fill("");
+    await run.click();
+    await startIncompleteTrackingDate(p);
+    await p.locator("#ia-preview-confirm").click();
+    assert.deepEqual(calls, []);
+    assert.equal(await p.locator("#ia-preview").isVisible(), true);
+    await assertIncompleteTrackingDateKept(date);
+    await p.locator("#ia-preview-cancel").click();
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    await assertIncompleteTrackingDateKept(date);
+    assert.equal(await p.locator("#ia-district").inputValue(), "house:028");
+    assert.equal(await p.locator("#ia-title").inputValue(), "Office title in House 028");
+    assert.deepEqual(calls, []);
+    assert.deepEqual(language, ["start", "status"]);
+  } finally { await p.close(); }
+});
 
 test("Phase 3 #4 Ask: an answer about one program keeps its own action; a measure answer in mixed results is not a shortcut", { timeout: 90000 }, async () => {
   const p = await page();
@@ -2309,4 +2570,318 @@ test("Phase 3 #11 each comparison operand states its own margin: controlled, mix
     assert.match(text, /Honolulu County: [\d,]+ \(Controlled estimate; no numeric margin of error published\)/);
     await proof(p, "phase3-11-margins", {});
   } finally { await p.close(); }
+});
+
+// SNAP participation gap: the server's typed, value-free offer on an unsupported question (shape as emitted by
+// districtbrief/ia_language.py snap_gap_offer). Offline fake Ask transport in this page only: no provider.
+const GAP_COLD = "How many House District 28 residents qualify for SNAP but aren’t enrolled? Give me something I can take into a meeting.";
+async function gapPage(withOffer) {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const language = [];
+  await p.route("**/*", async route => {
+    const u = new URL(route.request().url());
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return route.abort();
+    if (u.pathname === "/api/catalog") { const r = await route.fetch(), j = await r.json(); j.language = { enabled: true, schema_version: "ia-language/1", message: "fixture", limits: { deadline_seconds: 25 } }; return route.fulfill({ response: r, json: j }); }
+    if (!u.pathname.startsWith("/api/language/")) return route.continue();
+    const action = u.pathname.split("/").pop(), body = route.request().postDataJSON(); language.push(action);
+    if (action === "cancel") return route.fulfill({ json: { status: "cancelled" } });
+    if (action === "start") {
+      const c = body.context, rel = await route.request().frame().page().evaluate(async () => (await (await fetch("/api/catalog")).json()).investigation.release_id || "");
+      p.gapEnv = { request_id: body.request_id, context: c, context_digest: "sha256:" + "d".repeat(64), tokens: { schema_version: "ia-language/1", release_id: rel, ...Object.fromEntries(["case_id", "branch_id", "revision", "snapshot_id", "operation_version", "recipe_version"].map(k => [k, c[k]])) } };
+      return route.fulfill({ status: 202, json: { ...p.gapEnv, status: "pending" } });
+    }
+    const reply = { ...p.gapEnv, status: "unsupported", intent: "none", message: "This request is outside the admitted evidence or operations. Use guided controls.", reason_code: "unavailable_evidence",
+      normalized_plan: null, typed_diff: [], inherited_fields: [], source_inspection_refs: [], choices: [], clarify_field: "", model_calls: 1 };
+    if (withOffer) reply.participation_gap = { kind: "snap_participation_gap", program_id: "snap_hi", issue_id: "food_assistance_outreach", district: { state_fips: "15", chamber: "house", code: "028", boundary_session: 2024 } };
+    return route.fulfill({ json: reply });
+  });
+  await p.goto(base.href);
+  await p.waitForFunction(() => !document.querySelector("#ia-recommend").hidden && document.querySelector("#ia-cancel").hidden);
+  p.language = language;
+  return p;
+}
+async function gapAsk(p, text = GAP_COLD) {
+  await p.locator("#ia-question-text").fill(text);
+  await p.locator("#ia-question-submit").click();
+  await p.locator("#ia-question-result .ia-alternatives").waitFor();
+}
+
+test("SNAP gap: opening outreach waits for an incomplete staff date on pointer activation", { timeout: 30000 }, async () => {
+  const p = await gapPage(true);
+  try {
+    const calls = investigationCalls(p), outreach = p.locator("#ia-gap-open");
+    await gapAsk(p);
+    const date = await startIncompleteTrackingDate(p);
+    await outreach.click();
+    assert.deepEqual(calls, []);
+    assert.match(await p.locator("#ia-status").textContent(), /Finish or clear the staff date/);
+    await assertIncompleteTrackingDateKept(date);
+    await date.fill("");
+    await outreach.click();
+    await p.locator("#ia-answer-h").waitFor();
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.deepEqual(p.language, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+test("SNAP gap: the cold question gets a plain no-count answer and opens SNAP outreach and its brief without another question", { timeout: 60000 }, async () => {
+  const p = await gapPage(true);
+  try {
+    const calls = investigationCalls(p);
+    await gapAsk(p);
+    const box = await p.locator("#ia-question-result").textContent();
+    assert.match(box, /No SNAP enrollment or eligible-population count is available for House 028 or a matching area\. The app has state and county enrollment totals\./);
+    assert.doesNotMatch(box, /Social Security|Kūpuna|older-adult|Measures already run/i, "no unrelated examples or default-context findings");
+    assert.doesNotMatch(box.replace(/House 028/g, ""), /\d/, "no figure is presented");
+    assert.equal(await p.locator("#ia-alt-s1").count(), 0);
+    assert.equal(await p.locator("#ia-gap-open").textContent(), "Open SNAP outreach for House 028");
+    assert.deepEqual(calls, [], "nothing ran before the staff choice");
+    await p.locator("#ia-gap-open").click();
+    await p.locator("#ia-answer-h").waitFor();
+    await p.waitForFunction(() => document.querySelector("#ia-cancel").hidden);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].mode, "run");
+    assert.equal(calls[0].plan.issue_id, "food_assistance_outreach");
+    assert.deepEqual(calls[0].plan.steps.map(s => s.operation), ["profile", "program_evidence", "outreach_lead"]);
+    assert.equal(calls[0].plan.district.code, "028");
+    assert.equal(await p.locator("#ia-answer-h").textContent(), "SNAP outreach · House 028");
+    assert.equal((await focus(p)).id, "ia-evidence-h", "the ordinary run focus rule is unchanged");
+    const CHECK = "Ask DHS BESSD for SNAP enrollment and eligible-population data for House 028 or a matching area.";
+    const answer = await p.locator("#ia-answer").textContent();
+    assert.match(answer, /No count: the app has no SNAP enrollment or eligible-population data for House 028\./);
+    assert.match(await p.locator("#ia-status").textContent(), /SNAP outreach opened for House 028\. It does not answer how many residents qualify but are not enrolled/);
+    // The staff action comes before the brief action, is named plainly and is added only on request.
+    const order = await p.locator("#ia-answer").evaluate(a => [...a.querySelectorAll("#ia-gap-check-add, #ia-outreach-brief")].map(x => x.id));
+    assert.deepEqual(order, ["ia-gap-check-add", "ia-outreach-brief"]);
+    assert.equal(await p.locator("#ia-gap-check-add").textContent(), "Add DHS data check to brief");
+    assert.equal(await p.locator("#ia-gap-check-what").textContent(), "Staff action for the brief: “" + CHECK + "” Adding it also selects the SNAP outreach findings and agency action, and it prints in the brief after the normal staff review. Nothing is added unless you choose it.");
+    assert.equal(await p.locator("#ia-chk-custom1-text").count(), 0, "no staff text is added automatically");
+    await p.locator("#ia-gap-check-add").click();
+    assert.equal(await p.locator("#ia-chk-custom1-text").inputValue(), CHECK);
+    assert.equal(await p.locator("#ia-preview").isVisible(), false, "no context review: the action was chosen before the staff item");
+    assert.equal(calls.length, 1, "selecting and adding sends nothing");
+    assert.equal(await p.locator("#ia-gap-check-add").count(), 0, "added once");
+    assert.match(await p.locator("#ia-gap-check-what").textContent(), /It is in the checklist and prints in the brief after the normal staff review\./);
+    // The normal staff review gates printing; after it, the brief carries the pinned SNAP action and the staff check.
+    await p.locator("#ia-outreach-brief").click();
+    assert.equal(calls.filter(c => c.mode === "brief").length, 0, "staff content is not printed before review");
+    await p.locator("#ia-review-btn").click();
+    await p.locator("#ia-outreach-brief").click();
+    await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
+    const brief = calls.at(-1);
+    assert.equal(brief.mode, "brief");
+    assert.equal(brief.selected_action_ref.action_id, "snap_food_outreach_verify/1");
+    assert.deepEqual(brief.checklist_edits, [{ item_id: "custom1", text: CHECK }]);
+    const printed = await p.locator("#ia-brief").textContent();
+    assert.ok(printed.includes(CHECK), "the DHS data check prints in the brief");
+    assert.doesNotMatch(printed, /158,135|78,231/, "no caseload figure is presented as a district count");
+    assert.deepEqual(p.language, ["start", "status"], "no further question was sent");
+    await proof(p, "snap-gap-cold", {});
+  } finally { await p.close(); }
+});
+
+test("SNAP gap: an unrelated unsupported reply keeps the generic fallback and offers no outreach", { timeout: 30000 }, async () => {
+  const p = await gapPage(false);
+  try {
+    await gapAsk(p, "Forecast senior population in House 28.");
+    assert.equal(await p.locator("#ia-gap-open").count(), 0);
+    assert.match(await p.locator("#ia-question-result").textContent(), /The bundled evidence does not include what the question asks for/);
+    assert.equal(await p.locator("#ia-alt-advanced").count(), 1);
+  } finally { await p.close(); }
+});
+
+test("SNAP gap: adding the DHS check cannot discard plan edits or replace a context review", { timeout: 30000 }, async () => {
+  const p = await gapPage(true);
+  try {
+    await gapAsk(p); await p.locator("#ia-gap-open").click();
+    const add = p.locator("#ia-gap-check-add");
+    await add.waitFor();
+    await observeCase(p); await p.locator("#ia-download-staff").check();
+    const snapshot = () => p.evaluate(() => window.dateRaceCase);
+    const before = await snapshot(), calls = investigationCalls(p);
+    await p.locator("#ia-map-session").selectOption("2024");
+    assert.equal(await add.isDisabled(), true);
+    assert.match(await p.locator("#ia-gap-check-what").innerText(), /Apply or discard the plan edits/);
+    // Even a click event already delivered to the control must check the live draft.
+    await add.dispatchEvent("click");
+    assert.equal(await p.locator("#ia-map-session").inputValue(), "2024");
+    assert.deepEqual(await snapshot(), before);
+    await p.locator("#ia-context-apply-btn").click();
+    const preview = p.locator("#ia-preview"), review = await preview.innerText();
+    await add.dispatchEvent("click");
+    assert.equal(await preview.innerText(), review);
+    assert.equal(await p.locator("#ia-map-session").inputValue(), "2024");
+    assert.deepEqual(await snapshot(), before);
+    assert.deepEqual(calls, []);
+    await p.locator("#ia-preview-cancel").click();
+    await p.locator("#ia-discard").click();
+    assert.equal(await add.isEnabled(), true);
+  } finally { await p.close(); }
+});
+
+test("SNAP gap: adding the DHS check validates a focused date and keeps a focused staff title", { timeout: 30000 }, async () => {
+  const p = await gapPage(true);
+  try {
+    await gapAsk(p); await p.locator("#ia-gap-open").click();
+    const add = p.locator("#ia-gap-check-add");
+    await add.waitFor();
+    await observeCase(p); await p.locator("#ia-download-staff").check();
+    const snapshot = () => p.evaluate(() => window.dateRaceCase);
+    const before = await snapshot(), calls = investigationCalls(p);
+    if (await p.locator("#ia-tracking").getAttribute("open") === null) await p.locator("#ia-tracking-summary").click();
+    const date = p.locator("#ia-track-date");
+    await date.focus();
+    await p.keyboard.type("1116");
+    assert.equal(await date.evaluate(el => el.value === "" && el.validity.badInput), true);
+    await add.evaluate(el => el.click());
+    assert.equal((await focus(p)).id, "ia-track-date");
+    assert.match(await p.locator("#ia-status").innerText(), /Finish or clear the staff date/);
+    assert.deepEqual(await snapshot(), before);
+    await p.keyboard.type("2");
+    assert.equal(await date.inputValue(), "0002-11-16", "the next key continues the held native date");
+    await add.evaluate(el => el.click());
+    assert.equal((await focus(p)).id, "ia-alert");
+    assert.match(await p.locator("#ia-alert").innerText(), /real YYYY-MM-DD date/);
+    assert.deepEqual(await snapshot(), before);
+    await date.focus();
+    await p.keyboard.type("1116");
+    assert.equal(await date.evaluate(el => el.validity.badInput), true);
+    await add.click();
+    assert.equal((await focus(p)).id, "ia-track-date");
+    assert.equal(await date.evaluate(el => el.validity.badInput), true, "pointer activation keeps the incomplete date after blur");
+    assert.deepEqual(await snapshot(), before);
+    await date.fill("");
+    await p.locator("#ia-title").fill("Staff title before adding DHS check");
+    await add.evaluate(el => el.click());
+    const held = await snapshot(), active = activeBranch(held);
+    assert.equal(held.branches.length, before.branches.length);
+    assert.equal(active.staff_edits.title, "Staff title before adding DHS check");
+    assert.equal(active.selected_action_ref, null);
+    assert.deepEqual(active.checklist_edits, []);
+    assert.match(await p.locator("#ia-preview").innerText(), /staff note or checklist entry goes to review/);
+    assert.equal(await add.isDisabled(), true);
+    assert.match(await p.locator("#ia-gap-check-what").innerText(), /Finish or cancel the context review/);
+    assert.deepEqual(calls, []);
+  } finally { await p.close(); }
+});
+
+test("SNAP gap: brief selections and a changed context are protected before outreach opens", { timeout: 60000 }, async () => {
+  const p = await gapPage(true);
+  try {
+    await recommend(p);
+    const before = await p.locator("#ia-tray-count").textContent();
+    const calls = investigationCalls(p);
+    await gapAsk(p);
+    await p.locator("#ia-gap-open").click();
+    assert.match(await p.locator("#ia-gap").textContent(), /Check this before it opens.*brief selections/);
+    assert.equal((await focus(p)).id, "ia-gap-open");
+    assert.deepEqual(calls, [], "the first choice only lists what is affected");
+    await p.locator("#ia-gap-open").click();
+    await p.locator("#ia-preview").waitFor({ state: "visible" });
+    assert.deepEqual(calls, [], "a new context still shows its context review first");
+    assert.equal(await p.locator("#ia-tray-count").textContent(), before, "earlier selections are unchanged");
+    // A changed plan after the reply withdraws the offer instead of running it against another context.
+    const q = await gapPage(true);
+    try {
+      const qcalls = investigationCalls(q);
+      await gapAsk(q);
+      await q.locator("#ia-issue").selectOption("custom");
+      assert.equal(await q.locator("#ia-gap-open").count(), 0, "the offer belongs to the question's context only");
+      assert.match(await q.locator("#ia-question-result").textContent(), /question scope or plan changed/);
+      assert.deepEqual(qcalls, [], "nothing ran");
+    } finally { await q.close(); }
+  } finally { await p.close(); }
+});
+
+test("Ask count comparisons use the printed limitation without changing the finding or sources", { timeout: 40000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    const plan = structuredClone(activeBranch(await savedCase(p)).plan);
+    plan.district = { ...plan.district, chamber: "senate", code: "008" };
+    plan.issue_id = "custom";
+    plan.steps = [{ step_id: "s2", operation: "compare", args: { metric_ids: ["total_population"], comparison_geography: "HI-STATE-2024" } }];
+    const run = p3Response(p, "run", plan.map_session);
+    await p3Ask(p, "Compare total population in Senate 8 with the State.", plan, []);
+    const response = await (await run).json();
+    const claim = response.claims.find(c => c.kind === "comparison");
+    const internal = "the fixture has no published rate for this measure.";
+    const displayed = "the data has no published rate for this measure.";
+    assert.ok(claim.not_differenced_reason.includes(internal));
+    assert.ok(claim.limitations.some(x => x.includes(internal)));
+    assert.equal(claim.difference, null);
+    const answer = await p.locator("#ia-answer").innerText();
+    assert.ok(answer.includes(displayed), answer);
+    assert.ok(!answer.includes(internal));
+    const finding = p.locator("#ia-evidence .ia-claim").first();
+    await finding.locator("summary").click();
+    assert.ok((await finding.innerText()).includes(displayed));
+    assert.ok(!(await finding.innerText()).includes(internal));
+    assert.deepEqual(await finding.locator(".source-btn").evaluateAll(nodes => nodes.map(el => [el.dataset.sourceId, el.dataset.findingId])),
+      claim.source_inspection_refs.map(r => [r.source_id, r.finding_id]));
+    await finding.locator(".ia-select input").check();
+    const saved = await savedCase(p);
+    assert.deepEqual(activeBranch(saved).selected_claim_refs, [claim.claim_ref]);
+    const brief = await p3Brief(p, plan.map_session);
+    assert.ok(brief.html.includes(displayed));
+    assert.ok(!brief.html.includes(internal));
+    await chooseCase(p, saved); await replayCase(p);
+    assert.deepEqual(activeBranch(await savedCase(p)).selected_claim_refs, [claim.claim_ref]);
+    await proof(p, "ask-count-wording", { answer, claimRef: claim.claim_ref });
+  } finally { await p.close(); }
+});
+
+test("Ask labels earlier findings while reading and running a question, then removes the label", { timeout: 40000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  let release;
+  try {
+    const plan = structuredClone(activeBranch(await savedCase(p)).plan);
+    const ask = async (question, result) => {
+      let received;
+      const ready = new Promise(resolve => { received = resolve; });
+      const gate = new Promise(resolve => { release = resolve; });
+      await mockAskStatus(p, async () => { received(); await gate; return result(); });
+      await p.locator("#ia-question-text").fill(question);
+      await p.locator("#ia-question-submit").click();
+      await ready;
+    };
+    const earlierAnswer = p.locator("#ia-earlier-answer"), earlierFindings = p.locator("#ia-earlier-findings");
+    await ask("Could you show the findings?", () => ({ status: "clarify", message: "Choose a program.", choices: [] }));
+    assert.equal(await earlierFindings.isVisible(), true, "existing plan findings are labelled even before the first accepted answer");
+    assert.equal(await earlierAnswer.isVisible(), false);
+    await p.locator("#ia-question-cancel").click(); release();
+    assert.equal(await earlierFindings.isVisible(), false);
+    const withMaui = structuredClone(plan);
+    withMaui.steps[1].args.comparison_geography = "HI-COUNTY-009-2024";
+    await p3Ask(p, "Compare senior poverty with Maui County.", withMaui, [{ field: "steps", change: "changed", step_id: "s2",
+      before: plan.steps[1], after: withMaui.steps[1] }]);
+    const question = "Show the Maui County comparison first.";
+    const current = structuredClone(activeBranch(await savedCase(p)).plan);
+    // A reorder runs in the same context, so its earlier findings stay on screen while the request is held.
+    current.steps.unshift(...current.steps.splice(1, 1));
+    for (const outcome of ["cancel", "error", "run"]) {
+      const heldRun = outcome === "run" ? await gateInvestigation(p, "run") : null;
+      await ask(question, () => outcome === "error" ? null : ({ status: "propose", intent: "replace_plan", normalized_plan: current, typed_diff: [] }));
+      assert.equal(await earlierFindings.isVisible(), true);
+      assert.equal(await earlierAnswer.isVisible(), true);
+      assert.match(await earlierFindings.innerText(), /Earlier findings.*new question is still in progress/);
+      assert.match(await p.locator("#ia-answer .ia-answer-q").innerText(), /Maui County/);
+      assert.equal(await p.locator("#ia-evidence .ia-claim input").first().isEnabled(), true);
+      await p.locator("#ia-title").focus();
+      if (outcome === "cancel") await p.locator("#ia-question-cancel").evaluate(el => el.click());
+      release();
+      if (heldRun) {
+        await heldRun.received;
+        assert.equal(await earlierFindings.isVisible(), true, "findings remain labelled during the dispatched run");
+        await earlierFindings.scrollIntoViewIfNeeded();
+        await proof(p, "ask-earlier-findings", { text: await earlierFindings.innerText() });
+        heldRun.open();
+      }
+      await requestDone(p);
+      await p.locator("#ia-question-cancel").waitFor({ state: "hidden" });
+      assert.equal(await earlierFindings.isVisible(), false);
+      assert.equal(await earlierAnswer.isVisible(), false);
+      assert.equal((await focus(p)).id, "ia-title");
+      assert.match(await p.locator("#ia-answer .ia-answer-q").innerText(), outcome === "run" ? /Show the Maui County comparison first/ : /Compare senior poverty with Maui County/);
+    }
+  } finally { if (release) release(); await p.close(); }
 });

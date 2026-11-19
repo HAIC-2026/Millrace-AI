@@ -1153,7 +1153,153 @@ def convert_decision(prepared,decision,core):
         exc.stage=stage[0];out=_recovered(prepared,exc)
     except LanguageError as exc:
         exc.stage=stage[0];raise
+    asked=out['status'] in ('propose','unsupported') and snap_gap_asked(prepared)
+    if out['status']=='propose' and out['intent'] in ('create_plan','replace_plan') and (asked or coordinated_gap_asked(prepared,require_other=False)):
+        # A proven SNAP participation gap is never answered by a substitute plan, even a valid one ("enrollment gap",
+        # "take-up gap"): the fixed unsupported recovery replaces the proposal, as the local guard does for eligibility.
+        exc=Recovery('unsupported_explicit_constraint','unsupported',reason='unsupported_operation');exc.stage='local_guard'
+        out=_recovered(prepared,exc)
+    offer=snap_gap_offer(prepared) if asked and out['status']=='unsupported' else None
+    if offer is not None:out['participation_gap']=offer
     return out
+
+# SNAP participation gap, in a few fixed forms whose eligibility and enrollment words bind to SNAP itself: "eligible for /
+# qualify for SNAP but/and/who (are) not enrolled|receiving|... [in it|in SNAP]" ending the clause; "SNAP-eligible
+# residents who are not enrolled"; "eligible non-participants in SNAP"; "SNAP participation gap" / "participation gap in
+# SNAP". Anything else (another program after the verb, a second program, unclear wording) keeps the generic refusal.
+_GAP_SNAP=r"(?:snap|food\s+stamps?)(?:\s+(?:benefits|program))?"
+_GAP_NEG=r"(?:not|never|aren't|isn't|don't|doesn't|haven't|hasn't|(?:are|is|do|does|have|has)\s+(?:not|never))"
+_GAP_VERB=(r"(?:yet\s+|currently\s+|already\s+)?(?:enrol(?:l|ls|led|ling)?|receiv(?:e|es|ing)|get(?:s|ting)?|participat(?:e|es|ing)"
+           r"|signed\s+up|sign(?:ing)?\s+up|us(?:e|es|ing)|appl(?:y|ied|ying)|claim(?:s|ed|ing)?)")
+_GAP_TAIL=(r"(?:\s+(?:in|into|on|for|with)?\s*(?:it|them|"+_GAP_SNAP+r"|the\s+program|benefits))?"
+           r"(?:\s+(?:yet|now|currently|today))?\s*(?:[?.!;,]|$)")
+_GAP_NOT_ENROLLED=r"\s+(?:(?:are|is|do|does|have|has)\s+)?(?:still\s+)?"+_GAP_NEG+r"\s+"+_GAP_VERB+_GAP_TAIL
+# Fixed filler between "SNAP-eligible" and the negated verb: who is counted and where (never another program or topic).
+_GAP_FILLER=r"(?:\s+(?:residents?|people|persons|households?|families|individuals|adults|seniors|kupuna|kūpuna|keiki|children|in|of|from|living|the|house|senate|district|\d{1,2})){0,5}?(?:\s+(?:who|that))?"
+_GAP_FORMS=(
+    r"\b(?:(?:eligible|qualif(?:y|ies|ied))\s+for|entitled\s+to)\s+"+_GAP_SNAP+r"\s*,?\s*(?:but|and|yet|who|that)"+_GAP_NOT_ENROLLED,
+    r"\b"+_GAP_SNAP+r"[- ](?:eligible|qualified)"+_GAP_FILLER+_GAP_NOT_ENROLLED,
+    r"\b(?:eligible|qualif(?:ied|ying))\s+non-?(?:participants|enrollees|recipients)\s+(?:in|of|for)\s+"+_GAP_SNAP+r"\b",
+    r"\b"+_GAP_SNAP+r"[- ]eligible\s+non-?(?:participants|enrollees|recipients)\b",
+    r"\b"+_GAP_SNAP+r"[- ](?:eligible|qualified)\s+(?:but|and|yet)\s+(?:un-?enrolled|non-?(?:enrolled|participating))\b",
+    r"\b"+_GAP_SNAP+r"\s+(?:participation|enrol(?:l)?ment|take[- ]?up|uptake)\s+gaps?\b",
+    r"\b(?:participation|enrol(?:l)?ment|take[- ]?up|uptake)\s+gaps?\s+(?:in|for|of)\s+"+_GAP_SNAP+r"\b",
+    r"\bgaps?\s+in\s+(?:the\s+)?"+_GAP_SNAP+r"\s+(?:participation|enrol(?:l)?ment|take[- ]?up|uptake)\b")
+# Next to the one named district: a coordinated or ranged number ("House 28 or 29", "House 28-30", "27 and House 28").
+_GAP_DISTRICT_PEER_AFTER=re.compile(r"^\s*(?:,|/|&|\+|-|–|—|\bor\b|\band\b|\bto\b|\bthrough\b|\bthru\b|\bplus\b|\bvs\b)\s*(?:district\s*|#\s*)?\d")
+_GAP_DISTRICT_PEER_BEFORE=re.compile(r"\d\s*(?:,|/|&|\+|-|–|—|\bor\b|\band\b|\bto\b|\bthrough\b|\bplus\b)\s*$")
+# A coordinated gap: one clause (split at . ; ! ? and "then") that is not itself negated names SNAP and, as a separate
+# positive mention, another known program, and asks expressly for an enrollment/participation/take-up gap. It is refused
+# like a SNAP gap (never a substitute plan) but never gets the SNAP-only outreach offer.
+_GAP_KIND=r"\b(?:participation|enrol(?:l)?ment|take[- ]?up|uptake)\s+gaps?\b|\bgaps?\s+in\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:participation|enrol(?:l)?ment|take[- ]?up|uptake)\b"
+_CLAUSE_SPLIT=re.compile(r"[.;!?]+|\bthen\b")
+# What a request clause asks for is read only at its start: optionally after one leading comma/colon phrase ("In House 28,",
+# "For the whole county,"). A gap or population phrase later in the clause (a purpose: "so our team can estimate the
+# gap", "for a meeting about families entitled to SNAP ...") is never the requested output.
+def _clause_starts(clause):
+    c=re.sub(r"^\W*(?:please\s+)?","",clause)
+    lead=re.match(r"[^,:;]{1,60}[,:]\s*",c)
+    return [c]+([c[lead.end():]] if lead else [])
+# A gap phrase must follow a direct head (or open the clause as bare shorthand) with only articles, "both/all" and program
+# names between, and not be followed by another noun ("gap meeting", "gap matters").
+_GAP_HEAD=(r"(?:(?:what\s+(?:is|are|was|were)|how\s+(?:large|big|wide)\s+(?:is|are)|give\s+me\s+a\s+brief\s+on|a\s+brief\s+on|brief\s+on|"
+           r"show(?:\s+me)?|give\s+me|find|estimate|calculate|compute|tell\s+me|(?:i|we)\s+(?:want|need|would\s+like)|i'd\s+like)\s+)")
+_GAP_FILL=r"(?:(?:the|both|all|a|an)\s+|(?:"+"|".join(p[2:-2] for p in PROGRAM_PATTERNS.values())+r")(?:\s*(?:,|/|&|\band\b|\bor\b)\s*|\s+))*"
+_GAP_OBJECT=re.compile(_GAP_HEAD+_GAP_FILL+r"(?:"+_GAP_KIND+r")(?=\s*(?:[?.!,;:]|$|\b(?:in|for|of|across|between|among|and|by|but)\b))")
+# Bare shorthand: the whole clause is the gap (or population) phrase plus optional simple scopes, then the end. A scope is
+# in/for/of/across/within + a district, a program, or "(the) + one or two words"; anything else (a verb continuation, a
+# context declaration, another request) leaves the clause unrecognised.
+_BARE_SCOPE=(r"(?:\s+(?:in|for|of|across|within)\s+(?:(?:house|senate)\s*(?:district\s*)?\d{1,2}|(?:the\s+)?(?:"+
+             "|".join(p[2:-2] for p in PROGRAM_PATTERNS.values())+r")|(?:the\s+)?[a-z'-]+(?:\s+[a-z'-]+)?))*\W*$")
+_GAP_BARE=re.compile(_GAP_FILL+r"(?:"+_GAP_KIND+r")"+_BARE_SCOPE)
+def _gap_object(clause):
+    return any(_GAP_OBJECT.match(c) or _GAP_BARE.match(c) for c in _clause_starts(clause))
+# An eligible-but-unenrolled population form is the requested output only after a counting opening ("how many", "(what
+# is the) number of") in that clause, right after a direct head, or as a bare population phrase leading into it.
+_COUNT_OPENING=re.compile(r"(?:how\s+many|what\s+(?:is\s+the\s+)?number\s+of|number\s+of)\b")
+_POP_HEAD=r"(?:show(?:\s+me)?|give\s+me|find|estimate|calculate|count|list|tell\s+me)\s+(?:the\s+|all\s+)?"
+_POP_SUBJECT=r"(?:(?:the|all|those|residents?|people|households?|families|individuals|who|that|are|is|(?:house|senate)\s*(?:district\s*)?\d{1,2})\s+)*"
+# Between a counting opening and the form only a positively bounded counted noun phrase may stand: count nouns, the/all/
+# those, in/of/within, a House/Senate district, and a linking who/that/are/is. Any other word (a purpose, a condition)
+# means the form is not what is counted, and ordinary handling applies.
+_COUNT_LEAD=(r"\s+(?:(?:the|all|those|in|of|within|who|that|are|is|residents?|people|persons|households?|families|individuals|adults|"
+             r"seniors|kupuna|kūpuna|keiki|children|(?:house|senate)\s*(?:district\s*)?\d{1,2})\s+)*")
+def _population_object(clause,form):
+    for c in _clause_starts(clause):
+        if re.match(_COUNT_OPENING.pattern+_COUNT_LEAD+form,c):return True
+        if re.match(_POP_HEAD+_POP_SUBJECT+form,c) or re.match(_POP_SUBJECT+form+_BARE_SCOPE,c):return True
+    return False
+# Only request sentences count. A one-sentence question is always a request (shorthand such as "SNAP enrollment gap in
+# House 28"); in several sentences, one counts only with a '?' or a direct/imperative opening, so a statement ("The SNAP
+# enrollment gap matters to us.") is background. Request sentences are then split at "then" as before.
+_REQUEST_OPENING=re.compile(r"^\W*(?:please\s+)?(?:what|how|which|who|whether|is|are|can|could|would|will|do|does|show|give|estimate|find|"
+    r"calculate|compute|count|tell|list|provide|get|make|prepare|draft|create|a\s+brief|brief\s+on|(?:i|we)\s+(?:want|need|would\s+like)|i'd\s+like)\b")
+def _request_clauses(u):
+    sentences=[x for x in re.findall(r"[^.;!?]+[.;!?]*",u) if x.strip()]
+    asks=sentences if len(sentences)<=1 else [x for x in sentences if x.rstrip().endswith('?') or _REQUEST_OPENING.match(x)]
+    return [c for x in asks for c in _CLAUSE_SPLIT.split(x) if c.strip()]
+_CLAUSE_NEGATED=re.compile(r"^\s*(?:not|no|never|without|except|excluding|skip|don't|do\s+not|rather\s+than|instead\s+of)\b")
+def coordinated_gap_asked(prepared,require_other=True):
+    u=_canonical_districts(prepared['provider_context']['utterance'].lower()).replace('’',"'")
+    for clause in _request_clauses(u):
+        if _CLAUSE_NEGATED.match(clause) or not _gap_object(clause):continue
+        if not _unnegated(PROGRAM_PATTERNS['snap_hi'],clause):continue
+        if not require_other or any(_unnegated(p,clause) for k,p in PROGRAM_PATTERNS.items() if k!='snap_hi'):return True
+    return False
+# Affirmative vocabulary for the offer: once the one district mention is removed, every remaining word must be a question
+# word, a SNAP/gap term, a resident noun, an enrollment verb, a function word or narrow meeting-deliverable wording. Any
+# other word (another program, a subarea, direction, place, period, map or boundary term, a number) withholds the offer;
+# the request keeps its generic refusal. Safety over paraphrase coverage.
+_GAP_VOCAB=frozenset("""
+how many what is are was the a an show give me i need it something can take into for meeting brief on to of in
+residents resident people households household families individuals who that live
+qualify qualifies eligible entitled snap food stamps stamp benefits program
+but and yet not never aren't isn't don't doesn't haven't hasn't do does have has still currently
+enrolled enroll receiving receive get getting them signed sign up
+participation enrollment enrolment take uptake gap gaps non participants unenrolled
+""".split())
+def _gap_vocabulary_only(u,m):
+    rest=u[:m.start()]+' '+u[m.end():]
+    return all(w in _GAP_VOCAB for w in re.findall(r"[^\W_]+(?:'[^\W_]+)?",rest))
+def snap_gap_asked(prepared):
+    """True when the request clearly asks a SNAP participation gap in one of the fixed forms: SNAP is the only (unnegated)
+    program, no other program theme is named, and the gap wording binds to SNAP. Geography is not judged here."""
+    u=_canonical_districts(prepared['provider_context']['utterance'].lower()).replace('\u2019',"'")
+    if not _unnegated(PROGRAM_PATTERNS['snap_hi'],u):return False
+    if any(re.search(p,u) for k,p in PROGRAM_PATTERNS.items() if k!='snap_hi'):return False
+    if any(re.search(p,u) for p,ids in PROGRAM_THEMES if 'snap_hi' not in ids or len(ids)>2):return False
+    # The eligible-but-unenrolled population forms (first five) are direct; a gap phrase must also be the request's object.
+    return any(_unnegated(PROGRAM_PATTERNS['snap_hi'],c) and _unnegated(form,c) and (_population_object(c,form) if i<5 else _gap_object(c))
+               for c in _request_clauses(u) for i,form in enumerate(_GAP_FORMS))
+def snap_gap_offer(prepared):
+    """A deterministic, value-free offer for an unsupported SNAP participation-gap question about exactly one named,
+    admitted State House/Senate district: open the checked SNAP outreach recipe there. Never a count, a plan, a guessed
+    district or a model field. None unless the request proves every condition (one program, one district, no other
+    geography, comparison or map year, and the SNAP outreach recipe admitted)."""
+    pc=prepared['provider_context'];original=pc['utterance']
+    if 'food_assistance_outreach/1' not in pc['catalog']['recipes']:return None
+    u=_canonical_districts(original.lower()).replace('’',"'")
+    if not snap_gap_asked(prepared):return None
+    try:
+        if re.search(_NONLEGISLATIVE.pattern,original,re.I) or _US_FEDERAL.search(original):return None
+        plain=_plain(u)
+        if _COMPARATIVE.search(plain) or _STATE_MENTION.search(plain) or _all_county_groups(plain):return None
+        selected,excluded=_map_mentions(u)
+        if selected or excluded:return None
+        explicit,bare=_district_mentions(u)
+        mentions=list(re.finditer(r'\b'+_DISTRICT+r'\b',u))
+        if len(explicit)!=1 or bare or len(mentions)!=1 or any(_is_negated(u,m) or _is_comparator(u,m) for m in mentions):return None
+        # Exactly one chamber word (no plural, bare or second chamber reference) and no coordinated or ranged number.
+        m=mentions[0]
+        if len(re.findall(r'\b(?:house|senate)s?\b',u))!=1:return None
+        if _GAP_DISTRICT_PEER_AFTER.match(u[m.end():]) or _GAP_DISTRICT_PEER_BEFORE.search(u[:m.start()]):return None
+        if not _gap_vocabulary_only(u,m):return None
+    except LanguageError:
+        return None  # Ambiguous wording is never resolved into an offer.
+    chamber,number=next(iter(explicit))
+    if not 1<=number<=(51 if chamber=='house' else 25):return None
+    return {'kind':'snap_participation_gap','program_id':'snap_hi','issue_id':'food_assistance_outreach',
+            'district':{'state_fips':'15','chamber':chamber,'code':f'{number:03}','boundary_session':2024}}
 
 def _convert(prepared,decision,core,stage):
     validate_wire(decision,prepared['schema']);status=decision['status'];intent=decision['intent'];stage[0]='decision_fields'

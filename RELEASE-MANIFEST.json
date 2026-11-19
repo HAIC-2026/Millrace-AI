@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:9969d6f9ce60bc74e2ed88c26bacc9bcc5e2160ca0fc384d2a5a0e3bdf499d38",
+  "source_identity": "sha256:40786286707a35fa9ff3ecc173b99ba881d699e68f8e786cc5ff0b6fc0b09ed4",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -131,8 +131,8 @@
     },
     {
       "path": "districtbrief/ia_language.py",
-      "bytes": 97772,
-      "sha256": "1003bfb0e0a1bb157a48f20af584c9908f251ffe54bfbf201e26f22fa43d13ed"
+      "bytes": 110992,
+      "sha256": "f8b078e36ad8f31a8da8d7fc02a47e9484563081bbbd661da0ba27513b4d72e9"
     },
     {
       "path": "districtbrief/ia_language_accounting.py",
@@ -336,23 +336,23 @@
     },
     {
       "path": "static/case_state.js",
-      "bytes": 83795,
-      "sha256": "3075571bee7a203d0ced5510456021da07840103e361d6e3b8e00979d892218f"
+      "bytes": 84610,
+      "sha256": "49a5d9cd750069a670938f72fc7a2dde1dcbb9b4f5b88238c09b27a126352b81"
     },
     {
       "path": "static/index.html",
-      "bytes": 26164,
-      "sha256": "2d1d4225cd8e9b2e99864c196ceb550da0906a1903be464331ea752a87a71a10"
+      "bytes": 26428,
+      "sha256": "471a10fe16d050f8e55b0963d28a32eb383bf83a34eb34476f5b72ccc01ca27a"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 212474,
-      "sha256": "6ecd04d6c6b664f98aa7015952724173239475fbc09cde8bf207dd786a4c1cc0"
+      "bytes": 228590,
+      "sha256": "266e1925bcdb9bc8838535432dee365b3c91b109382822d3ca701c727e06f07e"
     },
     {
       "path": "static/language_state.js",
-      "bytes": 9503,
-      "sha256": "f29c209141f1ba0b9db15c1cbc8ec30e7af9b98c0f7e0d726f47b5300c57590a"
+      "bytes": 11701,
+      "sha256": "4b7a7d02e2085905458abee7bd5a1d4893be8532b2a6d13a04719d93ac2f4884"
     },
     {
       "path": "static/map.js",
@@ -416,8 +416,8 @@
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 139333,
-      "sha256": "a8585215025dc4dbbe8c4045021563252908cab66d9ad234c7a37a31b9781dae"
+      "bytes": 173378,
+      "sha256": "586973e10ea12b3417117de9596fcb13fd1eb131f9aae44cb12130bbbba38724"
     },
     {
       "path": "tests/language_funding_fixture.py",
@@ -446,8 +446,8 @@
     },
     {
       "path": "tests/test_case_state.cjs",
-      "bytes": 184753,
-      "sha256": "9613decae17d0e3c205ad802ac2dd96f8647d1220edbd68b11c2c9c365b80fcc"
+      "bytes": 184952,
+      "sha256": "5f912f181f2248ac54b74a348bb2a4d6b9987cd7b41a684845289fbaa63436b8"
     },
     {
       "path": "tests/test_catalog_pagination.py",
@@ -651,8 +651,8 @@
     },
     {
       "path": "tests/test_language_state.cjs",
-      "bytes": 8968,
-      "sha256": "a9ae343849c570f3af822d7572f9d9996215939d23162219837fdbfcf9d209b0"
+      "bytes": 11812,
+      "sha256": "857fea2ba32653bbe6e3d6ea3c13dcdf0958a99c6be75d8bf267eda07c7a9a4e"
     },
     {
       "path": "tests/test_metric_caveats.py",
@@ -680,6 +680,11 @@
       "sha256": "f03bf42da5fda5c139cc00aa928e12ec775c316fc37831930bcb8de999785e89"
     },
     {
+      "path": "tests/test_snap_gap_offer.py",
+      "bytes": 40543,
+      "sha256": "2af955aa55186084d10bf3a4e7874e3b4e8bb3cd1faa40b94ab80939769cbeb2"
+    },
+    {
       "path": "tools/build_candidate_metadata.py",
       "bytes": 1038,
       "sha256": "bbc40c4a2851a03ce0dfb59760202eb1427e349b6ad8999c97a509d8e8f41576"
@@ -691,8 +696,8 @@
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 8230,
-      "sha256": "12b63435aed6dcc8de914f49399ae2e62e3f34adb77bd25ad3bb27d664543c66"
+      "bytes": 8255,
+      "sha256": "1bba1474b78386130837e1779a58cc358e0fe604fa25151ee5852f1c2a899bda"
     },
     {
       "path": "tools/compile_statistics.py",

@@ -58,14 +58,37 @@
   // One Ask guards. They only decide whether a server-validated proposal may run without review; they never
   // choose, fill or change any part of a plan, and they do not interpret the question.
   // Explicit district mentions with a chamber ("House 28", "Senate district 5"), as "house:028" keys.
+  const DISTRICT_MENTION = /\b(house|senate)(?:\s+district)?\s+0*(\d{1,2})\b/gi;
+  const mentionKey = ([, chamber, code]) => chamber.toLowerCase() + ':' + String(Number(code)).padStart(3, '0');
   function namedDistricts(text) {
-    const out = new Set(), re = /\b(house|senate)(?:\s+district)?\s+0*(\d{1,2})\b/gi;
-    let m;
-    while ((m = re.exec(String(text || '')))) out.add(m[1].toLowerCase() + ':' + String(Number(m[2])).padStart(3, '0'));
-    return out;
+    return new Set(Array.from(String(text || '').matchAll(DISTRICT_MENTION), mentionKey));
   }
   const districtKey = (d) => d.chamber + ':' + d.code;
   const geoDistrictKey = (g) => { const m = /^HI-(HOUSE|SENATE)-(\d{3})-\d{4}$/.exec(String(g || '')); return m ? m[1].toLowerCase() + ':' + m[2] : null; };
+  const DISTRICT_JOIN = String.raw`(?:,?\s*(?:(?:or|and|to|through|thru|plus|with|against|between|versus)\b|vs\b\.?)|[,/&+–—-])\s*(?:(?:in|for|within|to|(?:that\s+)?of)\s+)?`;
+  const NUMBER_AFTER_DISTRICT = new RegExp(String.raw`^\s*${DISTRICT_JOIN}(?:districts?\s+)?0*\d{1,2}\b`, 'i');
+  const NUMBER_BEFORE_DISTRICT = new RegExp(String.raw`\b0*\d{1,2}\s*${DISTRICT_JOIN}$`, 'i');
+  // Eligibility for one confirmation of a primary district change. Use the server's HD/SD spelling here only.
+  function switchDistrictWording(question, plan) {
+    const text = String(question || '').replace(/\b([hs])d\s*-?\s*0*(\d{1,2})\b/gi, (_, ch, n) => (ch.toLowerCase() === 'h' ? 'House ' : 'Senate ') + n);
+    const mentions = Array.from(text.matchAll(DISTRICT_MENTION)), target = districtKey(plan.district);
+    if (!mentions.length || mentions.some(m => mentionKey(m) !== target)) return 'review';
+    const clauseBreak = /[.!?;:]/;
+    const excluded = /\b(?:no|not|never|neither|don't|don’t|without|except|exclude|excluding|outside)\b/i;
+    const related = /\b(?:near(?:by)?|around|adjacent|next\s+to|beside|border(?:s|ing)?|adjoin(?:s|ing)?|neighbou?r(?:s|ing)?|surround(?:s|ing)?|overlap(?:s|ping)?|contain(?:s|ing)?|includ(?:e|es|ing))\b/i;
+    // A bare number elsewhere might name another district. Leave that scope to the ordinary review.
+    let needsReview = /\b0*\d{1,2}\b/.test(text.replace(DISTRICT_MENTION, ' '));
+    for (const mention of mentions) {
+      const before = text.slice(0, mention.index), after = text.slice(mention.index + mention[0].length);
+      if (NUMBER_AFTER_DISTRICT.test(after) || NUMBER_BEFORE_DISTRICT.test(before)) {
+        // A separate district comparator already goes through its normal comparison guards.
+        return plan.steps.some(st => st.operation === 'compare' && geoDistrictKey(st.args.comparison_geography)) ? 'review' : 'clarify';
+      }
+      const clause = before.split(clauseBreak).pop() + ' ' + after.split(clauseBreak, 1)[0];
+      if (excluded.test(clause) || related.test(clause)) needsReview = true;
+    }
+    return needsReview ? 'review' : 'single';
+  }
   // What a validated proposal asked for, read only from the server's typed diff (never from the question text):
   // - an added step, or a step whose operation or comparison geography changed: the whole step;
   // - a changed step that gained measures, programs or administrative rows: only those (before/after lists); widening a profile to all
@@ -120,5 +143,5 @@
     });
     return out;
   }
-  return {context, matches, same, makeBasis, withChoice, namedDistricts, requestedFocus, runBlockers};
+  return {context, matches, same, makeBasis, withChoice, namedDistricts, requestedFocus, runBlockers, switchDistrictWording};
 });

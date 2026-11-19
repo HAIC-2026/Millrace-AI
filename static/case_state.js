@@ -206,11 +206,7 @@
       out.issue_id = patch.issue_id;
       // A new issue brings its recipe; Custom keeps the visible steps for staff to edit.
       if (patch.issue_id === "aging_at_home") out.steps = defaultPlan(out.district).steps;
-      if (patch.issue_id === "food_assistance_outreach") out.steps = [
-        { step_id: "s1", operation: "profile", args: { metric_ids: ["poverty_rate_all_people", "median_household_income"] } },
-        { step_id: "s2", operation: "program_evidence", args: { program_ids: ["snap_hi"] } },
-        { step_id: "s3", operation: "outreach_lead", args: { program_id: "snap_hi" } },
-      ];
+      if (patch.issue_id === "food_assistance_outreach") out.steps = foodOutreachSteps();
     }
     const issues = [];
     if (!validPlan(out, "plan", issues)) return err("invalid_context", issues[0].message);
@@ -220,6 +216,23 @@
   }
 
   function err(code, message) { return { error: { code: code, message: message } }; }
+
+  // The checked SNAP outreach recipe steps (food_assistance_outreach/1), shared by the issue switch and the SNAP gap offer.
+  function foodOutreachSteps() {
+    return [
+      { step_id: "s1", operation: "profile", args: { metric_ids: ["poverty_rate_all_people", "median_household_income"] } },
+      { step_id: "s2", operation: "program_evidence", args: { program_ids: ["snap_hi"] } },
+      { step_id: "s3", operation: "outreach_lead", args: { program_id: "snap_hi" } },
+    ];
+  }
+  // The SNAP outreach recipe for one district, keeping the base plan's map display and staff service area. Validated
+  // like any plan; nothing else is carried over.
+  function foodOutreachPlan(base, district) {
+    const out = { district: { state_fips: "15", chamber: district.chamber, code: district.code, boundary_session: 2024 }, map_session: base.map_session,
+      issue_id: "food_assistance_outreach", service_area_id: base.service_area_id, steps: foodOutreachSteps() };
+    const issues = [];
+    return validPlan(out, "plan", issues) ? { plan: out } : err("invalid_context", issues[0].message);
+  }
 
   // What changed between the committed plan and a proposal. Pure reorder and no-op are not material.
   function classifyChange(a, b) {
@@ -1161,7 +1174,7 @@
   return {
     SCHEMA_VERSION, OPERATION_VERSION, CASE_SCHEMA, OPERATIONS, SERVICE_AREAS, ISSUES, CHECK_IDS, TEMPLATE_CHECK_IDS, TOKEN_KEYS, LIMITS, AGING_METRICS,
     canonical, planCanonical, validDate, utf8Length, refKey, actionKey, geographyIdOf,
-    defaultPlan, validPlan, validArgs, addStep, removeStep, moveStep, rescopeStep, setContext, classifyChange,
+    defaultPlan, foodOutreachPlan, validPlan, validArgs, addStep, removeStep, moveStep, rescopeStep, setContext, classifyChange,
     createState, active, branchOf, staffItems, hasStaffContent, runtimeMatches, proposeChange, confirmChange, removeBranch,
     currentResults, toggleClaim, moveSelection, availableActions, chooseAction, setStaffText, setFindingNote, setChecklist, setTracking,
     copyParked, leaveParked, pendingReview, setExclusion, activeStaff, staffDigest, markReviewed, reviewCurrent,
