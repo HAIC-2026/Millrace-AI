@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:d056eab80ac863d807e6a6c41042a3054272aa743fab1bfae788cd6ea6fbd0e0",
+  "source_identity": "sha256:9a921d2463360415168540c41c1c8aa1054cf3a0640fea6f6e3be52a12176838",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -261,8 +261,8 @@
     },
     {
       "path": "public_app.py",
-      "bytes": 26688,
-      "sha256": "8ae69be39b52bd94daf3fe606709740dca66c6439e5b91f83eaf0815be2f8150"
+      "bytes": 26823,
+      "sha256": "16b49c2e9de666c8d5c09637cac0194e90d1c2c2ffcb006c12cc0c9176e2a1ad"
     },
     {
       "path": "requirements.txt",
@@ -676,8 +676,8 @@
     },
     {
       "path": "tests/test_release.py",
-      "bytes": 34120,
-      "sha256": "c3408c1d02fb154b186b1b28f21bcc4be98c448a77997488201f632d2f1b6940"
+      "bytes": 34266,
+      "sha256": "13e1eb9fd276f32c06ea2264e72b50f43b8a4c02da11c0b15694a6efedc8bfc4"
     },
     {
       "path": "tests/test_scope.py",

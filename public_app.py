@@ -278,7 +278,10 @@ class Application:
         if not isinstance(body, bytes):
             body = json.dumps(body, ensure_ascii=False, separators=(',',':'), allow_nan=False).encode('utf-8')
         status = {200:'OK',202:'Accepted',204:'No Content',400:'Bad Request',403:'Forbidden',404:'Not Found',405:'Method Not Allowed',409:'Conflict',411:'Length Required',413:'Content Too Large',415:'Unsupported Media Type',429:'Too Many Requests',503:'Service Unavailable',500:'Internal Server Error'}[code]
-        start_response(f'{code} {status}', [('Content-Type',content_type),('Content-Length',str(len(body))), *HEADERS, *extra])
+        headers = [('Content-Type',content_type),('Content-Length',str(len(body))), *HEADERS, *extra]
+        if self.secure_cookie:
+            headers.append(('Strict-Transport-Security', 'max-age=31536000'))
+        start_response(f'{code} {status}', headers)
         return [b'' if method == 'HEAD' else body]
 
     def dispatch(self, environ, extra):
