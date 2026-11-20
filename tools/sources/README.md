@@ -11,3 +11,17 @@ Run the commands below from the `tools/sources/` directory.
 The URLs and historic source hashes in `allowlist.json` are an explicit 12-input list, not a claim that the whole historical packet can be reconstructed. `matches_historical: false` is expected when a publisher revises an endpoint; no automatic acceptance occurs. No bundled cases are changed. If a source is unavailable, the acquisition report records an error and normalization refuses the incomplete capture; continue using the existing reviewed snapshot pending manual resolution.
 
 `../compile_statistics.py` is the project compiler retained for its reviewed mapping; `normalize.py` invokes only its `compile_observations` function against a temporary capture-specific manifest. Do not invoke the legacy compiler's main routine as a refresh tool.
+
+## Reproduce the 40-measure public projection
+
+From the repository root, use the retained `ac065bd` public runtime packet, the original `SOURCE-PACKET-MANIFEST.json`, and the private `statistics/` directory containing the captured manifest and raw files.
+
+```sh
+python3 tools/build_acs_expansion_projection.py \
+  --baseline-packet /path/to/ac065bd/runtime-packet \
+  --source-manifest /path/to/retained/SOURCE-PACKET-MANIFEST.json \
+  --statistics-dir /path/to/retained/statistics \
+  --check
+```
+
+The check verifies the required capture hashes, the complete Census variable labels, the workbook headings and the original 1,640 observation records. To generate the observations, packet manifest and included-input inventory in a new directory outside the repository, replace `--check` with `--output-directory /path/to/new/directory`.

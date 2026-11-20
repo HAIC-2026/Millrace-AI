@@ -10,6 +10,13 @@ OPERATION_VERSION = 'ia-core/1'
 HASH = re.compile(r'^sha256:[0-9a-f]{64}$', re.ASCII)
 SERVICES = {'statewide','oahu','hawaii_island','maui','molokai','lanai','kauai','kalawao'}
 TOKEN_KEYS = ('request_id','case_id','branch_id','revision','snapshot_id','schema_version','operation_version','recipe_version')
+# Exact earlier public evidence identities with a documented matching-release route. A case is never migrated.
+PUBLIC_AC065BD_SNAPSHOT = 'sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479'
+SNAPSHOT_MESSAGE = ('This case needs a different evidence snapshot. Historical R2 cases require the matching live R2 app '
+                    'or the documented r2 profile with retained original inputs.')
+AC065BD_MESSAGE = ('This case was saved with the earlier 20-measure public evidence. It replays only on that exact release, '
+                   'commit ac065bd83632c69ef77d55763bfb524068485c21; this app does not migrate it. See Saved cases and '
+                   'replay in docs/RUNNING.md.')
 
 class InvestigationError(ValueError):
     def __init__(self, status=400, code='invalid_request', message='The request failed contract validation.', path='', retry_action='correct_fields'):
@@ -131,7 +138,7 @@ def validate_request(raw,core,snapshot_id):
     integer(raw['revision'],0,2147483647,'revision')
     if raw['schema_version']!=SCHEMA_VERSION:fail('schema_version','This schema version is unavailable.','version_mismatch',409)
     if raw['operation_version']!=OPERATION_VERSION:fail('operation_version','This operation version is unavailable.','version_mismatch',409)
-    if raw['snapshot_id']!=snapshot_id: raise InvestigationError(409,'snapshot_unavailable','This case needs a different evidence snapshot. Historical R2 cases require the matching live R2 app or the documented r2 profile with retained original inputs.','snapshot_id','open_matching_release_or_keep_saved_case')
+    if raw['snapshot_id']!=snapshot_id: raise InvestigationError(409,'snapshot_unavailable',AC065BD_MESSAGE if raw['snapshot_id']==PUBLIC_AC065BD_SNAPSHOT else SNAPSHOT_MESSAGE,'snapshot_id','open_matching_release_or_keep_saved_case')
     plan=raw['plan']
     if plan is not None: validate_plan(plan,core)
     elif mode!='interpret':fail('plan','A plan is required.')

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -68,6 +69,65 @@ METRICS = [
  ("median_gross_rent","DP04",152,"0134","estimate","Median (dollars)","USD per month","Renter-occupied housing units paying cash rent"),
  ("rent_burden_denominator","DP04",155,"0136","estimate","Occupied units paying rent (excluding units where GRAPI cannot be computed)","housing units","Occupied units paying rent with computable gross rent as a percentage of household income"),
  ("rent_35_plus_percent_income","DP04",161,"0142","estimate","35.0 percent or more","housing units","Occupied units paying rent with computable gross rent as a percentage of household income"),
+]
+# The publication expansion is opt-in. Each workbook parent chain also defines
+# the complete expected Census estimate and margin labels.
+INCOME_HEADING = (58, "INCOME AND BENEFITS (IN 2024 INFLATION-ADJUSTED DOLLARS)")
+HOUSEHOLD_INCOME_PARENTS = (INCOME_HEADING, (59, "Total households"))
+DISABILITY_HEADING = (82, "DISABILITY STATUS OF THE CIVILIAN NONINSTITUTIONALIZED POPULATION")
+GROSS_RENT_PARENTS = (
+    (154, "GROSS RENT AS A PERCENTAGE OF HOUSEHOLD INCOME (GRAPI)"),
+    (155, "Occupied units paying rent (excluding units where GRAPI cannot be computed)"),
+)
+GROSS_RENT_UNIVERSE = "Occupied units paying rent with computable gross rent as a percentage of household income"
+SNAP_UNIVERSE = ("All households. The ACS measures survey-reported SNAP receipt by a current household member in the past 12 months. "
+                 "Administrative enrollment and eligibility require separate evidence.")
+SEX_AND_AGE_PARENTS = ((3, "SEX AND AGE"), (4, "Total population"))
+GUIDED_EXPANSION = [
+    ("households_with_snap", "DP03", 82, "0074", "estimate", "With Food Stamp/SNAP benefits in the past 12 months",
+     "households", SNAP_UNIVERSE, HOUSEHOLD_INCOME_PARENTS),
+    ("households_with_snap_share", "DP03", 82, "0074", "percent", "With Food Stamp/SNAP benefits in the past 12 months",
+     "percent", SNAP_UNIVERSE, HOUSEHOLD_INCOME_PARENTS),
+    ("disability_share", "DP02", 84, "0072", "percent", "With a disability", "percent",
+     "Civilian noninstitutionalized population",
+     (DISABILITY_HEADING, (83, "Total Civilian Noninstitutionalized Population"))),
+    ("disability_65_plus_share", "DP02", 90, "0078", "percent", "With a disability", "percent",
+     "Civilian noninstitutionalized population age 65 years and over",
+     (DISABILITY_HEADING, (89, "65 years and over"))),
+    ("english_less_than_very_well_share", "DP02", 133, "0115", "percent", 'Speak English less than "very well"',
+     "percent", "Population age 5 years and over",
+     ((129, "LANGUAGE SPOKEN AT HOME"), (130, "Population 5 years and over"), (132, "Language other than English"))),
+    ("uninsured_share", "DP03", 108, "0099", "percent", "No health insurance coverage", "percent",
+     "Civilian noninstitutionalized population",
+     ((103, "HEALTH INSURANCE COVERAGE"), (104, "Civilian noninstitutionalized population"))),
+    ("population_60_64", "DP05", 17, "0014", "estimate", "60 to 64 years", "persons", "Total population", SEX_AND_AGE_PARENTS),
+    ("households_with_someone_65_plus", "DP02", 18, "0015", "estimate", "Households with one or more people 65 years and over",
+     "households", "Households", ((3, "HOUSEHOLDS BY TYPE"), (4, "Total households"))),
+    ("native_hawaiian_one_race", "DP05", 75, "0071", "estimate", "Native Hawaiian", "persons",
+     "Total population. This category counts people reporting Native Hawaiian as their only race.",
+     ((36, "RACE"), (37, "Total population"), (38, "One race"), (73, "Native Hawaiian and Other Pacific Islander"))),
+    ("no_vehicle_share", "DP04", 68, "0058", "percent", "No vehicles available", "percent", "Occupied housing units",
+     ((66, "VEHICLES AVAILABLE"), (67, "Occupied housing units"))),
+    ("rent_30_to_34_9_share", "DP04", 160, "0141", "percent", "30.0 to 34.9 percent", "percent",
+     GROSS_RENT_UNIVERSE, GROSS_RENT_PARENTS),
+    ("broadband_subscription_share", "DP02", 174, "0154", "percent", "With a broadband Internet subscription", "percent",
+     "Households", ((171, "COMPUTERS AND INTERNET USE"), (172, "Total households"))),
+    ("rent_35_plus_share", "DP04", 161, "0142", "percent", "35.0 percent or more", "percent",
+     GROSS_RENT_UNIVERSE, GROSS_RENT_PARENTS),
+    ("nhpi_alone_or_in_combination_share", "DP05", 92, "0087", "percent", "Native Hawaiian and Other Pacific Islander",
+     "percent", "Total population; Native Hawaiian and Other Pacific Islander alone or in combination with other races",
+     ((86, "Race alone or in combination with one or more other races"), (87, "Total population"))),
+    ("bachelors_or_higher_share", "DP02", 78, "0068", "percent", "Bachelor's degree or higher", "percent",
+     "Population age 25 years and over", ((68, "EDUCATIONAL ATTAINMENT"), (69, "Population 25 years and over"))),
+    ("retirement_income_share", "DP03", 76, "0068", "percent", "With retirement income", "percent",
+     "Households; retirement income in the past 12 months", HOUSEHOLD_INCOME_PARENTS),
+    ("per_capita_income", "DP03", 96, "0088", "estimate", "Per capita income (dollars)", "2024 inflation-adjusted USD",
+     "Total population; income in the past 12 months", (INCOME_HEADING,)),
+    ("population_85_plus", "DP05", 20, "0017", "estimate", "85 years and over", "persons", "Total population", SEX_AND_AGE_PARENTS),
+    ("worked_from_home_share", "DP03", 28, "0024", "percent", "Worked from home", "percent", "Workers age 16 years and over",
+     ((21, "COMMUTING TO WORK"), (22, "Workers 16 years and over"))),
+    ("owner_occupied_share", "DP04", 54, "0046", "percent", "Owner-occupied", "percent", "Occupied housing units",
+     ((52, "HOUSING TENURE"), (53, "Occupied housing units"))),
 ]
 JOINT = ("male_householder_65_plus_living_alone", "female_householder_65_plus_living_alone", "poverty_rate_65_plus")
 TABLES = ("DP02", "DP03", "DP04", "DP05")
@@ -167,12 +227,16 @@ def parse(raw):
     return None, s
 
 
-def compile_observations(source_manifest: dict) -> bytes:
+def compile_observations(source_manifest: dict, *, statistics_dir: Path | None = None,
+                         include_guided_expansion: bool = False) -> bytes:
     listed = {f["path"]: f for f in source_manifest["files"]}
+    statistics_dir = statistics_dir if statistics_dir is not None else PACKET / "data" / "statistics"
     raw = {}
-    for rel in ["data/statistics/manifest.json"] + [f"data/statistics/raw/{k}.xlsx" for k in ("house", "senate", "state", "counties")] \
-            + [f"data/statistics/raw/{t}_metadata.json" for t in TABLES]:
-        data = (PACKET / rel).read_bytes()
+    filenames = ["manifest.json", *(f"raw/{k}.xlsx" for k in ("house", "senate", "state", "counties")),
+                 *(f"raw/{t}_metadata.json" for t in TABLES)]
+    for filename in filenames:
+        rel = f"data/statistics/{filename}"
+        data = (statistics_dir / filename).read_bytes()
         assert len(data) == listed[rel]["bytes"] and sha256(data) == listed[rel]["sha256"], f"input differs from source packet: {rel}"
         raw[rel] = data
     sources = {s["source_id"]: s for s in json.loads(raw["data/statistics/manifest.json"])}
@@ -215,23 +279,40 @@ def compile_observations(source_manifest: dict) -> bytes:
                            {"state_fips": "15", "chamber": None, "district_code": None, "geoid": "15" + code,
                             "boundary_session": None, "boundary_vintage": "2024-01-01", "summary_level": "050"}))
 
+    metric_rows = [(*metric, ()) for metric in METRICS]
+    if include_guided_expansion:
+        metric_rows += GUIDED_EXPANSION
     observations = []
     for kind, header, key, geography in selections:
         source = sources[f"dbedt_2024_{kind}"]
         geography = dict(geography, source_name=header)
-        for mid, table, row, stem, stat, label, unit, universe in METRICS:
+        for mid, table, row, stem, stat, label, unit, universe, parents in metric_rows:
             cells, blocks = books[kind][table]
             assert cells.get((row, 1)) == label, (kind, table, row, label, cells.get((row, 1)))
             variable = f"{table}_{stem}{'PE' if stat == 'percent' else 'E'}"
             assert meta[table][variable]["label"].endswith("!!" + label), (variable, meta[table][variable]["label"])
+            margin_variable = variable[:-1] + "M"
+            if parents:
+                for parent_row, parent_label in parents:
+                    assert cells.get((parent_row, 1)) == parent_label, (kind, table, parent_row, parent_label)
+                label_path = "!!".join(parent_label for _, parent_label in parents)
+                number_type = "float" if stat == "percent" else "int"
+                for var_id, role in ((variable, VALUE_HEADER[stat]), (margin_variable, MOE_HEADER[stat])):
+                    definition = meta[table][var_id]
+                    assert definition["label"] == f"{role}!!{label_path}!!{label}", (var_id, definition["label"])
+                    assert definition["predicateType"] == number_type, (var_id, definition["predicateType"])
             block = blocks[header]
             value_col, moe_col = block[VALUE_HEADER[stat]], block[MOE_HEADER[stat]]
             value_raw, moe_raw = cells.get((row, value_col)), cells.get((row, moe_col))
             value, annotation = parse(value_raw)
             moe, moe_annotation = parse(moe_raw)
+            if parents:
+                assert value is not None and math.isfinite(value), (kind, header, variable, value_raw)
+                assert ((moe is not None and math.isfinite(moe) and moe >= 0) or moe_annotation == "*****"), (
+                    kind, header, margin_variable, moe_raw)
             observations.append({
                 "observation_id": f"{key}:{mid}", "geography": dict(geography), "metric_id": mid, "label": label,
-                "table_id": table, "variable_id": variable, "margin_of_error_variable_id": variable[:-1] + "M",
+                "table_id": table, "variable_id": variable, "margin_of_error_variable_id": margin_variable,
                 "official_variable_label": meta[table][variable]["label"], "universe": universe, "unit": unit,
                 "period": {"start_year": 2020, "end_year": 2024, "product": "2024 ACS 5-year estimates",
                            "dollar_year": 2024 if "USD" in unit else None},
@@ -246,7 +327,7 @@ def compile_observations(source_manifest: dict) -> bytes:
                 "spatial_method": "native published geography; no apportionment",
                 "joint_statistic": mid in JOINT,
             })
-    assert len(observations) == len(METRICS) * 82
+    assert len(observations) == len(metric_rows) * 82
     payload = {"schema_version": "1.0", "observations": observations, "limitations": LIMITATIONS}
     return (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 

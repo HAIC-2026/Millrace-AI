@@ -67,7 +67,7 @@ Any commit, including a documentation-only commit, regenerates `RELEASE-MANIFEST
 
 ## Bundled facts and source inspection
 
-The default `public` input profile includes 1,640 statistical observations, 24 administrative records, five program records, four original geometry captures and authored recipe metadata. This set is a smaller factual projection of the historical R2 archive, with its own data and metadata identities.
+The default `public` input profile includes 3,280 statistical observations (40 ACS measures for 82 geographies), 24 administrative records, five program records, four original geometry captures and authored recipe metadata. It combines the earlier public projection with 20 additional measures extracted from the same retained workbooks. The public and historical R2 profiles have separate evidence identities.
 
 Source inspection verifies the bundled projection. It displays the historical origin hashes and locators of the original captures. It does not reread workbooks or pages that the projection omits. Program evidence uses authored references instead of copied passages. The four included geometry captures still receive original-byte verification. See [data provenance](../DATA-PROVENANCE.json), [the included-input inventory](PROJECTION-INPUTS.json) and [source notices](../DATA-NOTICES.md).
 
@@ -81,8 +81,22 @@ Cases from earlier releases:
 
 - Cases from the first hosted release, called R2, reopen at [haic-r2.millrace.ai](https://haic-r2.millrace.ai). The app offers that link when it refuses such a case. [The R2 replay guide](R2-REPLAY.md) covers the local `r2` profile, which needs the complete retained historical inputs.
 - Cases from the earlier public snapshot reopen from [the published e2f2cf0 checkout](https://github.com/HAIC-2026/Millrace-AI/tree/e2f2cf031fe7f193de08524a9ce49d5d5f14b5d4). Follow [the public33af replay guide](PUBLIC33AF-REPLAY.md).
+- Cases saved with the earlier 20-measure public evidence, combined evidence identity `sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479`, reopen only on that exact release, Git commit `ac065bd83632c69ef77d55763bfb524068485c21`. The app names this route when it refuses such a file. Run that commit in a separate checkout and state directory, then open the saved file there:
 
-No notes or selections migrate between evidence snapshots. Start a blank case to use new evidence.
+  ```sh
+  git clone https://github.com/HAIC-2026/Millrace-AI.git /absolute/new-ac065bd-replay
+  git -C /absolute/new-ac065bd-replay checkout --detach ac065bd83632c69ef77d55763bfb524068485c21
+  cd /absolute/new-ac065bd-replay
+  python3.11 -m venv .venv
+  .venv/bin/python -m pip install --require-hashes -r requirements.txt
+  HAIC_STATE_DIR=/absolute/separate-ac065bd-state HAIC_LOCAL_HTTP=1 PORT=8084 .venv/bin/gunicorn --config gunicorn.conf.py --bind 127.0.0.1:8084 wsgi:application
+  ```
+
+  Open `http://127.0.0.1:8084`, choose the saved case file, inspect its preview, then replay it. On that release `/api/health` reports `investigation.snapshot_id` `sha256:b1f06a08…a28479`. Imported staff work still needs review before a brief. The operator also keeps a private exact archive of that release for restoration.
+
+No notes or selections migrate between evidence snapshots. Start a blank case to use new evidence, including the 20 guided measures.
+
+When a brief reply would exceed 90% of the response limit, it returns the complete selected brief, validation reviews and citations. The `steps`, `claims` and `responses` arrays are empty in that reply. Use `mode: run` to get the full findings for the plan.
 
 ## Optional AI configuration
 
@@ -102,6 +116,8 @@ The profile file fixes each profile's model, reasoning effort, service tier and 
 | `terra-medium` | `gpt-6.1-terra`, medium | The hosted preview |
 | `terra-high` | `gpt-6.1-terra`, high | Comparison only. The hosted app does not use it |
 | `sol-low` | `gpt-6.1-sol`, low | Tests only |
+
+The preview's value-free catalog lists only the original 20 measures, in their original order, so its digest stays `sha256:cc6467496100f8aff2f54096b4f4daf798f296fe6e1e75403200d66df4cb00eb`. A plan profile with no measure list means those 20. When the draft or confirmed plan, the focused step or a selected finding uses one of the 20 guided measures, the server refuses the question with `guided_only_measure` before it builds a provider request, takes a rate-limit slot, reserves budget or reads the key. The plan, findings and selections stay as they were.
 
 Fixed limits apply when the preview is on: 500 characters per question, one question at a time, and 3 questions in any rolling 300-second window for the whole site. Each start counts against the finite budget. When a limit or the budget is reached, the server refuses new questions and the guided controls keep working. If the preview is turned off, the app makes no model calls and keeps the spending record as it is.
 

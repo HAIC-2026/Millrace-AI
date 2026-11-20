@@ -373,7 +373,7 @@ def profile_html(env) -> str:
             f'<div><dt>Boundary source</dt><dd>{_source_button(ident.get("source_id"), None, source_label(ident.get("source_id")))}</dd></div>'
             '</dl></section>'
         )
-    scope_html = ('<p class="coverage">Selected-measure profile: ' + e(", ".join(human_words(m) for m in cov.get("returned_metric_ids") or [])) + '</p>') if cov.get("filtered") else '<p class="coverage">Full profile (all 20 measures).</p>'
+    scope_html = ('<p class="coverage">Selected-measure profile: ' + e(", ".join(human_words(m) for m in cov.get("returned_metric_ids") or [])) + '</p>') if cov.get("filtered") else f'<p class="coverage">Full profile (all {e(cov.get("metrics_total"))} measures).</p>'
     missing = cov.get("missing_estimates") or []
     cov_html = (f'<p class="coverage">Coverage: {e(cov.get("observations"))} of {e(cov.get("metrics_total"))} '
                 f'normalized measures for this geography. '
@@ -487,6 +487,8 @@ def _program_population_html(env) -> str:
         f'<span class="fine">ACS table {e(d["table_id"])}'
         + (f' · {e(d["period_label"])}' if d.get("period_label") else "") + '</span>'
         + (f' {_source_button(d["source_id"], label="Definition source")}' if d.get("source_id") else "")
+        + (f' <span class="fine">Published estimates: {e(d["guided_label"])}, in Single lookup. Survey-reported '
+           'receipt, not enrollment or eligibility.</span>' if d.get("guided_label") else "")
         + '</li>' for d in context["definitions"] + [context["snap_receipt_definition"]])
     return ('<section class="population-context"><h3>What these populations mean</h3>'
             f'<ul>{definitions}</ul>' + "".join(f'<p>{e(n)}</p>' for n in context["notes"]) + '</section>')

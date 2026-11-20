@@ -72,7 +72,7 @@ class AdapterChecks(unittest.TestCase):
     def test_journey_sources_edits_and_export(self):
         cookie=self.session()
         prof=self.two(cookie,self.req('profile'))
-        self.assertEqual(len(prof['findings']),20)
+        self.assertEqual(len(prof['findings']),40)  # Single lookup full profile: every measure in this snapshot
         for finding in prof['findings']:
             raw_label = finding['metric']['official_variable_label']
             self.assertIn('!!', raw_label)
@@ -331,9 +331,9 @@ class StatewideChecks(AdapterChecks):
         cat=self.call('GET','/api/catalog')[2]
         with_stats={(d['chamber'],d['code']) for d in cat['districts'] if d['boundary_session']==2024 and d['has_statistics']}
         self.assertEqual(with_stats,{(c,f'{n:03}') for c,n in self.DISTRICTS})
-        self.assertEqual(cat['coverage']['statistics_observations'],1640)
+        self.assertEqual(cat['coverage']['statistics_observations'],3280)
         self.assertEqual(cat['coverage']['statistics_geographies'],82)
-        self.assertEqual({g['observation_count'] for g in cat['geographies']},{20})
+        self.assertEqual({g['observation_count'] for g in cat['geographies']},{40})
         self.assertEqual([g['geography_id'] for g in cat['geographies'][:2]],['HI-STATE-2024','HI-COUNTY-009-2024'])
         self.assertTrue(all(d['approx_county'] is None for d in cat['districts']))
         self.assertIn('normalized district and county profiles',' '.join(cat['limitations']))
@@ -342,7 +342,7 @@ class StatewideChecks(AdapterChecks):
     def test_every_district_full_profile(self):
         cookie=self.session()
         metrics=[m['metric_id'] for m in self.call('GET','/api/catalog')[2]['metrics']]
-        self.assertEqual(len(metrics),20)
+        self.assertEqual(len(metrics),40)
         seen={}; annotated=[]
         for chamber,number in self.DISTRICTS:
             code=f'{number:03}'
@@ -441,7 +441,7 @@ class StatewideChecks(AdapterChecks):
             first=self.call('POST','/api/resolve',req,cookie)[2]
             self.assertEqual(first['status'],'resolved',first)
             out=self.call('POST','/api/execute',{'request_id':rid,'snapshot_id':RELEASE_SNAPSHOT_ID},cookie)[2]
-            self.assertEqual((out['status'],out['resolution']['district']['chamber'],out['resolution']['district']['code'],len(out['findings'])),('ok',chamber,code,20))
+            self.assertEqual((out['status'],out['resolution']['district']['chamber'],out['resolution']['district']['code'],len(out['findings'])),('ok',chamber,code,40))
         req=dict(request_id='t3',snapshot_id=RELEASE_SNAPSHOT_ID,input_mode='language',utterance='compare median gross rent with senate 25 for house 51')
         self.assertEqual(self.call('POST','/api/resolve',req,cookie)[2]['status'],'resolved')
         out=self.call('POST','/api/execute',{'request_id':'t3','snapshot_id':RELEASE_SNAPSHOT_ID},cookie)[2]

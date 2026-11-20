@@ -7,6 +7,8 @@ import re
 from .case_contract import (InvestigationError, OPERATION_VERSION, SERVICES, claim_ref,
     depth, integer, obj, text, unique_ids, uuid4, validate_plan)
 from .claim_binding import digest
+from .core import ORIGINAL_METRIC_IDS
+from .rationale import PROGRAM_RATIONALE
 
 SCHEMA_VERSION = 'ia-language/1'
 FUNCTION_NAME = 'ia_language_decision'
@@ -28,6 +30,14 @@ MESSAGES = {
  'expired':'This interpretation expired. Ask again with the current context.',
  'error':'Language interpretation failed safely. Use Typed request or guided controls.',
 }
+
+# Ask keeps the original ordered 20-measure domain. A held plan, focused step or selected finding that uses a
+# guided-only measure is refused before any provider payload, rate-limit slot, ledger reservation or quota use; the
+# question, plan and findings are left unchanged and guided controls stay available.
+GUIDED_ONLY_CODE='guided_only_measure'
+GUIDED_ONLY_MESSAGE=('Ask covers the original 20 measures. This plan or selection uses a measure that is available '
+                     'only in guided controls, so the question was not sent for interpretation. Your plan, findings '
+                     'and selections are unchanged; use Single lookup or edit the plan yourself.')
 
 class LanguageError(ValueError):
     def __init__(self, code='invalid_request', status=400):
@@ -91,7 +101,8 @@ def value_free_catalog(core):
     """Explicit whitelist: no program prose, source body, observation value or URL."""
     from .case_contract import admitted_recipes
     recipes=admitted_recipes(core)
-    metrics=[{k:m[k] for k in ('metric_id','label','unit','universe')} for m in core.metrics.values()]
+    metrics=[{k:m[k] for k in ('metric_id','label','unit','universe')} for m in core.metrics.values()
+             if m['metric_id'] in ORIGINAL_METRIC_IDS]
     programs=[{'program_id':k,'label':v['name']} for k,v in core.programs.items()]
     sources=[{'source_id':k,'title':v.get('title') or v.get('name') or ''}
              for k,v in core.packet.sources.items()]
@@ -141,6 +152,24 @@ def _claim_geography(claim):
         return {side:identity(claim.get(side,{}).get('geography')) for side in ('left','right')}
     return identity(claim.get('geography'))
 
+def guided_only_metric_ids(plans, refs, core):
+    """Measures outside the Ask domain that held plans or selected findings would use, in first-use order.
+    Explicit profile/compare measures and outreach basis measures count; a null profile keeps the original 20."""
+    found=[]
+    def add(mid):
+        if mid not in ORIGINAL_METRIC_IDS and mid in core.metrics and mid not in found:found.append(mid)
+    for plan in plans:
+        for s in (plan or {'steps':[]})['steps']:
+            a=s['args']
+            if s['operation'] in ('profile','compare'):
+                for mid in a.get('metric_ids') or []:add(mid)
+            elif s['operation']=='outreach_lead':
+                for mid in PROGRAM_RATIONALE.get(a.get('program_id'),{}).get('metrics',()):add(mid)
+    for r in refs:
+        kind,_,rest=r['finding_id'].partition(':')
+        if kind in ('stat','cmp') and ':' in rest:add(rest.rsplit(':',1)[1])
+    return found
+
 def prepare_request(raw, investigation, session):
     """The only Core-capable seam; invoked synchronously before background dispatch."""
     try:
@@ -167,6 +196,9 @@ def prepare_request(raw, investigation, session):
         if len({dumps(r) for r in refs})!=len(refs):raise LanguageError('duplicate_selections')
         for r in refs:claim_ref(r,'selected_claim_refs')
         if refs and active is None:raise LanguageError('selection_requires_confirmed_plan',409)
+        # Before any Core run, provider payload, quota or wallet: never strip or reinterpret a guided-only scope.
+        if guided_only_metric_ids((c['confirmed_plan'],c['draft_plan']),refs,investigation.core):
+            raise LanguageError(GUIDED_ONLY_CODE,409)
         # Only confirmed current bindings may be re-derived, and only here.
         claims={};step_claims={}
         if active is not None:

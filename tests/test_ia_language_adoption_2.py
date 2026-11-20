@@ -256,14 +256,15 @@ class SecondAdoptionProviderTests(unittest.TestCase):
     def setUpClass(cls):
         from public_app import load_core
         from districtbrief.investigation import Investigation
-        cls.i=Investigation(load_core())
+        from language_funding_fixture import rebind_saved_requests
+        cls.i=Investigation(load_core());cls.fixture=rebind_saved_requests(copy.deepcopy(FIXTURE),cls.i)
     def setUp(self):
         from districtbrief.ia_language import prepare_request
         from test_ia_language_accounting import usage
         self.tmp=tempfile.TemporaryDirectory();self.root=baseline(self.tmp.name)
         helper.adopt2(self.root,**PINS,active_config_hash=NEW,catalog_digest=CATALOG,
             expected_budget_sha256=sha((self.root/'ledger'/'budget.json').read_bytes()),max_count_requests=7,protected=False)
-        self.prepared=prepare_request(copy.deepcopy(FIXTURE['cases'][0]['request']),self.i,'session')
+        self.prepared=prepare_request(copy.deepcopy(self.fixture['cases'][0]['request']),self.i,'session')
         self.calls=[];self.secrets=0;self.usage=usage()
     def tearDown(self):self.tmp.cleanup()
     def transport(self,method,path,body,secret,deadline):

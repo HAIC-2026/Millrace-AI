@@ -15,7 +15,7 @@ from districtbrief.ia_language import (EMPTY_PLAN,LanguageError,NEW_PLAN_MAP_SES
     dumps,ordinary_plan,prepare_request,strict_json,wire_plan)
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_provider import PROMPT,OpenAIProvider,provider_payload
-from language_funding_fixture import HISTORICAL_LOW,PROFILE,ledger_fixture,usage
+from language_funding_fixture import HISTORICAL_LOW,PROFILE,ledger_fixture,rebind_saved_requests,usage
 
 FIXTURE=json.loads((Path(__file__).parent/'fixtures'/'ia-language-dev-v5-replay.json').read_text())
 CASES={c['case_id']:c for c in FIXTURE['cases']}
@@ -26,7 +26,7 @@ def provider_usage(u):
 
 class MapDefaultTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.i=Investigation(load_core())
+    def setUpClass(cls):cls.i=Investigation(load_core());rebind_saved_requests(FIXTURE,cls.i)
     def prepared(self,utterance=None,confirmed=None,draft=None,base=MINIMAL):
         r=copy.deepcopy(base['request'])
         if utterance is not None:r['utterance']=utterance

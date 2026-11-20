@@ -3,15 +3,15 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:5151e3b4c4d1c7cf1c9c768008685b1ecfffe0f9f9893210fc6718cc0cd75d51",
+  "source_identity": "sha256:cce84f878d60a15fdd87b566d9333d3c0e31617e152e49adfe3ffbbf6b22cad6",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
   "lineage": {
     "selected_baseline_manifest_sha256": "686b23b6b7623d77f084ed4518e6d5adec620fbe713e17ee220caa63bce2e46d",
-    "data_snapshot_id": "sha256:2dee659d0b199cf35e6bf49964481bde04a30715d22f2995361c444b077f36b9",
+    "data_snapshot_id": "sha256:972b7a41a85f9a51303358abdd82900c4e988cdc571ffc085a9b3e7046fb9892",
     "metadata_snapshot_id": "sha256:c9c80993f7d07adf090ab069e11bd3e93e012c4a44d06f76b597133c0456ed0e",
-    "combined_evidence_snapshot_id": "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479"
+    "combined_evidence_snapshot_id": "sha256:237ef69212f775c2c187c38bff9c3b2542185f082f79c8002ea1622d063d2125"
   },
   "files": [
     {
@@ -26,13 +26,13 @@
     },
     {
       "path": "DATA-NOTICES.md",
-      "bytes": 6260,
-      "sha256": "b0223bf9e5eebf0ccaa5ff37d40d3c46a5a6bd103174fd5a4ee980929071d808"
+      "bytes": 6850,
+      "sha256": "d85d04af4ff69d53ad7b7e249101b0a6d53da1781d30bef75adaaf737095f653"
     },
     {
       "path": "DATA-PROVENANCE.json",
       "bytes": 1317,
-      "sha256": "5c8833bb24342089828d2d11dd2dcbb4012dfdc527107c1a267e5a9f1a0fca57"
+      "sha256": "01165ae01e8048959c3b62dc4a269693834b0b4de62dfee82fce007b72f7c89f"
     },
     {
       "path": "Dockerfile",
@@ -56,8 +56,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 11970,
-      "sha256": "0041d86f333bfcb0d397200f487a98d5f21a8e8133c4dd9d9ae86b5918f46e61"
+      "bytes": 12812,
+      "sha256": "df0ced16431f6417bc0e75bc85a3ef1f2b39ff5da48d3fd1ce5b477bb34c9eb3"
     },
     {
       "path": "candidate-metadata/MANIFEST.json",
@@ -106,8 +106,8 @@
     },
     {
       "path": "districtbrief/case_contract.py",
-      "bytes": 12928,
-      "sha256": "c57ec75f2c89ed60d1aaf58d4014dc52b4d7ebc8cc9334d1e58be288324f38d5"
+      "bytes": 13564,
+      "sha256": "8e1adcae4ffad93e19f5d115f2968540e04cf82ddf0a28142bd916246756ba03"
     },
     {
       "path": "districtbrief/claim_binding.py",
@@ -121,8 +121,8 @@
     },
     {
       "path": "districtbrief/core.py",
-      "bytes": 67609,
-      "sha256": "095bbc06bb36e816888770f42a206819b3a87c555dab26473bbcac78e176a24f"
+      "bytes": 71534,
+      "sha256": "200620b5e2a7bb0ce60fb2e7fe2a3f4c184d4fbcd8ce596d34696a12ba940ec2"
     },
     {
       "path": "districtbrief/geography.py",
@@ -131,8 +131,8 @@
     },
     {
       "path": "districtbrief/ia_language.py",
-      "bytes": 112476,
-      "sha256": "62a2d3f36cd9847c8f45dea77598a87eb0c4bb93587176a5ce6349f3d7085196"
+      "bytes": 114494,
+      "sha256": "f473b87702462545b107a09829f5a2436c17c8189c186eb23422fad66b43fd63"
     },
     {
       "path": "districtbrief/ia_language_accounting.py",
@@ -171,8 +171,8 @@
     },
     {
       "path": "districtbrief/investigation.py",
-      "bytes": 24755,
-      "sha256": "aa210f3c5de15a76bcc4b58492e0dd12bbf80eeb97420f0faff9d8b87933a418"
+      "bytes": 25511,
+      "sha256": "64c0f35eb6448582aa4a4cfcb4742c80d4c4f786edf34111320fc4ddd56c243b"
     },
     {
       "path": "districtbrief/packet.py",
@@ -182,7 +182,7 @@
     {
       "path": "districtbrief/public_packet.py",
       "bytes": 4183,
-      "sha256": "4893fc487ba6ba49377c5e6229570668778dc9df8944b0b8a0c7c032cd1aa8af"
+      "sha256": "c4a81c7d3a037fd4e5a8df885d8c9542b57358ccbb882e78df4994c596999d1e"
     },
     {
       "path": "districtbrief/rationale.py",
@@ -191,8 +191,8 @@
     },
     {
       "path": "districtbrief/render.py",
-      "bytes": 79235,
-      "sha256": "ac72581effcf0e759dae641063738b568b983708f2361782f9c7a4d1196d601d"
+      "bytes": 79471,
+      "sha256": "6604ac37050c07ca4c904830e9fdf3d2e5ded5fa3883eb97c1b71122aaadb2e7"
     },
     {
       "path": "districtbrief/resolve.py",
@@ -226,13 +226,13 @@
     },
     {
       "path": "docs/METHODOLOGY.md",
-      "bytes": 21753,
-      "sha256": "d8c576dab2a2a70440364d9bb90156fe758719675053d68fea7626be150733e2"
+      "bytes": 25999,
+      "sha256": "469c1b820b1f2fac92b845771962b15688de84444658ea3c3e62875bf64a9d97"
     },
     {
       "path": "docs/PROJECTION-INPUTS.json",
       "bytes": 2977,
-      "sha256": "874c5acafaa8704d39bb25a71d38909c82dde8e516b7d7498947515974d7d0a1"
+      "sha256": "8626cdb610c45092477591db876c5d03366185b65ac91203933964ee7989f46b"
     },
     {
       "path": "docs/PUBLIC33AF-REPLAY.md",
@@ -251,8 +251,8 @@
     },
     {
       "path": "docs/RUNNING.md",
-      "bytes": 10482,
-      "sha256": "770ce3d70e693e36e44836662ee270439ed87f9d8775225f9b7c5a76c9ea37f5"
+      "bytes": 12662,
+      "sha256": "c2d883978106f16367834724a4bfc295db09e8db92142a80634ecefe66dd72dd"
     },
     {
       "path": "gunicorn.conf.py",
@@ -261,8 +261,8 @@
     },
     {
       "path": "public_app.py",
-      "bytes": 26823,
-      "sha256": "16b49c2e9de666c8d5c09637cac0194e90d1c2c2ffcb006c12cc0c9176e2a1ad"
+      "bytes": 27142,
+      "sha256": "882ad8c2c35f5f82cdba0a91d5d561b5360e0c7f32631609cc7c241f6f144161"
     },
     {
       "path": "requirements.txt",
@@ -272,7 +272,7 @@
     {
       "path": "runtime-packet/PACKET-MANIFEST.json",
       "bytes": 2154,
-      "sha256": "ada890eece21c2be8df5d305548e0a06d9880c49fe57e87dd8bb1fe889133ddb"
+      "sha256": "33e94a6aa593af0807ee432996bdfa0c229c5a936573ce6aef5d114b9ff1276c"
     },
     {
       "path": "runtime-packet/SOURCE-CATALOG.json",
@@ -316,8 +316,8 @@
     },
     {
       "path": "runtime-packet/data/statistics/observations.json",
-      "bytes": 2828706,
-      "sha256": "e97c14be79e77b503b8645631346b0e2d19a53102afdbb1b681230dc05e7a9c0"
+      "bytes": 5688736,
+      "sha256": "27f0db7cf51e24b9607aaabb7fff684ef5f78165592137fb0de9143e07f42574"
     },
     {
       "path": "runtime-packet/data/statistics/raw/DP03_metadata.json",
@@ -331,8 +331,8 @@
     },
     {
       "path": "static/app.js",
-      "bytes": 55207,
-      "sha256": "8b0bcb560385f4d14084e0edf9934736764a2c9555f8d35620bdf362929a034d"
+      "bytes": 55664,
+      "sha256": "9d25ab71afe9db87f6568919dc68de5d0e793a194766ca8467ebd4c2d984ec1a"
     },
     {
       "path": "static/case_state.js",
@@ -346,13 +346,13 @@
     },
     {
       "path": "static/index.html",
-      "bytes": 26476,
-      "sha256": "f6f628dfffc65d9304b1ff219aa885678c6993da794fa1c12b169b7e88a15630"
+      "bytes": 26473,
+      "sha256": "745fe6d04f026c77a69b69731bd334dfe7e175d8f61dcbb5350d427da67cba1d"
     },
     {
       "path": "static/investigation.js",
-      "bytes": 233499,
-      "sha256": "0f457586a703dfa9a3fa903e7c3cf84ee1ba1dbcc3d3af715b79fcb4f36f2682"
+      "bytes": 236518,
+      "sha256": "dd6c45f0f5b875f17f8a559a5adbb6fe01843f34803374ba2650d0d450e94b3b"
     },
     {
       "path": "static/language_state.js",
@@ -417,17 +417,17 @@
     {
       "path": "tests/fixtures/recommended-brief-results.json",
       "bytes": 37171,
-      "sha256": "04ff5381da78ec230a41d919cf37809c7c4f9337ea52bd61236186db08bfbeb3"
+      "sha256": "7d85ccb3a013906ceb6d8f61d5f4eadf29f51393e49e5e66a2af34d7fb37e505"
     },
     {
       "path": "tests/focus_transitions.cjs",
-      "bytes": 187953,
-      "sha256": "6f6bb5fe5d0ecf5f52c3fe33de2c7f66bde512b7fe89c652e31d6fe1b8b1b78c"
+      "bytes": 187933,
+      "sha256": "01bcf43f045bb3a60c4825cad3f1c683030cc8851a269930ea3b2934f4937e4b"
     },
     {
       "path": "tests/language_funding_fixture.py",
-      "bytes": 2758,
-      "sha256": "fde592a28cee933336a1ad78549cbbed666f69983448e1b767a39ec427f214e8"
+      "bytes": 4657,
+      "sha256": "c448c9dc4c863afe60e6f461efe381e79340956af18dd86eaf25cc380ebfccec"
     },
     {
       "path": "tests/recommended_brief_fixture.py",
@@ -441,13 +441,13 @@
     },
     {
       "path": "tests/test_brief_presentation.py",
-      "bytes": 16634,
-      "sha256": "5908ca52d5bf27dabd34ffa83f6426c59585ccfcea17dd01b6a591a0f92da586"
+      "bytes": 16873,
+      "sha256": "5772a8a8ad05fb04fafefb9248193405fd524133daa6dce2a4c0efc675625661"
     },
     {
       "path": "tests/test_case_replay.py",
-      "bytes": 1613,
-      "sha256": "32f03c316a70c03998beabf4ed9ee6dc4430226334cf0a2581887013c0af37b4"
+      "bytes": 3424,
+      "sha256": "cdc2277ab80e04161848032c03f1b68b84ab94887f0c2c1ad34725c7abedac99"
     },
     {
       "path": "tests/test_case_state.cjs",
@@ -457,7 +457,7 @@
     {
       "path": "tests/test_catalog_pagination.py",
       "bytes": 9370,
-      "sha256": "b2c2aeef2e811d51778706840443787eec10e8c0d258de3d84e0b15950d834b8"
+      "sha256": "bd834b4afc5759df0457422bd912480f52c275996d4661c0a5a9fc79ed69777c"
     },
     {
       "path": "tests/test_claim_bindings.py",
@@ -491,8 +491,8 @@
     },
     {
       "path": "tests/test_ia_language_adoption_2.py",
-      "bytes": 21782,
-      "sha256": "3a862ad00602b1f8338d80827870733a2a507aefb46147deb5e0e7b9ca3091a0"
+      "bytes": 21918,
+      "sha256": "66f5a17736670619b372df9cad1645fb0907eb6a6d002139f10de7c9cd1531ef"
     },
     {
       "path": "tests/test_ia_language_adoption_3.py",
@@ -550,6 +550,11 @@
       "sha256": "2da016633ac52bbbdf285bf0eb8906d484798e10da3db11d5793c7ead12c81e5"
     },
     {
+      "path": "tests/test_ia_language_guided_only.py",
+      "bytes": 12381,
+      "sha256": "93a1a6103c9ef198966e33ec99d77042f032acb7a1180ba839875b7444c4aed5"
+    },
+    {
       "path": "tests/test_ia_language_integrated_review.py",
       "bytes": 14141,
       "sha256": "7a0f7bae9f24fed4f56e511292d1533e75e1d066ba0a71dd6da577bd034bb29e"
@@ -561,8 +566,8 @@
     },
     {
       "path": "tests/test_ia_language_map_default.py",
-      "bytes": 25282,
-      "sha256": "bf1141b1bf3ecd34fabd0334c6cbf4b78059f0a6e60b849a39b633544a626525"
+      "bytes": 25341,
+      "sha256": "070a2906029c879d447984ac80dafa8f95bfd7889c61e2ae1df705e7ba6aa52c"
     },
     {
       "path": "tests/test_ia_language_operator_cutoff.py",
@@ -647,7 +652,7 @@
     {
       "path": "tests/test_investigation.py",
       "bytes": 43380,
-      "sha256": "8661dadc2e6357b44edba87fdb1f4a70947965e963c0faaef1ae64b6aed548e5"
+      "sha256": "63aacf62eb9a1f785630b1e9a3432fc1443b96733b02da740bd0665bd4dd201d"
     },
     {
       "path": "tests/test_lane_p_backend_20261116.py",
@@ -676,8 +681,8 @@
     },
     {
       "path": "tests/test_release.py",
-      "bytes": 34266,
-      "sha256": "13e1eb9fd276f32c06ea2264e72b50f43b8a4c02da11c0b15694a6efedc8bfc4"
+      "bytes": 34328,
+      "sha256": "b168e3e928ddbab00066de9750e9ca5bf0fe3a06a954fd33a2c42d08f92b307b"
     },
     {
       "path": "tests/test_scope.py",
@@ -690,24 +695,29 @@
       "sha256": "2af955aa55186084d10bf3a4e7874e3b4e8bb3cd1faa40b94ab80939769cbeb2"
     },
     {
+      "path": "tools/build_acs_expansion_projection.py",
+      "bytes": 5865,
+      "sha256": "803e4923c0c072de187608fcc2e925b3c528a7f1450d3e62cc678453af916d79"
+    },
+    {
       "path": "tools/build_candidate_metadata.py",
       "bytes": 1038,
       "sha256": "bbc40c4a2851a03ce0dfb59760202eb1427e349b6ad8999c97a509d8e8f41576"
     },
     {
       "path": "tools/build_completion_projection.py",
-      "bytes": 6405,
-      "sha256": "e94d00fa95617e345f477d2551c35bd2aee139f2b2f8b1a6898a7adb0782ebaa"
+      "bytes": 6416,
+      "sha256": "d443a885020d97d761a8865b08f278e9a8cf9cdba78c80d223570d7914e01750"
     },
     {
       "path": "tools/build_release_manifest.py",
-      "bytes": 8267,
-      "sha256": "9129adff77680032060cea5c7f78ec7ab96e8e063763254aa4885c3799da64b8"
+      "bytes": 8337,
+      "sha256": "6330093db6360caee01423f66651150d602a26dc0cbf20c666149069478014f7"
     },
     {
       "path": "tools/compile_statistics.py",
-      "bytes": 19190,
-      "sha256": "1e36549c63971a65f68c77a1493b1e8c3ad17b50d950ea39ac6c132dd5d9fb7c"
+      "bytes": 25781,
+      "sha256": "a7fb3ec68b3064d767c3c7497ae6ed2c7b32811f0f9dc84f395719868038ee28"
     },
     {
       "path": "tools/ia_language_config_adoption.py",
@@ -751,8 +761,8 @@
     },
     {
       "path": "tools/sources/README.md",
-      "bytes": 3176,
-      "sha256": "e99f236e71a833796fa0bcc8452dd8a619e4e6f12ea99f846e5e226e01aa8c7b"
+      "bytes": 4013,
+      "sha256": "ef8d95621be690571300e8de901ad5cdc5e5d43f47706c130ead946b07479df6"
     },
     {
       "path": "tools/sources/acquire.py",

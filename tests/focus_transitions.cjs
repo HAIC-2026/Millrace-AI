@@ -2689,7 +2689,7 @@ test("SNAP gap: an unrelated unsupported reply keeps the generic fallback and of
   try {
     await gapAsk(p, "Forecast senior population in House 28.");
     assert.equal(await p.locator("#ia-gap-open").count(), 0);
-    assert.match(await p.locator("#ia-question-result").textContent(), /The bundled evidence does not include what the question asks for/);
+    assert.match(await p.locator("#ia-question-result").textContent(), /Ask does not have what the question asks for/);
     assert.equal(await p.locator("#ia-alt-advanced").count(), 1);
   } finally { await p.close(); }
 });

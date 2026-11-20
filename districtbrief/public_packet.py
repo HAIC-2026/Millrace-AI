@@ -6,9 +6,9 @@ from pathlib import Path
 from .packet import Packet, PacketError
 from .candidate_metadata import CandidateMetadata
 
-PUBLIC_MANIFEST_SHA256 = 'ada890eece21c2be8df5d305548e0a06d9880c49fe57e87dd8bb1fe889133ddb'
+PUBLIC_MANIFEST_SHA256 = '33e94a6aa593af0807ee432996bdfa0c229c5a936573ce6aef5d114b9ff1276c'
 PUBLIC_METADATA_MANIFEST_SHA256 = '51b5f726a6b295c01a28cace0be0b8c8025b1e7b4881511366a9219acf2de564'
-PUBLIC_SNAPSHOT_ID = 'sha256:2dee659d0b199cf35e6bf49964481bde04a30715d22f2995361c444b077f36b9'
+PUBLIC_SNAPSHOT_ID = 'sha256:972b7a41a85f9a51303358abdd82900c4e988cdc571ffc085a9b3e7046fb9892'
 
 
 def records(root, manifest_name):

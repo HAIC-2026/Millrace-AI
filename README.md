@@ -35,7 +35,7 @@ The **SNAP outreach** issue follows the same path and routes to the DHS Benefit,
 | Area | Included |
 | --- | --- |
 | Districts | All 51 House and 25 Senate districts |
-| Measures | 20 American Community Survey (ACS) 2020–2024 five-year measures: age 65+, older householders living alone, income, Social Security receipt, poverty, employment, housing and rent burden |
+| Measures | 40 American Community Survey (ACS) 2020–2024 five-year measures. The original 20 cover age 65+, older householders living alone, income, Social Security receipt, poverty, employment, housing and rent burden. Twenty guided measures add survey-reported household SNAP receipt, disability, English-language ability, health insurance, ages 60–64 and 85+, households with someone 65+, Native Hawaiian and NHPI population, vehicles, broadband, education, retirement and per-capita income, working from home, owner occupancy and rent shares. Ask about this district uses the original 20 |
 | Comparisons | Point differences against the State, a county or another district for the same measure |
 | Programs | References for SNAP, Med-QUEST, WIC, Kūpuna Care and the City and County of Honolulu Housing Choice Voucher program. Two guided issues: older-adult support at home and SNAP outreach |
 | Administrative context | 24 DHS and DBEDT participation records (23 published values and one month the source had not yet published) at state, island or county level. The app never assigns them to a district |
@@ -53,7 +53,7 @@ This product uses the Census Bureau Data API but is not endorsed or certified by
 | Requirement | Status | How this release handles it |
 | --- | --- | --- |
 | District summaries for all districts | Met | Every House and Senate district runs the same plans |
-| Age, income, poverty, employment and housing indicators | Met | 20 ACS measures. Tax, BLS, BEA and UHERO data are not included |
+| Age, income, poverty, employment and housing indicators | Met | 40 ACS measures. Tax, BLS, BEA and UHERO data are not included |
 | Compare with county and State | Met | Same-measure point differences with both margins shown |
 | Every figure cites source, period and geography | Met | Each figure links to its source record and location |
 | State uncertainty and missing data | Met | Margins stay with values. Unpublished values show a status, not a number |
@@ -72,6 +72,8 @@ This product uses the Census Bureau Data API but is not endorsed or certified by
 The preview turns an ordinary question into a proposed plan, a clarifying choice or a refusal. The model never states a figure. The server checks each proposal against the allowed operations and sources before the app uses it. The same deterministic operations that serve the guided controls then compute the result.
 
 A clear, supported proposal runs at once and keeps earlier work. The app asks for your review first when a proposal would change the district. It does the same for a district comparison that the question did not name with House or Senate. It also asks when a proposal would affect unapplied plan edits, brief selections or staff notes, and when the question says "my district".
+
+The preview interprets questions about the original 20 measures. If the plan or a selected finding uses one of the 20 guided measures, the app says so before anything is sent to OpenAI, keeps the plan and selections unchanged and offers Single lookup and the plan editor.
 
 When the proposal does not single out one finding, the page lists **Related findings**, says that they are not a completed answer, and lets you select the one you mean. Check the district, comparator and measure in every result.
 
@@ -127,7 +129,7 @@ node --test tests/test_app_startup.cjs tests/test_case_state.cjs tests/test_lang
 - **License:** project-authored code is [MIT licensed](LICENSE). Outside source material has separate terms. See [license scope](LICENSE-SCOPE.md) and [source notices](DATA-NOTICES.md).
 - **Data:** [data provenance](DATA-PROVENANCE.json) and [the included-input inventory](docs/PROJECTION-INPUTS.json) identify the bundled facts.
 - **Privacy:** [privacy and security behavior](PRIVACY.md) says what reaches the app server and what reaches OpenAI.
-- **Saved cases from earlier releases:** cases from the first hosted release reopen at [haic-r2.millrace.ai](https://haic-r2.millrace.ai). See [the R2 replay guide](docs/R2-REPLAY.md) and [the public33af replay guide](docs/PUBLIC33AF-REPLAY.md).
+- **Saved cases from earlier releases:** cases from the first hosted release reopen at [haic-r2.millrace.ai](https://haic-r2.millrace.ai). See [the R2 replay guide](docs/R2-REPLAY.md) and [the public33af replay guide](docs/PUBLIC33AF-REPLAY.md). Cases saved with the earlier 20-measure evidence reopen only on that exact release, commit `ac065bd`. See [saved cases and replay](docs/RUNNING.md#saved-cases-and-replay).
 
 ## Contact
 

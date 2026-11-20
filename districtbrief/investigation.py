@@ -10,6 +10,9 @@ from .interpret import interpret, recipe
 from .geography import indicator_payload
 from .rationale import PROGRAM_RATIONALE
 
+RESPONSE_MAX_BYTES = 524288
+BRIEF_RESPONSE_TARGET_BYTES = RESPONSE_MAX_BYTES * 9 // 10
+
 # Staff inquiry prompts, not newly sourced eligibility or availability facts.
 # Each admitted program keeps a distinct office decision and agency route.
 VERIFICATION_CONTENT = {
@@ -205,6 +208,8 @@ class Investigation:
             op,a=step['operation'],step['args'];record={'step_id':step['step_id'],'operation':op,'status':'ok','claim_refs':[],'reason_code':None,'message':None,'next_actions':[]}
             try:
                 if op=='administrative_evidence':res=self.core.administrative_evidence(**a)
+                # A null plan profile keeps its original meaning ("All 20 measures"); added measures are explicit.
+                elif op=='profile' and a['metric_ids'] is None:res=self.core.profile(pid,self.core.original_metric_ids())
                 else:res=getattr(self.core,op)(pid,**a)
                 for f in res['findings']:
                     c=bindings.bind(f);record['claim_refs'].append(c['claim_ref'])
@@ -284,11 +289,16 @@ class Investigation:
                 err.issues.append({'path':'brief','code':'brief_overflow','message':f"print_units={brief['print_units']}; print_budget={BRIEF_PRINT_BUDGET}"});raise err
             brief['html']=render.brief_doc_html(brief,comparisons);out['brief']=brief
         size=len(json.dumps(out,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8'))
-        if size>524288:raise InvestigationError(409,'response_too_large','Reduce the plan or selected evidence detail.','plan.steps','reduce_plan')
+        if r['mode'] == 'brief' and size > BRIEF_RESPONSE_TARGET_BYTES:
+            # The brief and its reviews already carry the selected evidence.
+            # The workspace keeps its earlier run results when it receives a brief.
+            out.update(steps=[], claims=[], responses=[])
+            size = len(json.dumps(out, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8'))
+        if size>RESPONSE_MAX_BYTES:raise InvestigationError(409,'response_too_large','Reduce the plan or selected evidence detail.','plan.steps','reduce_plan')
         if r['mode'] == 'run':
             reselection = self._map_reselection(plan, pid, out['steps'], bindings)
             if reselection:
                 out['map_reselection'] = reselection
-                if len(json.dumps(out, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > 524288:
+                if len(json.dumps(out, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > RESPONSE_MAX_BYTES:
                     del out['map_reselection']
         return out

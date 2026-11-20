@@ -84,17 +84,23 @@
       lab.querySelector("span").textContent = t.label;
       tasks.appendChild(lab);
     });
-    const metric = $("#ctl-metric");
-    const groups = {};
-    catalog.metrics.forEach((m) => {
-      if (!groups[m.group]) {
-        groups[m.group] = document.createElement("optgroup");
-        groups[m.group].label = m.group;
-        metric.appendChild(groups[m.group]);
+    const metric = $("#ctl-metric"), profileMetrics = $("#ctl-profile-metrics");
+    const groups = {}, profileGroups = {};
+    const groupOf = (select, seen, name) => {
+      if (!seen[name]) {
+        seen[name] = document.createElement("optgroup");
+        seen[name].label = name;
+        select.appendChild(seen[name]);
       }
-      groups[m.group].appendChild(option(m.metric_id, m.label));
-      $("#ctl-profile-metrics").appendChild(option(m.metric_id, m.label));
+      return seen[name];
+    };
+    catalog.metrics.forEach((m) => {
+      groupOf(metric, groups, m.group).appendChild(option(m.metric_id, m.label));
+      groupOf(profileMetrics, profileGroups, m.group).appendChild(option(m.metric_id, m.label));
     });
+    // The full Lookup profile shows every measure in this snapshot, grouped by topic.
+    const fullOption = Array.from($("#ctl-profile-mode").options || []).find((o) => o.value === "full");
+    if (fullOption) fullOption.textContent = "Full profile (all " + catalog.metrics.length + " measures)";
     const geo = $("#ctl-geo");
     catalog.geographies.forEach((g) => geo.appendChild(option(g.geography_id, placeDisplay(g.label))));
     catalog.unavailable_geographies.forEach((g) => geo.appendChild(option(g.geography_id, placeDisplay(g.label) + " (not normalized)")));

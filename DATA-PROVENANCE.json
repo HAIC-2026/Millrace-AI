@@ -8,8 +8,8 @@
   "original_capture_hashes_are_historical": true,
   "omitted_origin_bytes_verified": false,
   "statistics": {
-    "observations": 1640,
-    "metrics": 20,
+    "observations": 3280,
+    "metrics": 40,
     "geographies": 82,
     "districts": 76,
     "unchanged_normalized_statistics_from_r2": false,

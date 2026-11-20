@@ -18,6 +18,28 @@ def _historical_low():
     return parse_profiles(dumps(d))['historical-terra-low']
 HISTORICAL_LOW=_historical_low()
 LEDGER_ID='5b0c9f8e-3d3a-4c55-9a51-8a2b1c3d4e5f'
+# The saved DEV replay requests carry the earlier 20-measure public evidence identity. Guided-only measures leave the
+# Ask value-free catalog (digest) and the outbound provider payload unchanged, so tests that replay those exact saved
+# requests rebind only their evidence identity, explicitly, to the running snapshot. Case files are never rebound.
+# A saved selected finding is re-derived from its unchanged original finding ID under the running confirmed plan.
+EARLIER_PUBLIC_SNAPSHOT='sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479'
+def rebind_saved_requests(fixture,investigation):
+    snapshot_id=investigation.snapshot_id
+    for case in fixture['cases']:
+        context=case['request']['context']
+        for held in (context,case.get('expected',{}).get('bound_tokens') or {}):
+            if held.get('snapshot_id') in (EARLIER_PUBLIC_SNAPSHOT,snapshot_id):held['snapshot_id']=snapshot_id
+            else:raise AssertionError('unexpected saved evidence identity')
+        refs=context.get('selected_claim_refs') or []
+        if refs and refs[0]['snapshot_id']!=snapshot_id:
+            run={'schema_version':'haic-investigation/1','operation_version':context['operation_version'],
+                 'recipe_version':context['recipe_version'],'snapshot_id':snapshot_id,'request_id':case['request']['request_id'],
+                 **{k:context[k] for k in ('case_id','branch_id','revision')},'mode':'run','plan':copy.deepcopy(context['confirmed_plan']),
+                 'selected_claim_refs':[],'selected_action_ref':None}
+            current={c['claim_ref']['finding_id']:c['claim_ref'] for c in investigation.handle(run)['claims']}
+            assert all(r['snapshot_id']==EARLIER_PUBLIC_SNAPSHOT and r['finding_id'] in current for r in refs)
+            context['selected_claim_refs']=[copy.deepcopy(current[r['finding_id']]) for r in refs]
+    return fixture
 
 def funding_record(**changes):
     profiles=load_profiles()

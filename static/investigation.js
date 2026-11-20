@@ -452,6 +452,7 @@
         const err = new Error(reply.http === 429 && reply.data && reply.data.code === 'shared_demonstration_rate_limit' ? 'rate_limited' : 'unavailable');
         // A refused start states the server's own policy text; nothing about remaining questions is invented.
         err.serverMessage = reply.data && typeof reply.data.message === 'string' && reply.data.code ? reply.data.message : '';
+        err.guidedOnly = !!(reply.data && reply.data.code === 'guided_only_measure' && reply.data.model_calls === 0);
         throw err;
       }
       job.context_digest = reply.data.context_digest;
@@ -459,10 +460,22 @@
     } catch (e) {
       if (languageJob !== job) return;
       clearTimeout(job.deadlineTimer); job.pending = false; lockQuestion(); flushActive(false);
-      const limited = e && e.message === 'rate_limited';
-      languageResult = {status:'error', limited, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site has been reached.' : 'Language question unavailable.'),
-        after:limited ? 'Your question is still in the box above. Choose a task and district in Single lookup.' : 'Your question is still in the box above.'}; render(); focusQuestionResult();
+      const limited = e && e.message === 'rate_limited', guided = !!(e && e.guidedOnly);
+      languageResult = {status:'error', limited, guided_only:guided, message:(e && e.serverMessage) || (limited ? 'The shared limit of 3 language questions every 5 minutes across the site has been reached.'
+          : guided ? 'Ask covers the original 20 measures. This plan or selection uses a measure that is available only in guided controls, so the question was not sent.' : 'Language question unavailable.'),
+        after:limited ? 'Your question is still in the box above. Choose a task and district in Single lookup.' : guided ? guidedOnlyAfter(job.context) : 'Your question is still in the box above.'}; render(); focusQuestionResult();
     }
+  }
+  // The guided-only measures this question's own context holds (plan steps and selected findings), named for staff.
+  function guidedOnlyAfter(ctx) {
+    const guidedOnly = new Set((catalog.metrics || []).filter((m) => m.guided_only === true).map((m) => m.metric_id)), found = [];
+    const add = (id) => { if (guidedOnly.has(id) && !found.includes(id)) found.push(id); };
+    [ctx && ctx.confirmed_plan, ctx && ctx.draft_plan].forEach((p) => (p && Array.isArray(p.steps) ? p.steps : []).forEach((s) => {
+      if ((s.operation === 'profile' || s.operation === 'compare') && s.args && Array.isArray(s.args.metric_ids)) s.args.metric_ids.forEach(add);
+    }));
+    ((ctx && ctx.selected_claim_refs) || []).forEach((r) => { const m = /^(?:stat|cmp):.+:([a-z0-9_]+)$/.exec((r && r.finding_id) || ''); if (m) add(m[1]); });
+    return (found.length ? 'Guided-only ' + (found.length === 1 ? 'measure' : 'measures') + ' here: ' + found.map(metricLabel).join('; ') + '. ' : '') +
+      'Your question is still in the box above. It was not sent to OpenAI and does not count toward the shared question limit.';
   }
   function focusQuestionResult() { if (userInComposer()) { const r = $('#ia-question-result'); if (r && !r.hidden) r.focus(); } }
   function scheduleLanguagePoll(job) {
@@ -681,7 +694,11 @@
     const gap = snapGap(result);
     if (gap) return 'No SNAP enrollment or eligible-population count is available for ' + districtLabel(gap.district) + ' or a matching area. The app has state and county enrollment totals.';
     if (result.status === 'unsupported' && result.reason_code === 'unsupported_operation') return 'This app cannot do what the question asks. It shows published district estimates, comparisons with a county, the State or another district, recorded program information and reviewed outreach hypotheses. It does not determine eligibility, count residents who are eligible but not enrolled, or test whether a difference is statistically significant.';
-    if (result.status === 'unsupported') return 'The bundled evidence does not include what the question asks for. No substitute figure is used: a rate is never shown in place of a count, and household Social Security income is not treated as fixed-income status.';
+    if (result.status === 'unsupported') {
+      const guided = (catalog.metrics || []).filter((m) => m.guided_only === true).length;
+      return 'Ask does not have what the question asks for among its measures and recorded program information. No substitute figure is used: a rate is never shown in place of a count, and household Social Security income is not treated as fixed-income status.' +
+        (guided ? ' Single lookup also lists ' + guided + ' guided measures that Ask does not use, such as survey-reported SNAP receipt, disability and health insurance. None is an enrollment or eligibility count.' : '');
+    }
     if (result.status === 'uncertain') return 'The question could not be read reliably. Try again naming the district with House or Senate and the measure you want, or use an option below.';
     return null;
   }
@@ -1128,15 +1145,17 @@
 
   function stepEditor(s) {
     const a = s.args, id = "ia-" + s.step_id, re = (args) => editDraft(C.rescopeStep(state.draft, s.step_id, args));
-    const metrics = (catalog.metrics || []).map((m) => [m.metric_id, m.label]);
+    const metrics = (catalog.metrics || []).map((m) => [m.metric_id, m.label + (m.guided_only === true ? " (guided only)" : "")]);
+    const guidedHelp = (catalog.metrics || []).some((m) => m.guided_only === true) ? "Measures marked guided only run here, in Single lookup and in briefs. Ask about this district does not use them." : "";
     if (s.operation === "profile") {
       const all = h("input", { type: "checkbox", id: id + "-all", checked: a.metric_ids === null, on: { change: (e) => re({ metric_ids: e.target.checked ? null : C.AGING_METRICS.filter((m) => metrics.some((x) => x[0] === m)) }) } });
       return [h("label", { class: "ia-check ia-check-strong", for: id + "-all" }, all, " All 20 measures"),
-        a.metric_ids === null ? null : multi(id + "-metrics", "Measures shown", metrics, a.metric_ids, 20, (v) => re({ metric_ids: v }))];
+        a.metric_ids === null ? (guidedHelp ? h("p", { class: "fine", text: "All 20 measures are the original measures. Clear this box to choose added guided-only measures." }) : null)
+          : multi(id + "-metrics", "Measures shown", metrics, a.metric_ids, 20, (v) => re({ metric_ids: v }), guidedHelp)];
     }
     if (s.operation === "compare") {
       const geos = (catalog.geographies || []).map((g) => [g.geography_id, placeDisplay(g.label)]).concat((catalog.unavailable_geographies || []).map((g) => [g.geography_id, placeDisplay(g.label) + " (no statistics in this data)"]));
-      return [multi(id + "-metrics", "Measures compared", metrics, a.metric_ids, 4, (v) => re({ metric_ids: v, comparison_geography: a.comparison_geography })),
+      return [multi(id + "-metrics", "Measures compared", metrics, a.metric_ids, 4, (v) => re({ metric_ids: v, comparison_geography: a.comparison_geography }), guidedHelp),
         single(id + "-geo", "Comparison geography", geos, a.comparison_geography, (v) => re({ metric_ids: a.metric_ids, comparison_geography: v })),
         h("p", { class: "fine", text: "A separate comparison never changes a hypothesis's own State reference. No statistical difference test is performed." })];
     }
@@ -1392,12 +1411,17 @@
   function replayHelp(snapshotId) {
     const r2 = "sha256:143fb7cbdf10a8a3b05a30228e44c347a2cd21d93819a3a3e79094dc847887d3";
     const public33af = "sha256:33af0580ddd697fbe16dedf1b335303cfc9a4e958df5c684f1eade8365dd6aa3";
+    const publicAc065bd = "sha256:b1f06a08f8d61f5a5a15bf1f02c3ebf71c2e70a48442fe9f702a3cc837a28479";
     if (snapshotId === r2) return h("p", { class: "fine" },
       h("a", { href: "https://haic-r2.millrace.ai/", target: "_blank", rel: "noopener noreferrer", text: "Open the earlier version of this app that matches this case (opens in a new tab)" }),
       ". In that app, choose your saved case file again and review its preview. The link carries no case or staff notes.");
     if (snapshotId === public33af) return h("div", { class: "fine" },
       h("p", {}, h("a", { href: "https://github.com/HAIC-2026/Millrace-AI/blob/e2f2cf031fe7f193de08524a9ce49d5d5f14b5d4/README.md#run-the-bundled-snapshot", target: "_blank", rel: "noopener noreferrer", text: "Open the setup instructions for the matching public release (opens in a new tab)" }),
         ". The linked page names the exact release to run. Follow its setup with a separate working folder, open that local app, and choose your saved case file there."));
+    if (snapshotId === publicAc065bd) return h("div", { class: "fine" },
+      h("p", {}, "This case was saved with the earlier 20-measure public evidence. It reopens only on that exact release, commit ac065bd. ",
+        h("a", { href: "https://github.com/HAIC-2026/Millrace-AI/blob/ac065bd83632c69ef77d55763bfb524068485c21/README.md#run-it-locally", target: "_blank", rel: "noopener noreferrer", text: "Open the setup instructions for that release (opens in a new tab)" }),
+        ". Run it with a separate working folder, open that local app, and choose your saved case file there. The link carries no case or staff notes."));
     return null;
   }
 

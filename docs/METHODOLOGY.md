@@ -11,7 +11,7 @@ This page describes how [District Brief Builder](../README.md) assigns figures t
 
 ## 2. Measures
 
-The app uses 20 ACS measures. Each measure binds to one Census variable and one workbook row.
+The app uses 40 ACS measures. Each measure binds to one Census variable and one workbook row. The original 20 are listed first. **Ask about this district** uses only those 20.
 
 | Measure | ACS variable | Workbook sheet, row |
 | --- | --- | --- |
@@ -36,7 +36,34 @@ The app uses 20 ACS measures. Each measure binds to one Census variable and one 
 | Renter units with computable rent-to-income ratio | DP04_0136E | DP04, 155 |
 | Renter units paying 35%+ of income for gross rent | DP04_0142E | DP04, 161 |
 
-Each value keeps its universe and its period. It keeps the publisher's 90% margin of error where the source gives a number, which is 1,634 of the 1,640 values. For the other 6 the source prints `*****` in place of a margin. The app keeps that marker and shows no number.
+The 20 guided measures come from the same four DBEDT workbooks and cover the same 82 geographies. Counts and percentages of one concept are separate variables. Each percentage keeps the publisher's percent margin (`PM`) and its stated universe.
+
+| Guided measure | ACS variable | Workbook sheet, row | Universe |
+| --- | --- | --- | --- |
+| Households reporting SNAP receipt in the past 12 months | DP03_0074E | DP03, 82 | All households. The ACS measures survey-reported SNAP receipt by a current household member in the past 12 months. Administrative enrollment and eligibility require separate evidence. |
+| Households reporting SNAP receipt in the past 12 months, share | DP03_0074PE | DP03, 82 | All households. The ACS measures survey-reported SNAP receipt by a current household member in the past 12 months. Administrative enrollment and eligibility require separate evidence. |
+| People with a disability, share | DP02_0072PE | DP02, 84 | Civilian noninstitutionalized population |
+| Share of people age 65 and over who have a disability | DP02_0078PE | DP02, 90 | Civilian noninstitutionalized population age 65 years and over |
+| People age 5 and over who speak English less than “very well,” share | DP02_0115PE | DP02, 133 | Population age 5 years and over |
+| People without health insurance coverage, share | DP03_0099PE | DP03, 108 | Civilian noninstitutionalized population |
+| Population age 60 to 64 | DP05_0014E | DP05, 17 | Total population |
+| Households with someone age 65 and over | DP02_0015E | DP02, 18 | Households |
+| Native Hawaiian alone (one race reported) | DP05_0071E | DP05, 75 | Total population. This category counts people reporting Native Hawaiian as their only race. |
+| Occupied housing units with no vehicle available, share | DP04_0058PE | DP04, 68 | Occupied housing units |
+| Gross rent at 30.0–34.9% of household income (share of computable ratios) | DP04_0141PE | DP04, 160 | Occupied units paying rent with computable gross rent as a percentage of household income |
+| Households with a broadband Internet subscription, share | DP02_0154PE | DP02, 174 | Households |
+| Gross rent at 35% or more of household income (share of computable ratios) | DP04_0142PE | DP04, 161 | Occupied units paying rent with computable gross rent as a percentage of household income |
+| Native Hawaiian and Other Pacific Islander alone or in combination, share | DP05_0087PE | DP05, 92 | Total population; Native Hawaiian and Other Pacific Islander alone or in combination with other races |
+| People age 25 and over with a bachelor’s degree or higher, share | DP02_0068PE | DP02, 78 | Population age 25 years and over |
+| Households with retirement income, share | DP03_0068PE | DP03, 76 | Households; retirement income in the past 12 months |
+| Per-capita income | DP03_0088E | DP03, 96 | Total population; income in the past 12 months |
+| Population age 85 and over | DP05_0017E | DP05, 20 | Total population |
+| Workers age 16 and over who worked from home, share | DP03_0024PE | DP03, 28 | Workers age 16 years and over |
+| Owner-occupied share of occupied housing units | DP04_0046PE | DP04, 54 | Occupied housing units |
+
+SNAP receipt is household receipt reported in the survey for the past 12 months. It is not enrollment, a current caseload or eligibility, and it supports no participation gap. The Native Hawaiian count is the one-race category; the Native Hawaiian and Other Pacific Islander share counts people of that race alone or in combination with other races. The two are not interchangeable.
+
+Each value keeps its universe and its period. It keeps the publisher's 90% margin of error where the source gives a number, which is 3,274 of the 3,280 values. For the other 6 the source prints `*****` in place of a margin. The app keeps that marker and shows no number.
 
 A comparison is a point difference of two published estimates for the same measure. The app derives no margin for a difference and runs no significance test. It does not treat overlapping or non-overlapping margins as evidence.
 
@@ -57,7 +84,8 @@ The team ran these checks on November 16, 2026 against its retained original cap
 | Snapshot integrity | Every bundled data file against the pinned manifest, at each start | The app refuses to start on a mismatch. See `districtbrief/public_packet.py` and `tests/test_public_profile.py` |
 | Retained originals | All 55 recorded sources: the retained original capture and its SHA-256 against the recorded hash | 55 of 55 present and equal |
 | Cell binding | All 1,640 statistical values against the cited cell of the original DBEDT workbook: estimate, margin, geography header and row label | 1,640 estimates, row labels and geography headers match. 1,634 margins match numerically. The other 6 are `*****` in the source and carry that marker in the snapshot |
-| Variable definitions | All 1,640 values: Census variable id and official label against the Census API variable lists; workbook row label against the label's last segment | 1,640 of 1,640 match. Each of the 20 measures maps to one variable and one row |
+| Guided measures (November 19, 2026) | The 1,640 added values: independent re-extraction of estimate, margin, cell, geography and label from the retained workbooks, with the original 1,640 rows compared in full | 1,640 added numeric estimates and 1,640 numeric margins; no added `*****` margin. The original 1,640 rows are unchanged in value, margin, citation and serialization. 1,148 percentage denominator checks agree within 0.05 percentage points |
+| Variable definitions | All 1,640 original values: Census variable id and official label against the Census API variable lists; workbook row label against the label's last segment | 1,640 of 1,640 match. Each of the 20 measures maps to one variable and one row. The 20 guided measures were reviewed against their parent headings and universes in the same way |
 | County SNAP records | 5 DBEDT county report values against the cited workbook cells | 5 of 5 match |
 | Med-QUEST enrollment records | 12 values read by eye against page 1 of the original report (report date June 5, 2026) | 12 of 12 match. One reader |
 | DHS SNAP monthly records | 7 records in a legacy `.xls` workbook: 6 published monthly values and 1 unpublished month | **Not replayed.** The source locations were recorded when the snapshot was compiled |
@@ -172,7 +200,7 @@ The boundary session and the statistical period are separate facts. The app name
 
 ## 9. Coverage, sources and licensing limits
 
-Included: 20 ACS measures; five program references (SNAP, Med-QUEST, WIC, Kūpuna Care, City and County of Honolulu Housing Choice Voucher); two guided issues; 24 administrative records; district boundaries for two sessions.
+Included: 40 ACS measures (the original 20 also used by Ask about this district); five program references (SNAP, Med-QUEST, WIC, Kūpuna Care, City and County of Honolulu Housing Choice Voucher); two guided issues; 24 administrative records; district boundaries for two sessions.
 
 Not included:
 

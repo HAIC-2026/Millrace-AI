@@ -20,6 +20,7 @@ from districtbrief.service import Service
 from districtbrief.investigation import Investigation
 from districtbrief.case_contract import InvestigationError
 from districtbrief.geography import geometry_payload, indicator_payload
+from districtbrief.ia_language import GUIDED_ONLY_CODE, GUIDED_ONLY_MESSAGE
 from districtbrief.ia_language_jobs import LanguageService
 from districtbrief.ia_language_profiles import load_profile
 from districtbrief import render
@@ -125,6 +126,9 @@ def language_service(investigation):
 
 
 def language_view(out):
+    if out.get('code') == GUIDED_ONLY_CODE and out.get('model_calls') == 0:
+        # A refused start for a guided-only measure: the typed reason, before any provider, quota or wallet use.
+        return dict(out, message=GUIDED_ONLY_MESSAGE)
     plan_proposal = out.get('status') == 'propose' and out.get('intent') in ('create_plan', 'replace_plan')
     if out.get('enabled') is True or plan_proposal:
         return dict(out, message=(

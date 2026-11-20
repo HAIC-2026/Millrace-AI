@@ -310,7 +310,7 @@ class StaffPresentationTests(unittest.TestCase):
         for label in ('State of Hawaiʻi','Maui County','Hawaii County','Honolulu County','Kalawao County','Kauai County'):
             self.assertIn(label,text)
         self.assertIn('Comparison geographies (6):',text);self.assertIn('Every House and Senate district of the 2024 boundary session has statistics (76).',text)
-        self.assertNotIn('Not normalized',text);self.assertNotIn('without statistics',text);self.assertIn('1,640 statistics in this data',text);self.assertNotIn('IA-1',text)
+        self.assertNotIn('Not normalized',text);self.assertNotIn('without statistics',text);self.assertIn('3,280 statistics in this data',text);self.assertNotIn('IA-1',text)
         self.assertIn('This app displays complete retained district boundaries',text)
         # A limited snapshot: fewer districts, only the State as comparison, one unavailable geography named.
         limited=copy.deepcopy(cat)
@@ -501,6 +501,6 @@ class StaffPresentationTests(unittest.TestCase):
             if d==t:
                 unchanged+=1;self.assertIn('controlled estimate',t);continue
             formatted+=1;self.assertEqual(vals(t),vals(d),t);self.assertNotIn('90% MOE',d)
-        self.assertEqual((formatted,unchanged),(1634,6))
+        self.assertEqual((formatted,unchanged),(3274,6))
         self.assertEqual(render.figure_wording('Something else 12 ±3 <b>'),'Something else: 12 ±3 <b>')
         self.assertEqual(render.figure_wording('No figures here.'),'No figures here.')

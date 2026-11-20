@@ -205,7 +205,9 @@ class BriefPresentationTests(unittest.TestCase):
         # every staff field at its maximum need two pages.
         from districtbrief.case_contract import InvestigationError
         from districtbrief.investigation import plan_hash
-        mets = [m for m in I.core.metrics
+        # The Chrome measurement covers the original measures. Longer guided-only comparisons use the same server
+        # estimate, and the browser's real-layout one-page check still refuses a taller brief before printing.
+        mets = [m for m in I.core.original_metric_ids()
                 if f'HI-HOUSE-028-2024:{m}' in I.core.observations and f'HI-STATE-2024:{m}' in I.core.observations]
 
         def plan(district):

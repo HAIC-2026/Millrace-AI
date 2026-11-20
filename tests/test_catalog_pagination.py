@@ -43,7 +43,7 @@ class CatalogPagination(unittest.TestCase):
         while True:
             code, out = self.page(offset=offset, limit=limit, snapshot_id=self.snapshot, **filters)
             self.assertEqual((code, out['status'], out['model_calls']), (200, 'ok', 0), out)
-            self.assertEqual(out['total'], 1640)
+            self.assertEqual(out['total'], 3280)
             matched = out['matched'] if matched is None else matched
             self.assertEqual(out['matched'], matched)
             self.assertEqual(re.findall(r'<tr [^>]*data-finding-id="([^"]+)"', out['rows_html']), out['finding_ids'])
@@ -71,7 +71,7 @@ class CatalogPagination(unittest.TestCase):
 
     def test_legacy_catalog_shape_is_kept_and_html_holds_only_the_first_page(self):
         cat = self.cat
-        self.assertEqual(len(cat['observations']), 1640)
+        self.assertEqual(len(cat['observations']), 3280)
         for key in ('templates', 'metrics', 'geographies', 'unavailable_geographies', 'programs', 'districts',
                     'participation', 'administrative_rows', 'sources', 'coverage', 'commands', 'sources_html',
                     'investigation', 'language'):
@@ -80,12 +80,12 @@ class CatalogPagination(unittest.TestCase):
         table = html[html.index('id="cat-table"'):html.index('</table>', html.index('id="cat-table"'))]
         self.assertEqual(re.findall(r'data-finding-id="([^"]+)"><td', table),
                          [o['finding_id'] for o in cat['observations'][:render.CATALOG_PAGE_SIZE]])
-        self.assertIn('data-total="1640"', table)
+        self.assertIn('data-total="3280"', table)
         for control in ('id="cat-geo"', 'id="cat-metric"', 'id="cat-q"', 'id="cat-clear"', 'id="cat-prev"',
                         'id="cat-next"', 'id="cat-count"', 'id="cat-error"'):
             self.assertIn(control, html)
-        self.assertEqual(html.count('<option value="') - html.count('<option value=""'), 82 + 20)
-        self.assertIn('1,640 statistics in this data', html)
+        self.assertEqual(html.count('<option value="') - html.count('<option value=""'), 82 + 40)
+        self.assertIn('3,280 statistics in this data', html)
         self.assertIn('id="source-label-data"', cat['sources_html'])
 
     def test_paging_covers_every_row_once_in_catalog_order(self):
@@ -93,9 +93,9 @@ class CatalogPagination(unittest.TestCase):
         for limit in (50, 100, 37):
             with self.subTest(limit=limit):
                 ids, matched = self.walk(limit)
-                self.assertEqual(matched, 1640)
+                self.assertEqual(matched, 3280)
                 self.assertEqual(ids, every)
-                self.assertEqual(len(set(ids)), 1640)
+                self.assertEqual(len(set(ids)), 3280)
 
     def test_filters_and_search_span_the_full_corpus(self):
         cases = [dict(metric_id='median_age'), dict(geography_id='HI-STATE-2024'),
@@ -109,7 +109,7 @@ class CatalogPagination(unittest.TestCase):
                 ids, matched = self.walk(50, **filters)
                 self.assertEqual((ids, matched), (expected, len(expected)))
         self.assertEqual(self.walk(50, metric_id='median_age')[1], 82)
-        self.assertEqual(self.walk(50, geography_id='HI-STATE-2024')[1], 20)
+        self.assertEqual(self.walk(50, geography_id='HI-STATE-2024')[1], 40)
         self.assertEqual(self.reference(q='Hawaiʻi'), self.reference(q='hawaii'))
 
     def test_search_matches_published_estimate_and_moe_text(self):
@@ -133,7 +133,7 @@ class CatalogPagination(unittest.TestCase):
         self.assertIn('class="cat-empty"', out['rows_html'])
 
     def test_bounds_and_malformed_requests_are_rejected(self):
-        bad = ['offset=1640', 'offset=-1', 'offset=1.5', 'offset=abc', 'limit=0', 'limit=101', 'limit=', 'x=1',
+        bad = ['offset=3280', 'offset=-1', 'offset=1.5', 'offset=abc', 'limit=0', 'limit=101', 'limit=', 'x=1',
                'offset=0&offset=50', 'geography_id=HI-NOPE', 'metric_id=nope', 'q=' + 'a' * 101, '&&',
                'metric_id=median_age&offset=82', 'offset=' + '9' * 7]
         for query in bad:
@@ -144,7 +144,7 @@ class CatalogPagination(unittest.TestCase):
                 self.assertTrue(out['reason'].endswith('.'))
         code, out = self.page(snapshot_id='sha256:' + '0' * 64)
         self.assertEqual((code, out['status']), (409, 'error'))
-        self.assertEqual(self.call('/api/catalog/observations', 'offset=1600&limit=100')[1]['finding_ids'][-1],
+        self.assertEqual(self.call('/api/catalog/observations', 'offset=3240&limit=100')[1]['finding_ids'][-1],
                          self.cat['observations'][-1]['finding_id'])
         self.assertEqual(self.call('/api/catalog/observations', method='HEAD')[0], 200)
         self.assertEqual(self.call('/api/catalog/observations', method='POST')[0], 404)

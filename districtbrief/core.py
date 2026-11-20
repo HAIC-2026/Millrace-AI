@@ -57,7 +57,43 @@ METRIC_DISPLAY = {
     "median_gross_rent": ("Median gross rent", "Housing"),
     "rent_burden_denominator": ("Renter units with computable rent-to-income ratio", "Housing"),
     "rent_35_plus_percent_income": ("Renter units paying 35%+ of income for gross rent", "Housing"),
+    # Guided-only ACS measures added from the same four DBEDT workbooks. Ask keeps ORIGINAL_METRIC_IDS.
+    "households_with_snap": ("Households reporting SNAP receipt in the past 12 months", "SNAP receipt (survey)"),
+    "households_with_snap_share": ("Households reporting SNAP receipt in the past 12 months, share",
+                                   "SNAP receipt (survey)"),
+    "disability_share": ("People with a disability, share", "Disability & health insurance"),
+    "disability_65_plus_share": ("Share of people age 65 and over who have a disability", "Disability & health insurance"),
+    "english_less_than_very_well_share": ("People age 5 and over who speak English less than “very well,” share",
+                                          "Language & education"),
+    "uninsured_share": ("People without health insurance coverage, share", "Disability & health insurance"),
+    "population_60_64": ("Population age 60 to 64", "Population"),
+    "households_with_someone_65_plus": ("Households with someone age 65 and over", "Households & older adults"),
+    "native_hawaiian_one_race": ("Native Hawaiian alone (one race reported)", "Native Hawaiian & Pacific Islander"),
+    "no_vehicle_share": ("Occupied housing units with no vehicle available, share", "Housing"),
+    "rent_30_to_34_9_share": ("Gross rent at 30.0–34.9% of household income (share of computable ratios)", "Housing"),
+    "broadband_subscription_share": ("Households with a broadband Internet subscription, share", "Households"),
+    "rent_35_plus_share": ("Gross rent at 35% or more of household income (share of computable ratios)", "Housing"),
+    "nhpi_alone_or_in_combination_share": ("Native Hawaiian and Other Pacific Islander alone or in combination, share",
+                                           "Native Hawaiian & Pacific Islander"),
+    "bachelors_or_higher_share": ("People age 25 and over with a bachelor’s degree or higher, share",
+                                  "Language & education"),
+    "retirement_income_share": ("Households with retirement income, share", "Income & poverty"),
+    "per_capita_income": ("Per-capita income", "Income & poverty"),
+    "population_85_plus": ("Population age 85 and over", "Population"),
+    "worked_from_home_share": ("Workers age 16 and over who worked from home, share", "Employment"),
+    "owner_occupied_share": ("Owner-occupied share of occupied housing units", "Housing"),
 }
+# The original ordered measure domain. Ask (the optional language preview) admits only these measures, and a plan
+# profile step with metric_ids null ("All 20 measures") keeps exactly this meaning. Added measures are guided-only:
+# Single lookup, Data catalog, explicit plan steps, source inspection and printable briefs.
+ORIGINAL_METRIC_IDS = (
+    "total_households", "male_householder_65_plus_living_alone", "female_householder_65_plus_living_alone",
+    "households_with_social_security", "total_population", "population_65_plus", "median_age",
+    "median_household_income", "poverty_rate_all_people", "poverty_rate_65_plus", "civilian_labor_force",
+    "unemployed", "unemployment_rate", "education_health_social_assistance_industry", "total_housing_units",
+    "occupied_housing_units", "renter_occupied_units", "median_gross_rent", "rent_burden_denominator",
+    "rent_35_plus_percent_income",
+)
 # One-page print budget. A conservative, deterministic width estimate (not a layout engine): characters
 # are weighted by approximate glyph width; staff blocks and finding entries add a line of overhead;
 # limitations and citations print smaller in two columns. Calibrated with tools/print_fit_check.py in
@@ -192,6 +228,7 @@ class Core:
                     "period": o["period"],
                     "joint_statistic": o["joint_statistic"],
                     "differenced_in_comparisons": o["unit"] in INTENSIVE_UNITS,
+                    "guided_only": mid not in ORIGINAL_METRIC_IDS,
                 }
             prof = self.profiles.setdefault(pid, {"geography_id": pid, "geography": o["geography"],
                                                   "observation_ids": []})
@@ -822,6 +859,10 @@ class Core:
                 "data": {"evidence_scope": "recorded administrative geography; district-agnostic context",
                          "observation_ids": [f["observation_id"] for f in findings]}}
 
+    def original_metric_ids(self) -> list:
+        """The frozen meaning of a null plan profile: the original measures present in this packet, in order."""
+        return [m for m in self.metrics if m in ORIGINAL_METRIC_IDS]
+
     def profile(self, profile_id: str, metric_ids: list | None = None) -> dict:
         prof = self._require_profile(profile_id)
         requested = None if metric_ids is None else list(dict.fromkeys(metric_ids))
@@ -871,6 +912,8 @@ class Core:
                 "poverty_rate_all_people", "poverty_rate_65_plus")
         snap = self.packet.read_json("data/statistics/raw/DP03_metadata.json")["variables"]["DP03_0074E"]
         period = self.metrics["total_households"]["period"]
+        # The same DP03_0074E survey receipt measure, when this snapshot publishes its estimates, is a guided measure.
+        receipt = self.metrics.get("households_with_snap")
         return {
             "definitions": [{k: self.metrics[mid][k] for k in
                              ("metric_id", "label", "universe", "unit", "table_id", "variable_id")}
@@ -884,7 +927,8 @@ class Core:
                 "period_label": f"ACS {period['start_year']}–{period['end_year']} 5-year",
                 "source_id": "acs_2024_DP03_metadata",
                 "source_locator": "variables.DP03_0074E.label",
-                "definition_only": True,
+                "definition_only": receipt is None,
+                **({"metric_id": receipt["metric_id"], "guided_label": receipt["label"]} if receipt else {}),
             },
             "notes": [
                 "Age counts describe people; Social Security receipt describes households, not individual "

@@ -57,7 +57,7 @@ def assemble(inputs,county,recipe,output):
   write(output/'runtime-packet/PACKET-MANIFEST.json',oldmanifest)
   meta_records=metadata_records(output/'candidate-metadata');meta_id=metadata_id(meta_records)
   write(output/'candidate-metadata/MANIFEST.json',{'metadata_snapshot_id':meta_id,'files':meta_records})
-  provenance=read(ROOT/'DATA-PROVENANCE.json');provenance['statistics'].update(observations=1640,geographies=82,unchanged_normalized_statistics_from_r2=False,original_r2_observations_preserved=1560,added_county_observations=80)
+  provenance=read(ROOT/'DATA-PROVENANCE.json');provenance['statistics'].update(observations=1640,metrics=20,geographies=82,unchanged_normalized_statistics_from_r2=False,original_r2_observations_preserved=1560,added_county_observations=80)
   provenance['coverage_lineage']={'parent_combined_snapshot_id':actual['combined_snapshot_id'],'county_artifact_sha256':hashlib.sha256(raw).hexdigest(),'recipe_version':'food_assistance_outreach/1','current_agency_conditions':'unverified; retained reference checked 2026-10-30'}
   write(output/'DATA-PROVENANCE.json',provenance)
   inventory=[]
