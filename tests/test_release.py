@@ -154,6 +154,7 @@ class AdapterChecks(unittest.TestCase):
         code,h,body=self.call('HEAD','/')
         self.assertEqual(code,200);self.assertEqual(body,b'')
         self.assertIn("frame-ancestors 'none'",h['Content-Security-Policy'])
+        self.assertNotIn('Strict-Transport-Security',h)
         self.assertIn('HttpOnly',h['Set-Cookie'])
         req=self.req('duplicate')
         self.assertEqual(self.call('POST','/api/resolve',req,cookie)[0],200)
@@ -260,6 +261,7 @@ class AdapterChecks(unittest.TestCase):
                 self.assertIn('; Secure',headers['Set-Cookie'])
                 self.assertIn('; HttpOnly',headers['Set-Cookie'])
                 self.assertIn('; SameSite=Strict',headers['Set-Cookie'])
+                self.assertEqual(headers['Strict-Transport-Security'],'max-age=31536000')
                 self.assertIn('; Path=/',headers['Set-Cookie'])
                 self.assertNotIn('Domain=',headers['Set-Cookie'])
                 # A worker restart rotates the secret. The new cookie allows retry.
