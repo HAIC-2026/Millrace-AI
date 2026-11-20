@@ -69,6 +69,8 @@ Any commit, including a documentation-only commit, regenerates `RELEASE-MANIFEST
 
 The default `public` input profile includes 3,280 statistical observations (40 ACS measures for 82 geographies), 24 administrative records, five program records, four original geometry captures and authored recipe metadata. It combines the earlier public projection with 20 additional measures extracted from the same retained workbooks. The public and historical R2 profiles have separate evidence identities.
 
+Browser startup uses `/api/catalog?view=summary`. The summary keeps the catalog metadata and first rendered page. `/api/catalog/observations` serves further pages. `/api/catalog` returns the full observation array for API clients.
+
 Source inspection verifies the bundled projection. It displays the historical origin hashes and locators of the original captures. It does not reread workbooks or pages that the projection omits. Program evidence uses authored references instead of copied passages. The four included geometry captures still receive original-byte verification. See [data provenance](../DATA-PROVENANCE.json), [the included-input inventory](PROJECTION-INPUTS.json) and [source notices](../DATA-NOTICES.md).
 
 ## Saved cases and replay

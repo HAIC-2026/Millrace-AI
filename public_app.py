@@ -313,6 +313,8 @@ class Application:
                 _, cookie = self.session(environ)
                 if cookie: extra.append(('Set-Cookie',cookie))
                 out = dict(self.service.catalog())
+                if environ.get('QUERY_STRING') == 'view=summary':
+                    del out['observations']
                 out['investigation'] = self.investigation.bootstrap()
                 out['language'] = language_view(self.language.bootstrap())
                 return 200, ct, out

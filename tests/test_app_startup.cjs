@@ -11,6 +11,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const SOURCE = fs.readFileSync(path.join(__dirname, "../static/app.js"), "utf8");
+const CATALOG_SUMMARY = "/api/catalog?view=summary";
 const tick = (ms) => new Promise((r) => setTimeout(r, ms || 0));
 
 class El {
@@ -107,7 +108,7 @@ test("catalog failure keeps source inspection working; Retry twice resumes only 
   let catalogFailures = 2, release;
   const t = boot({
     "/api/health": () => json({ status: "ok", snapshot_id: "sha256:" + "a".repeat(64) }),
-    "/api/catalog": () => { if (catalogFailures-- > 0) throw new TypeError("Failed to fetch"); return new Promise((r) => { release = () => r({ status: 200, json: async () => CATALOG }); }); },
+    [CATALOG_SUMMARY]: () => { if (catalogFailures-- > 0) throw new TypeError("Failed to fetch"); return new Promise((r) => { release = () => r({ status: 200, json: async () => CATALOG }); }); },
     "/api/source": () => json({ status: "ok", html: "<p>Source</p>" }),
   });
   const d = t.doc;
@@ -135,7 +136,7 @@ test("catalog failure keeps source inspection working; Retry twice resumes only 
   await tick(20);
   release(); await tick(20);
   assert.equal(count(t.calls, "/api/health"), 1, "the data check is not repeated");
-  assert.equal(count(t.calls, "/api/catalog"), 3, "one initial request and two retries");
+  assert.deepEqual(t.calls.filter((url) => url.startsWith("/api/catalog")), Array(3).fill(CATALOG_SUMMARY), "one initial request and two retries use the summary");
   assert.equal(d.el("#app-startup").hidden, true);
   assert.equal(d.el("#run-btn").disabled, false);
   assert.equal(d.el("#task-options").children.length, 2);
@@ -151,7 +152,7 @@ test("catalog failure keeps source inspection working; Retry twice resumes only 
 for (const [label, reply] of [["malformed JSON", () => ({ status: 502, json: async () => { throw new SyntaxError("Unexpected token <"); } })],
   ["incomplete shape", () => json({ status: "ok" })], ["error JSON", () => json({ status: "error", reason: "The request failed." }, 500)]]) {
   test("catalog " + label + " shows the startup notice and never a partial ready state", async () => {
-    const t = boot({ "/api/health": () => json({ status: "ok", snapshot_id: "sha256:" + "b".repeat(64) }), "/api/catalog": reply });
+    const t = boot({ "/api/health": () => json({ status: "ok", snapshot_id: "sha256:" + "b".repeat(64) }), [CATALOG_SUMMARY]: reply });
     await tick(20);
     assert.equal(t.doc.el("#app-startup").hidden, false);
     assert.equal(t.doc.el("#run-btn").disabled, true);
@@ -162,7 +163,7 @@ for (const [label, reply] of [["malformed JSON", () => ({ status: 502, json: asy
 }
 
 async function readyPager(obsRoute) {
-  const t = boot({ "/api/health": () => json({ status: "ok", snapshot_id: "sha256:" + "c".repeat(64) }), "/api/catalog": () => json(CATALOG),
+  const t = boot({ "/api/health": () => json({ status: "ok", snapshot_id: "sha256:" + "c".repeat(64) }), [CATALOG_SUMMARY]: () => json(CATALOG),
     "/api/catalog/observations": obsRoute });
   await tick(20);
   assert.equal(t.doc.el("#app-startup").hidden, true);

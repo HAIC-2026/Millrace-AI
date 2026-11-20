@@ -919,7 +919,7 @@
         SNAPSHOT = health.snapshot_id;
       }
       if (!catalog) {
-        const c = await api("GET", "/api/catalog");
+        const c = await api("GET", "/api/catalog?view=summary");
         if (!validCatalog(c)) throw startupError("catalog", c);
         catalog = c;
         text($("#tab-btn-catalog"), catalogTabLabel(catalog));

@@ -2514,7 +2514,7 @@
   async function start() {
     if (!C) return unavailable("The case module did not load.");
     let cat;
-    try { const r = await fetch("/api/catalog", { credentials: "same-origin" }); cat = await r.json(); } catch (e) { return unavailable("The server did not respond. Nothing was lost; try again."); }
+    try { const r = await fetch("/api/catalog?view=summary", { credentials: "same-origin" }); cat = await r.json(); } catch (e) { return unavailable("The server did not respond. Nothing was lost; try again."); }
     boot = cat && cat.investigation;
     if (!boot || typeof boot.snapshot_id !== "string" || boot.schema_version !== C.SCHEMA_VERSION) return unavailable("This version of the app cannot open the investigation workspace. The single lookup view still works.");
     catalog = cat;

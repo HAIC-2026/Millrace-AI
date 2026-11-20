@@ -29,11 +29,16 @@ class CatalogPagination(unittest.TestCase):
 
     @classmethod
     def call(cls, path, query='', method='GET'):
+        status, data = cls.call_raw(path, query, method)
+        return status, (json.loads(data) if data else None)
+
+    @classmethod
+    def call_raw(cls, path, query='', method='GET'):
         env = {'REQUEST_METHOD': method, 'PATH_INFO': path, 'QUERY_STRING': query, 'wsgi.input': io.BytesIO(b''),
                'CONTENT_LENGTH': '0', 'HTTP_HOST': 'example.test'}
         status = []
         data = b''.join(cls.app(env, lambda s, h: status.append(int(s.split()[0]))))
-        return status[0], (json.loads(data) if data else None)
+        return status[0], data
 
     def page(self, **params):
         return self.call('/api/catalog/observations', urlencode(params))
@@ -87,6 +92,20 @@ class CatalogPagination(unittest.TestCase):
         self.assertEqual(html.count('<option value="') - html.count('<option value=""'), 82 + 40)
         self.assertIn('3,280 statistics in this data', html)
         self.assertIn('id="source-label-data"', cat['sources_html'])
+
+    def test_catalog_summary_omits_only_observations(self):
+        status, full = self.call_raw('/api/catalog')
+        self.assertEqual(status, 200)
+        status, summary = self.call_raw('/api/catalog', 'view=summary')
+        self.assertEqual(status, 200)
+        expected = json.loads(full)
+        self.assertTrue(expected.pop('observations'))
+        self.assertEqual(json.loads(summary), expected)
+        self.assertLess(len(summary), len(full) // 2)
+        for query in ('view=', 'view=full', 'view=SUMMARY', 'view=summary&view=summary', 'view=summary&other=1', 'unknown'):
+            with self.subTest(query=query):
+                self.assertEqual(self.call_raw('/api/catalog', query), (200, full))
+        self.assertEqual(self.call_raw('/api/catalog'), (200, full))
 
     def test_paging_covers_every_row_once_in_catalog_order(self):
         every = [o['finding_id'] for o in self.cat['observations']]
@@ -151,8 +170,10 @@ class CatalogPagination(unittest.TestCase):
 
     def test_browser_client_uses_the_paged_route_and_has_one_startup_retry(self):
         app_js = (ROOT / 'static/app.js').read_text(encoding='utf-8')
+        investigation_js = (ROOT / 'static/investigation.js').read_text(encoding='utf-8')
         index = (ROOT / 'static/index.html').read_text(encoding='utf-8')
         self.assertIn('/api/catalog/observations?', app_js)
+        self.assertIn('fetch("/api/catalog?view=summary"', investigation_js)
         self.assertEqual(index.count('id="app-startup-retry"'), 1)
         self.assertNotIn('cat-more', app_js)
 

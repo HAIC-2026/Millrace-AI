@@ -3,7 +3,7 @@
   "operation_version": "ia-core/1",
   "model_calls_default": 0,
   "language_default": "disabled",
-  "source_identity": "sha256:cce84f878d60a15fdd87b566d9333d3c0e31617e152e49adfe3ffbbf6b22cad6",
+  "source_identity": "sha256:f9e0e61a90f4dff71ef3655821f0402588514aefb6103b55167f2a73d49e718f",
   "hash_rule": "SHA256 UTF8 of sorted sha256  bytes  relative_path newline records; manifest excluded",
   "file_policy": "Explicit code/static/test/tool names plus separately verified runtime-packet and candidate-metadata manifests; virtualenv, Git and Python caches excluded; any other file rejected",
   "input_profile": "public",
@@ -251,8 +251,8 @@
     },
     {
       "path": "docs/RUNNING.md",
-      "bytes": 12662,
-      "sha256": "c2d883978106f16367834724a4bfc295db09e8db92142a80634ecefe66dd72dd"
+      "bytes": 12894,
+      "sha256": "a5615ec1fbcbe74ad16380e49533f2ca9aa5ac6cef32b10c18c1ebed81f76216"
     },
     {
       "path": "gunicorn.conf.py",
@@ -261,8 +261,8 @@
     },
     {
       "path": "public_app.py",
-      "bytes": 27142,
-      "sha256": "882ad8c2c35f5f82cdba0a91d5d561b5360e0c7f32631609cc7c241f6f144161"
+      "bytes": 27252,
+      "sha256": "938a9e794b3702669264cbe00e4b082ed446582a4ca915da869d06205bf8769a"
     },
     {
       "path": "requirements.txt",
@@ -331,8 +331,8 @@
     },
     {
       "path": "static/app.js",
-      "bytes": 55664,
-      "sha256": "9d25ab71afe9db87f6568919dc68de5d0e793a194766ca8467ebd4c2d984ec1a"
+      "bytes": 55677,
+      "sha256": "bc4afef18da7b40cd6104ba74b6f57292b9603e7e6469d5c60e0ad31d5b66147"
     },
     {
       "path": "static/case_state.js",
@@ -351,8 +351,8 @@
     },
     {
       "path": "static/investigation.js",
-      "bytes": 236518,
-      "sha256": "dd6c45f0f5b875f17f8a559a5adbb6fe01843f34803374ba2650d0d450e94b3b"
+      "bytes": 236531,
+      "sha256": "f8d993dfccbb0c6f2bc03694292506df2c6223c4424e2ec846642ccbe3064a71"
     },
     {
       "path": "static/language_state.js",
@@ -436,8 +436,8 @@
     },
     {
       "path": "tests/test_app_startup.cjs",
-      "bytes": 14529,
-      "sha256": "3f1076812e7c7b62eb2d20815debfdefc60e682724c4862b2f1523144d9811ff"
+      "bytes": 14665,
+      "sha256": "429f0538e24c39f6148aa0ab96ccee86e9f3a1bc2f9ea75fb5689a4e5854245b"
     },
     {
       "path": "tests/test_brief_presentation.py",
@@ -456,8 +456,8 @@
     },
     {
       "path": "tests/test_catalog_pagination.py",
-      "bytes": 9370,
-      "sha256": "bd834b4afc5759df0457422bd912480f52c275996d4661c0a5a9fc79ed69777c"
+      "bytes": 10477,
+      "sha256": "a9ebcaf79240236bfc46ff86b9fd274dee15c92fe93ec59cd8aca2f97440b94f"
     },
     {
       "path": "tests/test_claim_bindings.py",
