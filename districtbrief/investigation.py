@@ -275,12 +275,14 @@ class Investigation:
                 brief['limitations']=list(dict.fromkeys(brief['limitations']+extra))
             # All action and checklist content contributes to the established conservative print budget.
             # Count actual printed words, not hashes/internal dependency payloads.
-            printed=render.action_checklist_text(brief) + " " + render.indicator_context_text(brief)
+            # The printed lead uses the selected comparisons' checked fields; it adds no stored field to the brief.
+            comparisons={en['finding_id']:bindings.claims[en['finding_id']] for en in brief['entries'] if en['kind']=='comparison' and en['finding_id'] in bindings.claims}
+            printed=render.action_checklist_text(brief) + " " + render.indicator_context_text(brief) + " " + render.takeaway_text(brief,comparisons)
             brief['print_units']+=int(print_units(printed)+sum(print_units(x) for x in brief['limitations'] if x not in self.core.brief(pid,ids,legacy)['data']['brief']['limitations']))
             if brief['print_units']>BRIEF_PRINT_BUDGET:
                 err=InvestigationError(409,'brief_overflow',f"This brief is too long for one printed page (estimated {brief['print_units']} of {BRIEF_PRINT_BUDGET} print units). Remove a finding, shorten staff notes or shorten checklist text; all edits remain recoverable.",'staff_edits','shorten_brief')
                 err.issues.append({'path':'brief','code':'brief_overflow','message':f"print_units={brief['print_units']}; print_budget={BRIEF_PRINT_BUDGET}"});raise err
-            brief['html']=render.brief_doc_html(brief);out['brief']=brief
+            brief['html']=render.brief_doc_html(brief,comparisons);out['brief']=brief
         size=len(json.dumps(out,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8'))
         if size>524288:raise InvestigationError(409,'response_too_large','Reduce the plan or selected evidence detail.','plan.steps','reduce_plan')
         if r['mode'] == 'run':

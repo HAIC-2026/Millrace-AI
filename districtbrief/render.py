@@ -154,6 +154,15 @@ def hawaii_display(text) -> str:
     return _HAWAII_BODY.sub("Hawaiʻi ", str(text or ""))
 
 
+_BOUNDARY_SESSION = re.compile(r" \(boundary session (\d{4})\)")
+
+
+def geography_display(text) -> str:
+    """Display wording for a canonical geography label: "House District 028 (boundary session 2024)" prints as
+    "House District 028 (2024 district boundaries)". The stored label is part of the claim identity and is unchanged."""
+    return _BOUNDARY_SESSION.sub(lambda m: f" ({m[1]} district boundaries)", str(text or ""))
+
+
 def human_words(value) -> str:
     """Recorded snake_case status text as plain words, first letter capitalised."""
     text = str(value or "").replace("_", " ").strip()
@@ -588,7 +597,6 @@ def action_checklist_html(brief):
         # facts, then the remaining routing/access questions (for example the unresolved Kalawao route).
         eligibility=[x for x in action["facts_to_verify"] if x in (program.get("missing_facts") or [])]
         routing=[x for x in action["facts_to_verify"] if x not in eligibility]
-        next_step=((program.get("referral") or {}).get("next_step"))
         lims=brief.get("limitations") or []
         cost_note=("" if any(l.startswith("Current availability, capacity, wait, funding and cost remain unverified") for l in lims)
                    else " Current availability and cost unverified.")
@@ -610,7 +618,6 @@ def action_checklist_html(brief):
         referral=brief.get("action_referral") or {};referral_contact=not same_program and bool(referral.get("url") or referral.get("phone"))
         action_html=('<h3>Agency action</h3>'
             f'<p>{e(program.get("name",action["program_id"]))}{agency} · {e(human_words(action["access"]["recorded_status"]))}{(" (" + e(human_date(action["access"]["checked_at"])) + ")") if action["access"]["checked_at"] else ""}.{cost_note} {cites}'
-            + (f' · <strong>Recorded next step:</strong> {e(next_step)}' if next_step else "")
             + (f' · Referral: {e(", ".join(x for x in (referral.get("url"), referral.get("phone"), ("TTY " + referral["tty"]) if referral.get("tty") else None) if x))}' if referral_contact else "") + '</p>'
             + (f'<p class="brief-sub">Routing and access to confirm (open questions, not verified facts):</p>{_list(routing,"brief-questions brief-routing")}' if routing else "")
             + elig_html)
@@ -677,7 +684,7 @@ def _official_link(url, inner=None) -> str:
 
 
 _ISSUE_NAMES = {"aging_at_home/1": "Older-adult support at home", "food_assistance_outreach/1": "SNAP outreach",
-                "custom/1": "Custom (staff-composed steps)"}
+                "custom/1": "Custom investigation"}
 
 
 def printed_limitations(brief) -> list:
@@ -834,15 +841,66 @@ def _finding_body(en) -> str:
         parts = outreach_parts(en["text"])
         if parts:
             claim, segs = parts
-            return (f'{e(claim)}' + "".join(
+            return (f'{e(geography_display(claim))}' + "".join(
                 f'<span class="brief-part"><strong>{e(head)}</strong> '
                 + ("; ".join(e(x) for x in items) if len(items) == 1 or not head.startswith("Observed") else
                    '<span class="brief-part-list">' + "".join(f'<span class="brief-part-item">{e(figure_wording(x) if head.startswith("Observed") else x)}{";" if j < len(items) - 1 else ""}</span>' for j, x in enumerate(items)) + '</span>')
                 + '</span>' for head, items in segs))
-    return e(figure_wording(en["text"]))
+    return e(geography_display(figure_wording(en["text"])))
 
 
-def brief_doc_html(brief: dict) -> str:
+def _comparison_takeaway(c) -> str:
+    """One sentence from a checked comparison's recorded fields: both published values and the point difference
+    (or why there is none). No direction, significance or cause is stated beyond the recorded wording."""
+    def side(x):
+        value = value_with_unit(x["estimate_display"], x["unit"]) if x.get("estimate") is not None else "estimate unavailable"
+        return f'{_BOUNDARY_SESSION.sub("", str(x["geography"]["label"]))} {value}'
+    pair = f'{c["metric"]["label"]}: {side(c["left"])} and {side(c["right"])}'
+    d = c.get("difference")
+    if d:
+        return f'{pair}, a point difference of {d["display"]} {d["unit"]} between published estimates (no significance implied).'
+    return f'{pair}, shown side by side; no point difference was computed (see Limitations).'
+
+
+def takeaway_parts(brief, comparisons=None) -> list:
+    """The brief's short lead: what a single selected comparison shows, then the next step of a validated selected
+    agency action, or why none is given. Returns (label, text, citation numbers) rows; empty without either."""
+    comparisons = comparisons or {}
+    # One selected comparison is summarized; several are left to the findings list rather than restated.
+    chosen = [en for en in brief["entries"] if en["kind"] == "comparison"]
+    rows = [("What this shows", _comparison_takeaway(comparisons[en["finding_id"]]), sorted(en["citations"]))
+            for en in chosen if len(chosen) == 1 and en["finding_id"] in comparisons]
+    action = brief.get("action")
+    if action:
+        program = brief.get("action_program") or {}
+        name = program.get("name", action["program_id"])
+        step = (program.get("referral") or {}).get("next_step")
+        rows.append(("Next step", f'{name} — {step}' if step
+                     else f'{name} — confirm the open questions under Agency action with the agency.',
+                     sorted(brief.get("action_citations", []))))
+    elif rows:
+        staff = (brief.get("staff_edits") or {}).get("next_steps")
+        rows.append(("Agency action", "None selected. These published figures do not identify an agency action"
+                     + (". See Staff next steps." if staff else ". Staff decide any follow-up."), []))
+    return rows
+
+
+def takeaway_text(brief, comparisons=None) -> str:
+    """Printed takeaway words, for the conservative one-page estimate."""
+    return " ".join(f"{label}: {text}" for label, text, _ in takeaway_parts(brief, comparisons))
+
+
+def takeaway_html(brief, comparisons=None) -> str:
+    rows = takeaway_parts(brief, comparisons)
+    if not rows:
+        return ""
+    cite = lambda ns: "".join(f'<a class="cite" href="#cite-{n}">[{n}]</a>' for n in ns)
+    return ('<section class="brief-takeaway">'
+            + "".join(f'<p><strong>{e(label)}:</strong> {e(hawaii_display(text))}{(" " + cite(ns)) if ns else ""}</p>' for label, text, ns in rows)
+            + '</section>')
+
+
+def brief_doc_html(brief: dict, comparisons=None) -> str:
     """The one printable brief. Screen preview and print use this same markup.
 
     Machine identities (brief id, snapshot, finding ids, source ids and hashes) stay in the brief data,
@@ -880,11 +938,13 @@ def brief_doc_html(brief: dict) -> str:
     title_label = f' <span class="staff-label">({e(lbl)})</span>' if brief["title_is_staff_edit"] else ""
     return (
         f'<article id="brief-doc" class="brief-doc" data-brief-id="{e(brief["brief_id"])}">'
-        f'<header class="brief-head"><h2>{e(brief["title"])}{title_label}</h2>'
-        f'<p class="brief-meta">{e(brief["geography"]["label"])}'
+        f'<header class="brief-head"><h2>{e(brief["title"] if brief["title_is_staff_edit"] else geography_display(brief["title"]))}{title_label}</h2>'
+        f'<p class="brief-meta">{e(_BOUNDARY_SESSION.sub("", str(brief["geography"]["label"])))}'
         + (f' · Issue: {e(_ISSUE_NAMES[brief.get("recipe_version")])}' if brief.get("recipe_version") in _ISSUE_NAMES else "")
         + ' · Statistics use 2024 district boundaries'
+        + (f' · Map display: {e(brief["map_session"])} boundaries' if brief.get("map_session") in (2024, 2026) and brief.get("district_indicator") else "")
         + ' · Facts from bundled public sources listed below</p></header>'
+        + takeaway_html(brief, comparisons)
         + (f'<section class="staff-edit"><h3>Staff summary <span class="staff-label">({e(lbl)})</span></h3>'
            f'<p>{e(staff["note"])}</p></section>' if staff.get("note") else "")
         + f'<section><h3>Selected findings</h3>{"".join(groups)}</section>'

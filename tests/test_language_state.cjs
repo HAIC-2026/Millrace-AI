@@ -136,3 +136,14 @@ test("switch review catches omitted comparison peers and alternatives and keeps 
   assert.equal(L.switchDistrictWording(comparison, cmp), "review");
   assert.equal(L.switchDistrictWording("Show Senate 11 population in 2024.", s11), "single");
 });
+
+test("switch review distinguishes the senior-poverty age phrase from a second district", () => {
+  const s7 = recipe(D("senate", "007"), [{ operation: "compare", args: {
+    metric_ids: ["poverty_rate_65_plus"], comparison_geography: "HI-COUNTY-009-2024",
+  } }]);
+  const phrase = "What is the poverty rate for people 65 and over in ";
+  assert.equal(L.switchDistrictWording(phrase + "Senate district 7, compared with Maui County?", s7), "single");
+  assert.equal(L.switchDistrictWording(phrase + "Senate district 7 or 9, compared with Maui County?", s7), "clarify");
+  assert.equal(L.switchDistrictWording(phrase + "Senate district 7? What about 9?", s7), "review");
+  assert.equal(L.switchDistrictWording(phrase + "Senate district 7, compared with Maui County?", { ...s7, steps: [] }), "review");
+});

@@ -829,7 +829,7 @@ test("reopen preview groups staff notes under each context's own district, from 
   const groups = (u.$("#ia-import-preview").children.find((n) => n && n.tag === "div" && n.kids && JSON.stringify(n.kids).includes("ia-staff-list")) || {}).kids;
   const list = groups.find((k) => k && k.tag === "ul");
   const heads = list.kids[0].map((li) => li.kids[0].attrs.text);
-  assert.deepEqual(heads, ["Context 1: House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Context 2: House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Context 3: Senate 025 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics"]);
+  assert.deepEqual(heads, ["Investigation 1: House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Investigation 2: House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics", "Investigation 3: Senate 025 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics"]);
   const own = list.kids[0].map((li) => JSON.stringify(li.kids[1]));
   assert.match(own[0], /NOTE-A/); assert.doesNotMatch(own[0], /NOTE-B|NOTE-C/);
   assert.match(own[1], /NOTE-B/); assert.doesNotMatch(own[1], /NOTE-A|NOTE-C/);
@@ -897,10 +897,10 @@ test("a failed restore names the context, keeps the current one, and its retry r
   assert.equal(u.sent.length, 1); assert.equal(u.sent[0].branch_id, target);
   const f = C.applyTransportFailure(u.ctx.state, u.sent[0].request_id, "network");
   u.ctx.__r = f; u.run("finish(__r)");
-  assert.match(u.ctx.notice, /^Context 1 \(House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\) was not restored\. You are still on Context 2 \(House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\)\./);
+  assert.match(u.ctx.notice, /^Investigation 1 \(House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\) was not restored\. You are still on Investigation 2 \(House 013 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics\)\./);
   assert.equal(C.active(u.ctx.state).plan.district.code, "013", "current context unchanged");
   u.run("renderError()");
-  const retry = u.buttons.find((b) => /^Restore Context 1 again$/.test(b.label));
+  const retry = u.buttons.find((b) => /^Restore Investigation 1 again$/.test(b.label));
   assert.ok(retry, "retry names the same restore target"); assert.ok(!u.buttons.some((b) => b.label === "Run the plan again"));
   retry.fn();
   assert.equal(u.sent.length, 2); assert.equal(u.sent[1].branch_id, target, "retry restores the same context"); assert.equal(u.sent[1].plan.district.code, "028");
@@ -986,8 +986,8 @@ test("saved contexts that differ only in comparison scope have distinct names", 
   const u = recoveryHarness(s1);
   u.ctx.__a = b1; u.ctx.__b = b2;
   const n1 = u.run("contextName(__a)"), n2 = u.run("contextName(__b)");
-  assert.equal(n1, "Context 1 (House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics)");
-  assert.equal(n2, "Context 2 (House 028 · Older-adult support at home · compared with Maui County · 2026 map display, 2024 district statistics)");
+  assert.equal(n1, "Investigation 1 (House 028 · Older-adult support at home · compared with State of Hawaiʻi · 2026 map display, 2024 district statistics)");
+  assert.equal(n2, "Investigation 2 (House 028 · Older-adult support at home · compared with Maui County · 2026 map display, 2024 district statistics)");
   const unknown = clone(p); unknown.steps.find((s) => s.operation === "compare").args.comparison_geography = "HI-COUNTY-999-2024";
   u.ctx.__p = unknown; assert.match(u.run("planLabel(__p)"), /compared with an unlisted geography · 2026 map display, 2024 district statistics$/);
 });
@@ -2079,13 +2079,13 @@ test("Phase 3 #11 finding lines, details and answers state each operand's margin
   const cmp = (l, r) => ({ kind: "comparison", claim_ref: { snapshot_id: RUNTIME.snapshot_id, finding_id: "cmp:x", semantic_hash: sha("c") }, metric: { label: "M" }, left: l, right: r, difference: null, not_differenced_reason: "side by side", unit: l.unit });
   const rows = (c) => Object.fromEntries(u.run("claimRows(__c)".replace("__c", JSON.stringify(c))).map((r) => [r[0], r[1]]));
   let r = rows(cmp(controlled, Object.assign({}, controlled, { geography: { label: "State of Hawaiʻi" }, estimate_display: "1,445,235" })));
-  assert.equal(r["District"], "Senate District 008 (boundary session 2024): 73,731 (Controlled estimate; no numeric margin of error published)");
+  assert.equal(r["District"], "Senate District 008 (2024 district boundaries): 73,731 (Controlled estimate; no numeric margin of error published)");
   assert.equal(r["Compared with"], "State of Hawaiʻi: 1,445,235 (Controlled estimate; no numeric margin of error published)");
   r = rows(cmp(Object.assign({}, numeric, { unit: "persons", estimate_display: "4,000", moe_display: "±300", margin_of_error: 300 }), Object.assign({}, unavailable, { geography: { label: "Honolulu County" } })));
-  assert.equal(r["District"], "House District 028 (boundary session 2024): 4,000 (90% margin of error ±300)", "a numeric side beside a marked one names its own 90% level");
+  assert.equal(r["District"], "House District 028 (2024 district boundaries): 4,000 (90% margin of error ±300)", "a numeric side beside a marked one names its own 90% level");
   assert.equal(r["Compared with"], "Honolulu County: 73,731 (Margin of error unavailable)");
   r = rows(cmp(numeric, Object.assign({}, numeric, { geography: { label: "State of Hawaiʻi" }, estimate_display: "9.2", moe_display: "±0.5", margin_of_error: 0.5 })));
-  assert.equal(r["District"], "House District 028 (boundary session 2024): 29.0 (margin of error ±4.3)", "numeric pairs keep their earlier wording");
+  assert.equal(r["District"], "House District 028 (2024 district boundaries): 29.0 (margin of error ±4.3)", "numeric pairs keep their earlier wording");
   assert.equal(r["Compared with"], "State of Hawaiʻi: 9.2 (margin of error ±0.5)");
   // Answer items: a controlled statistic and a mixed comparison.
   const st = { step_id: "s2" };
@@ -2094,7 +2094,9 @@ test("Phase 3 #11 finding lines, details and answers state each operand's margin
   assert.match(t, /Controlled estimate; no numeric margin of error published/); assert.doesNotMatch(t, /\*{5}|not published as a number/);
   u.ctx.__m = cmp(Object.assign({}, numeric, { geography: { label: "House District 001 (boundary session 2024)" } }), Object.assign({}, controlled, { geography: { label: "Honolulu County" } }));
   t = u.text(u.run("answerItem(__m, __st)"));
-  assert.match(t, /House 001: 29\.0% \(90% margin of error ±4\.3 percentage points\)/); assert.match(t, /Honolulu County: 73,731 persons \(Controlled estimate; no numeric margin of error published\)/);
+  // Two labelled sides, each with its own value and margin; nothing is filled in for the controlled side.
+  assert.match(t, /District \| House 001 \| 29\.0% \| 90% margin of error ±4\.3 percentage points/); assert.match(t, /Compared with \| Honolulu County \| 73,731 persons \| Controlled estimate; no numeric margin of error published/);
+  assert.doesNotMatch(t, /\*{5}|not published as a number|boundary session/);
   const caption = u.run("answerCaptions([__m])").join(" ");
   assert.match(caption, /90% margins of error where a numeric margin is published/); assert.match(caption, /A controlled estimate has no numeric margin of error, and none is substituted\./);
   assert.match(u.run("answerCaptions([__n])").join(" "), /^Survey estimates are published ACS 2020–2024 figures with 90% margins of error, shown as recorded\. A comparison makes no statistical significance test\./, "numeric-only caption unchanged");

@@ -85,7 +85,7 @@
         const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
         if (!Array.isArray(polys) || polys.length !== data.component_count) throw new Error('Boundary components unavailable');
         const indicator = indicatorState(data, identity), n = polys.length, multi = n > 1;
-        const title = el('h3', `${name} boundary, ${data.session} session`, 'map-title');
+        const title = el('h3', `${name} boundary, ${data.session} map display`, 'map-title');
         const compat = data.session === 2024 ? '' : data.compatibility && data.compatibility.equal ? ' This boundary matches the 2024 statistical boundary.' : ' This boundary is not confirmed to match the 2024 statistical boundary.';
         const parts = el('p', (multi ? `${n} separate parts, kept in the recorded order. Numbered circles mark each part; parts too small to see at this scale appear only as circles. Choose a part below to see its shape.` : 'One continuous part.') + compat + ' Boundary display only; not a service area.', 'hint');
         const factText = el('p', null, 'map-fact'); factText.id = 'ia-indicator-text';
@@ -93,7 +93,7 @@
         if (indicator.fact && typeof indicator.fact.estimate === 'number' && Number.isFinite(indicator.fact.estimate) && !indicator.fact.annotation) {
           const f = indicator.fact, period = f.period || {};
           const moe = typeof f.margin_of_error === 'number' && Number.isFinite(f.margin_of_error) && !f.moe_annotation ? `±${f.margin_of_error} percentage points` : 'unavailable';
-          factText.textContent = `Shading: poverty rate, all people (all ages), ${f.estimate}% (90% margin of error ${moe}); ACS ${period.start_year || 2020}–${period.end_year || 2024} 5-year; ${f.publisher || 'U.S. Census Bureau'}. Universe: ${f.universe}. This is not the age 65 and over poverty rate shown in older-adult findings.`;
+          factText.textContent = `Shading: poverty rate for all ages (all people), ${f.estimate}% (90% margin of error ${moe}); ACS ${period.start_year || 2020}–${period.end_year || 2024} 5-year; ${f.publisher || 'U.S. Census Bureau'}. Universe: ${f.universe}. This is not the age 65 and over poverty rate shown in older-adult findings or answers.`;
           shadeNote = indicator.available ? indicator.label : 'not shaded';
         } else { factText.textContent = 'Shading: not shown.'; shadeNote = 'not shaded'; }
         const limit = el('p', (indicator.available ? '' : indicator.reason + ' ') + 'Bands are illustrative display intervals, not thresholds, rankings or statistical tests.', 'map-limit');
@@ -110,7 +110,7 @@
           const pts = polys[i].flat(), lon = pts.map(p => p[0]), lat = pts.map(p => p[1]);
           where.textContent = `${multi ? `Part ${i + 1} of ${n}` : 'The district'} lies between longitude ${Math.min(...lon).toFixed(4)} and ${Math.max(...lon).toFixed(4)}, latitude ${Math.min(...lat).toFixed(4)} and ${Math.max(...lat).toFixed(4)}.`;
         }
-        const nodes = [title, parts, overviewBox];
+        const nodes = [title, parts, factText, overviewBox];
         if (multi) {
           const field = el('div', null, 'field');
           const label = el('label', 'Show part'); label.htmlFor = 'ia-map-part';
@@ -119,10 +119,11 @@
           select.addEventListener('change', show);
           field.append(label, select); nodes.push(field, detailBox);
         }
-        nodes.push(where, legend(indicator), factText, limit);
+        nodes.push(where, legend(indicator), limit);
         show();
         container.replaceChildren(...nodes);
-        report(`${name}, ${data.session} session boundary (display only) · ${n} part${multi ? 's' : ''} · shading: poverty rate for all ages (not the 65 and over rate): ${shadeNote}`);
+        report(`${name} · ${data.session} map display (statistics use 2024 district boundaries) · ${n} part${multi ? 's' : ''} · shading: poverty rate for all ages (not the 65 and over rate): ${shadeNote}`);
+        if (typeof opts.onReady === 'function') opts.onReady(identity);
       } catch (err) {
         if (current !== sequence) return;
         const box = el('div', null, 'notice notice-unsupported');

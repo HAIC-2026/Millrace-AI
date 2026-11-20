@@ -1301,8 +1301,39 @@ def snap_gap_offer(prepared):
     return {'kind':'snap_participation_gap','program_id':'snap_hi','issue_id':'food_assistance_outreach',
             'district':{'state_fips':'15','chamber':chamber,'code':f'{number:03}','boundary_session':2024}}
 
+_SENIOR_COUNT_QUESTION = re.compile(
+    r'how many (?:people|residents|adults) (?:age(?:d)? )?65 and over (?:are (?:living )?|live )in poverty'
+    r'(?: in (?P<district>(?:'+_DISTRICT+r'|district ?0*\d{1,2})(?: (?:or|and) 0*\d{1,2})?)'
+    r'(?:,? compared (?:with|to) (?:the )?(?P<county>'+_CN+r'(?: county)?))?)?[?.]?'
+)
+
+
+def _senior_poverty_count_choices(prepared, core):
+    """Refuse a recognized count question. Offer a separate rate only for two explicitly named areas."""
+    question = ' '.join(_plain(prepared['provider_context']['utterance'].lower()).split())
+    match = _SENIOR_COUNT_QUESTION.fullmatch(_canonical_districts(question))
+    if not match:
+        return None
+    district = re.fullmatch(_DISTRICT, match['district'] or '')
+    county = _county_groups(match['county'] or '')
+    if not district or not county:
+        return ()
+    chamber, number = _key(district)
+    code = f'{number:03}'
+    comparator = county[0][0][0]
+    metric = 'poverty_rate_65_plus'
+    if (f'HI-{chamber.upper()}-{code}-2024' not in core.profiles or
+            comparator not in core.profiles or metric not in core.metrics):
+        return ()
+    return (f'd_{chamber[0]}{code}', f'm_{metric}', f'g_{comparator}')
+
+
 def _convert(prepared,decision,core,stage):
     validate_wire(decision,prepared['schema']);status=decision['status'];intent=decision['intent'];stage[0]='decision_fields'
+    count_choices = _senior_poverty_count_choices(prepared, core)
+    if count_choices is not None:
+        stage[0] = 'local_guard'
+        raise Recovery('unsupported_explicit_constraint', 'unsupported', reason='unavailable_evidence', choices=count_choices)
     common={'status':status,'intent':intent,'message':MESSAGES[status],'reason_code':decision['reason_code'],
             'normalized_plan':None,'typed_diff':[],'inherited_fields':[],'source_inspection_refs':[],'choices':[],'clarify_field':''}
     if status=='propose':

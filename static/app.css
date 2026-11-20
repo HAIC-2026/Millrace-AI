@@ -1418,6 +1418,19 @@ ul.support-list {
   color: #222222;
 }
 
+/* The lead: what the selected comparison shows and the next step, read first; the full findings follow. */
+.brief-doc .brief-takeaway {
+  margin: 0 0 4pt;
+  padding: 2pt 0 2pt 6pt;
+  border-left: 2pt solid #000000;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.brief-doc .brief-takeaway p {
+  margin: 0 0 1.5pt;
+}
+
 /* Secondary context prints at the small size used for limits and sources. */
 .brief-doc .brief-map-context p {
   font-size: var(--brief-small);
@@ -2802,6 +2815,54 @@ p.page-foot {
   margin-left: 0.4rem;
 }
 
+/* A comparison answer: one compact, labelled column per side, each with its own margin and source. */
+.ia-answer-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  gap: 0.4rem 0.75rem;
+  margin: 0.3rem 0 0.35rem;
+}
+
+.ia-answer-side {
+  min-width: 0;
+  padding: 0.35rem 0.6rem 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--blue);
+  border-radius: 4px;
+}
+
+.ia-answer-side + .ia-answer-side {
+  border-left-color: var(--muted);
+}
+
+.ia-answer-item .ia-answer-side p {
+  margin: 0;
+}
+
+.ia-answer-side-role {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ia-answer-side-place {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ia-answer-side .ia-answer-value strong {
+  font-size: 1.4rem;
+}
+
+.ia-answer-side .ia-answer-tools {
+  margin-top: 0.15rem;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
 .ia-answer details {
   margin-top: 0.3rem;
 }
@@ -3478,8 +3539,10 @@ details.ia-plan[open] > summary {
       grid-column: 1;
     }
 
+    /* The setup panel is as tall as the question beside it; its map sits directly under the fields, not lower. */
     #ia-workspace > .ia-question:not([hidden]) ~ .ia-context {
       grid-column: 2;
+      align-content: start;
     }
 
     #ia-workspace > .ia-question:not([hidden]) ~ .ia-context .ia-context-fields {

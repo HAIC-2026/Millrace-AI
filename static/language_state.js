@@ -76,8 +76,13 @@
     const clauseBreak = /[.!?;:]/;
     const excluded = /\b(?:no|not|never|neither|don't|don’t|without|except|exclude|excluding|outside)\b/i;
     const related = /\b(?:near(?:by)?|around|adjacent|next\s+to|beside|border(?:s|ing)?|adjoin(?:s|ing)?|neighbou?r(?:s|ing)?|surround(?:s|ing)?|overlap(?:s|ping)?|contain(?:s|ing)?|includ(?:e|es|ing))\b/i;
-    // A bare number elsewhere might name another district. Leave that scope to the ordinary review.
-    let needsReview = /\b0*\d{1,2}\b/.test(text.replace(DISTRICT_MENTION, ' '));
+    // The numeric population qualifier is only recognized on an admitted senior poverty measure.
+    // Leave it in the original text for the district-list checks below.
+    let otherWords = text.replace(DISTRICT_MENTION, ' ');
+    if (plan.steps.some(st => st.args.metric_ids?.includes('poverty_rate_65_plus'))) {
+      otherWords = otherWords.replace(/\b(?:people|adults|residents)\s+(?:(?:age|aged)\s+)?65\s+and\s+over\b/gi, ' ');
+    }
+    let needsReview = /\b0*\d{1,2}\b/.test(otherWords);
     for (const mention of mentions) {
       const before = text.slice(0, mention.index), after = text.slice(mention.index + mention[0].length);
       if (NUMBER_AFTER_DISTRICT.test(after) || NUMBER_BEFORE_DISTRICT.test(before)) {

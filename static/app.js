@@ -615,16 +615,35 @@
   }
 
   // ------------------------------------------------------------ tabs
-  function selectTab(btn) {
+  function selectTab(btn, useInvestigationDistrict = true) {
     $$('[role="tab"]').forEach((b) => {
       const on = b === btn;
       b.setAttribute("aria-selected", on ? "true" : "false");
       b.tabIndex = on ? 0 : -1;
       $("#" + b.getAttribute("aria-controls")).hidden = !on;
     });
-    if (btn.id === "tab-btn-workflow") prefillLookup();
+    if (btn.id === "tab-btn-workflow" && useInvestigationDistrict) prefillLookup();
     logEvent("open_tab", { detail: btn.id });
   }
+
+  // A refused question can hand off to guided controls without applying an investigation or running the lookup.
+  window.DBLookup = { openGuided(comparison) {
+    const lookup = $("#tab-btn-workflow");
+    selectTab(lookup, false);
+    if (!ready || activeRun) { lookup.focus(); return; }
+    $('input[name="mode"][value="guided"]').checked = true;
+    if (comparison) {
+      applyToControls(comparison);
+      $("#run-btn").focus();
+    } else {
+      if (prefillUntouched()) {
+        $("#ctl-chamber").value = "";
+        fillDistricts();
+        dropPrefill();
+      }
+      $("#ctl-chamber").focus();
+    }
+  } };
 
   function wireTabs() {
     const tabs = $$('[role="tab"]');

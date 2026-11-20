@@ -205,7 +205,8 @@ class InvestigationTests(unittest.TestCase):
         brief=self.i.handle(b)['brief'];self.assertEqual(len(brief['entries']),1)
         program=self.i.core.prog_finding('kupuna_care_hi','HI-HOUSE-028-2024')
         self.assertTrue({e['source_id'] for e in program['evidence']} <= {c['source_id'] for c in brief['citations']})
-        self.assertTrue(brief['action_citations']);self.assertIn('Agency action',brief['html']);self.assertIn('Recorded next step:',brief['html']);self.assertLessEqual(brief['print_units'],7000)
+        self.assertTrue(brief['action_citations']);self.assertIn('Agency action',brief['html']);self.assertIn('<strong>Next step:</strong> Kūpuna Care — '+self.i.core.programs['kupuna_care_hi']['referral']['next_step'],brief['html'])
+        self.assertEqual(brief['html'].count(self.i.core.programs['kupuna_care_hi']['referral']['next_step']),1,'the recorded next step prints once, as the brief\'s Next step');self.assertLessEqual(brief['print_units'],7000)
 
     def test_brief_canaries_absent_from_operational_logs(self):
         r=self.request();o=self.i.handle(r);b=self.brief(r,o);b['selected_action_ref']=o['responses'][0]['action_ref']
@@ -266,7 +267,7 @@ class StaffPresentationTests(unittest.TestCase):
         self.assertIn('House 013 includes Kalawao',text);self.assertIn('808-586-0100',text)
 
     def test_print_estimates_for_four_finding_briefs_with_agency_step(self):
-        for (chamber,code),units in {('house','028'):4817,('house','013'):4996,('senate','025'):4816}.items():
+        for (chamber,code),units in {('house','028'):4919,('house','013'):5098,('senate','025'):4918}.items():
             r=self.request(chamber,code);o=self.i.handle(r)
             b=copy.deepcopy(r);b.update(mode='brief',selected_claim_refs=[c['claim_ref'] for c in o['claims'][:4]],selected_action_ref=o['responses'][0]['action_ref'],
                 staff_edits={},checklist_edits=[],tracking=None,edits_reviewed_for=None)
@@ -337,7 +338,9 @@ class StaffPresentationTests(unittest.TestCase):
         self.assertIsNone(render.outreach_parts('A sentence without the recorded section labels.'))
         markers=[[int(n) for n in re.findall(r'\[(\d+)\]',m)] for m in re.findall(r'((?:<a class="cite"[^>]*>\[\d+\]</a>)+)',html)]
         self.assertTrue(markers and all(m==sorted(m) for m in markers),'citation markers in order')
-        self.assertIn(' · <strong>Recorded next step:</strong>',html)
+        # The validated agency action's recorded next step leads the brief once; the hypothesis keeps its own part.
+        self.assertIn('<section class="brief-takeaway"><p><strong>Next step:</strong> Kūpuna Care — Contact the county office on aging',html)
+        self.assertNotIn('Recorded next step',html)
         self.assertIn('Hawaiʻi DOH Executive Office on Aging',text);self.assertNotIn('labelled',text)
         self.assertIn('Hawaiʻi DBEDT / U.S. Census Bureau ACS',text)
         self.assertEqual(brief['entries'][0]['text'],picks[0]['text'],'recorded claim text unchanged in the brief data')

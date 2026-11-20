@@ -1119,8 +1119,8 @@ test("Phase 1 import inventories outgoing active and inactive work until the mat
       assert.match(text, /select(ed|ion)/i);
       assert.match(text, /staff (notes|work|entr)/i);
       assert.match(text, /(?:save or reopen|download|cancel)/i);
-      assert.match(text, /staff entr[^.]+Context 1, Context 2/i);
-      assert.match(text, /selected finding[^.]+Context 1, Context 2/i);
+      assert.match(text, /staff entr[^.]+Investigation 1, Investigation 2/i);
+      assert.match(text, /selected finding[^.]+Investigation 1, Investigation 2/i);
       assert.doesNotMatch(text, /Synthetic (?:in)?active (?:summary|title|tracking)|Synthetic checklist item/);
     }
     assert.match(covered, /download.*was requested/i);
@@ -1810,7 +1810,11 @@ test("Phase 3 #4 mixed programs: manual no-action and hypothesis briefs use the 
     await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
     const brief = calls.filter(c => c.mode === "brief");
     assert.equal(brief.length, 1); assert.equal(brief[0].selected_action_ref, null, "the existing null, sent explicitly");
-    assert.doesNotMatch(await p.locator("#ia-brief-out").innerText(), /AGENCY ACTION/i);
+    // No agency action section prints; a single selected comparison's lead says that none was selected.
+    assert.equal(await p.locator("#ia-brief-out .brief-action").count(), 0);
+    assert.deepEqual((await p.locator("#ia-brief-out h3").allTextContents()).filter(t => /agency action/i.test(t)), []);
+    assert.doesNotMatch(await p.locator("#ia-brief-out").innerText(), /Next step:|Recorded next step/);
+    assert.match(await p.locator("#ia-brief-out .brief-takeaway").innerText(), /^What this shows: Poverty rate, age 65 and over: House District 028 29\.0% and State of Hawaiʻi 9\.2%, a point difference of \+19\.8 percentage points between published estimates \(no significance implied\)\. \[1\]\[2\]\s+Agency action: None selected\. These published figures do not identify an agency action\. Staff decide any follow-up\.$/);
     // Hypothesis by hand: the Kūpuna hypothesis finding and its own agency action and checklist.
     await p.locator('#ia-evidence input[aria-label^="Select for brief: Outreach hypothesis"]').check();
     await p.locator("#ia-responses article", { hasText: "Kūpuna Care" }).locator('input[name="ia-action"]').check(); await p.waitForTimeout(50);
@@ -2034,7 +2038,7 @@ test("Ask confirms a clean district switch once at 320×568 and keeps the earlie
     assert.equal((await focus(p)).id, "ia-answer-h");
     assert.equal(await p.locator("#ia-preview").isVisible(), false);
     assert.deepEqual(calls.map(c => c.mode), ["run"]);
-    assert.match(await p.locator("#ia-answer").innerText(), /73,731.*1,445,235/);
+    assert.match(await p.locator("#ia-answer").innerText(), /District\s+Senate 008\s+73,731 persons[\s\S]*Compared with\s+State of Hawaiʻi\s+1,445,235 persons/i);
     await recommend(p);
     assert.deepEqual(calls.map(c => c.mode), ["run", "brief"]);
     const after = await savedCase(p);
@@ -2546,7 +2550,7 @@ test("Phase 3 #11 each comparison operand states its own margin: controlled, mix
     };
     // Numeric pair (House 028 default): unchanged wording.
     let text = await details("Poverty rate, age 65 and over, House 028 vs");
-    assert.match(text, /House District 028 \(boundary session 2024\): 29\.0% \(margin of error ±4\.3\)/);
+    assert.match(text, /House District 028 \(2024 district boundaries\): 29\.0% \(margin of error ±4\.3\)/);
     assert.match(text, /State of Hawaiʻi: 9\.2% \(margin of error ±0\.5\)/);
     // Controlled pair: Senate 008 total population with the State.
     await p.locator("#ia-district").selectOption("senate:008"); await p.locator("#ia-issue").selectOption("custom");
@@ -2555,7 +2559,7 @@ test("Phase 3 #11 each comparison operand states its own margin: controlled, mix
     await p.locator('input[id^="ia-s2-metrics-"][value="poverty_rate_65_plus"]').uncheck();
     await p3Apply(p);
     text = await details("Total population, Senate 008 vs");
-    assert.match(text, /Senate District 008 \(boundary session 2024\): 73,731 \(Controlled estimate; no numeric margin of error published\)/);
+    assert.match(text, /Senate District 008 \(2024 district boundaries\): 73,731 \(Controlled estimate; no numeric margin of error published\)/);
     assert.match(text, /State of Hawaiʻi: 1,445,235 \(Controlled estimate; no numeric margin of error published\)/);
     assert.doesNotMatch(text.split(/Depends on/)[0].replace(/^[\s\S]*?Definition, margin of error and method/, ""), /\*{5}/, "no raw marker in the app's own rows");
     // Mixed pair: House 001 age 65 and over with Honolulu County.
@@ -2566,7 +2570,7 @@ test("Phase 3 #11 each comparison operand states its own margin: controlled, mix
     await p.locator("#ia-s2-geo").selectOption("HI-COUNTY-003-2024");
     await p3Apply(p);
     text = await details("Population age 65 and over, House 001 vs");
-    assert.match(text, /House District 001 \(boundary session 2024\): [\d,]+ \(90% margin of error ±[\d,]+\)/);
+    assert.match(text, /House District 001 \(2024 district boundaries\): [\d,]+ \(90% margin of error ±[\d,]+\)/);
     assert.match(text, /Honolulu County: [\d,]+ \(Controlled estimate; no numeric margin of error published\)/);
     await proof(p, "phase3-11-margins", {});
   } finally { await p.close(); }
@@ -2884,4 +2888,188 @@ test("Ask labels earlier findings while reading and running a question, then rem
       assert.match(await p.locator("#ia-answer .ia-answer-q").innerText(), outcome === "run" ? /Show the Maui County comparison first/ : /Compare senior poverty with Maui County/);
     }
   } finally { if (release) release(); await p.close(); }
+});
+
+const PRES_RATE = "What is the poverty rate for people 65 and over in Senate district 7, compared with Maui County?";
+const PRES_COUNT = "How many people age 65 and over are living in poverty in Senate District 7, compared with Maui County?";
+
+test("Ask keeps one visible confirmation for the senior-poverty rate and replays the old district", { timeout: 30000 }, async () => {
+  const p = await page(base, { viewport: { width: 320, height: 568 }, mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p);
+    const district = { ...activeBranch(before).plan.district, chamber: "senate", code: "007" };
+    const step = { step_id: "s5", operation: "compare", args: { metric_ids: ["poverty_rate_65_plus"], comparison_geography: "HI-COUNTY-009-2024" } };
+    const plan = { ...activeBranch(before).plan, district, issue_id: "custom", steps: [step] };
+    const diff = [{ field: "steps", change: "added", step_id: step.step_id, before: null, after: step }];
+    await offerAskProposal(p, PRES_RATE.replace("district 7,", "district 7 or 9,"), plan, diff);
+    await assertDistrictClarification(p, PRES_RATE.replace("district 7,", "district 7 or 9,"));
+    const language = await offerAskProposal(p, PRES_RATE, plan, diff);
+    assert.equal(await p.locator("#ia-proposal-run").textContent(), "Switch to Senate 007 and run");
+    assert.deepEqual(calls, []);
+    await p.keyboard.press("Tab");
+    assert.equal((await focus(p)).id, "ia-proposal-run");
+    await p.keyboard.press("Enter");
+    const answer = p.locator("#ia-answer-h");
+    await answer.waitFor();
+    assert.equal((await focus(p)).id, "ia-answer-h");
+    assert.equal(await answer.evaluate(el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), true);
+    assert.equal(await p.locator("#ia-preview").isVisible(), false);
+    await p.waitForFunction(() => /Senate 007 · 2026 map display/.test(document.querySelector("#ia-map-summary").textContent));
+    assert.equal(await p.locator("#ia-mapbox").evaluate(d => d.open), false, "a narrow screen keeps the compact closed map");
+    assert.equal((await focus(p)).id, "ia-answer-h");
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.deepEqual(language, ["start", "status"]);
+    const after = await savedCase(p);
+    assert.equal(after.branches.length, 2);
+    assert.deepEqual(after.branches.find(b => b.branch_id === before.active_branch_id), activeBranch(before));
+    await p.locator("#ia-restore-0").click();
+    await requestDone(p);
+    assert.equal((await savedCase(p)).active_branch_id, before.active_branch_id);
+    assert.equal(calls[1].snapshot_id, activeBranch(before).snapshot_id);
+    assert.deepEqual(calls[1].plan, activeBranch(before).plan);
+  } finally { await p.close(); }
+});
+
+test("Ask comparison answer: two labelled sides with their own sources, the desktop map once, and a led brief", { timeout: 60000 }, async () => {
+  const p = await page(base, { viewport: { width: 1440, height: 732 }, mockAsk: true });
+  try {
+    const before = await savedCase(p), calls = investigationCalls(p);
+    const district = { ...activeBranch(before).plan.district, chamber: "senate", code: "007" };
+    const step = { step_id: "s5", operation: "compare", args: { metric_ids: ["poverty_rate_65_plus"], comparison_geography: "HI-COUNTY-009-2024" } };
+    const plan = { ...activeBranch(before).plan, district, issue_id: "custom", steps: [step] };
+    const diff = [{ field: "steps", change: "added", step_id: step.step_id, before: null, after: step }];
+    const run = p3Response(p, "run", plan.map_session);
+    await p3Ask(p, PRES_RATE, plan, diff);
+    const claim = (await (await run).json()).claims.find(c => c.kind === "comparison");
+    assert.deepEqual(calls.map(c => c.mode), ["run"]);
+    assert.equal(claim.left.estimate_display, "10.3%"); assert.equal(claim.right.estimate_display, "8.7%");
+    const item = p.locator("#ia-answer .ia-answer-compare"), sides = item.locator(".ia-answer-side");
+    assert.equal(await sides.count(), 2);
+    const shown = await sides.evaluateAll(n => n.map(x => [x.getAttribute("aria-label"), x.innerText.replace(/\s+/g, " ").trim()]));
+    assert.equal(shown[0][0], "District: Senate 007"); assert.equal(shown[1][0], "Compared with: Maui County");
+    assert.match(shown[0][1], /^District Senate 007 10\.3% 90% margin of error ±2\.3 percentage points Inspect source: .+ — Senate 007$/i);
+    assert.match(shown[1][1], /^Compared with Maui County 8\.7% 90% margin of error ±1\.3 percentage points Inspect source: .+ — Maui County$/i);
+    const text = await item.innerText();
+    assert.match(text, /Point difference \+1\.6 percentage points\. No statistical significance test is performed\./);
+    assert.match(text, /Period: ACS 2020–2024 5-year · Universe: People age 65 years and over for whom poverty status is determined/);
+    assert.doesNotMatch(text, /overlap|significant(ly)? (higher|lower|different)|boundary session/i);
+    // Each side opens its own source: the Senate workbook and the county workbook, each at its own cells.
+    const buttons = sides.locator(".source-btn");
+    assert.deepEqual(await buttons.evaluateAll(n => n.map(b => b.dataset.findingId)), [claim.left.finding_id, claim.right.finding_id]);
+    assert.deepEqual(await buttons.evaluateAll(n => n.map(b => b.dataset.sourceId)), [claim.left.source.source_id, claim.right.source.source_id]);
+    assert.notEqual(claim.left.source.source_id, claim.right.source.source_id);
+    for (const [i, cells] of [[0, /AB145[\s\S]*AC145|AC145[\s\S]*AB145/], [1, /T145[\s\S]*U145|U145[\s\S]*T145/]]) {
+      await buttons.nth(i).click();
+      await p.locator("#source-dialog[open]").waitFor();
+      await p.waitForFunction(() => /DP03/.test(document.querySelector("#source-body").textContent));
+      assert.match(await p.locator("#source-body").innerText(), cells);
+      await p.locator("#close-source").click();
+      assert.equal(await buttons.nth(i).evaluate(b => b === document.activeElement), true, "focus returns to the side's own source button");
+    }
+    // The confirmed district's map opens on a wide screen once drawn; its shading names all ages and both years.
+    await p.locator("#ia-mapbox[open]").waitFor();
+    assert.match(await p.locator("#ia-map-summary").textContent(), /^Senate 007 · 2026 map display \(statistics use 2024 district boundaries\) · 3 parts · shading: poverty rate for all ages \(not the 65 and over rate\)/);
+    assert.match(await p.locator("#ia-indicator-text").textContent(), /^Shading: poverty rate for all ages \(all people\), [\d.]+%.*This is not the age 65 and over poverty rate shown in older-adult findings or answers\.$/);
+    assert.equal(await p.locator("#ia-map").evaluate(m => { const f = m.querySelector("#ia-indicator-text"), svg = m.querySelector("svg"); return !!(f && svg && (f.compareDocumentPosition(svg) & Node.DOCUMENT_POSITION_FOLLOWING)); }), true, "the shading population sits just before the drawing");
+    assert.deepEqual(await p.locator("#ia-map-part option").allTextContents(), ["Part 1 of 3", "Part 2 of 3", "Part 3 of 3"]);
+    assert.match(await p.locator("#ia-map-text").textContent(), /Statistics boundary2024 district boundaries.*Map boundary shown2026 boundaries \(display only\).*Map shadingPoverty rate for all ages \(all people\), not the age 65 and over rate/);
+    assert.match(await p.locator("#ia-context-summary").innerText(), /Senate 007 · Your question/);
+    // A staff collapse is kept when a later answer for the same district is shown.
+    await p.locator("#ia-mapbox > summary").click();
+    assert.equal(await p.locator("#ia-mapbox").evaluate(d => d.open), false);
+    await p3Ask(p, "Show the Senate 7 and Maui County comparison again.", plan, []);
+    await p.waitForTimeout(200);
+    assert.equal(await p.locator("#ia-mapbox").evaluate(d => d.open), false, "a manual collapse is not overridden");
+    // The answer's brief leads with what the comparison shows and states that no agency action is selected.
+    const brief = p3Response(p, "brief", plan.map_session);
+    await p.locator("#ia-answer-brief").click();
+    await requestDone(p);
+    await p.waitForFunction(() => !document.querySelector("#ia-print-btn").disabled);
+    const html = (await (await brief).json()).brief.html, out = await p.locator("#ia-brief-out").innerText();
+    assert.match(html, /<section class="brief-takeaway"><p><strong>What this shows:<\/strong> Poverty rate, age 65 and over: Senate District 007 10\.3% and Maui County 8\.7%, a point difference of \+1\.6 percentage points between published estimates \(no significance implied\)\. <a class="cite" href="#cite-1">\[1\]<\/a><a class="cite" href="#cite-2">\[2\]<\/a><\/p><p><strong>Agency action:<\/strong> None selected\. These published figures do not identify an agency action\. Staff decide any follow-up\.<\/p><\/section>/);
+    assert.match(out, /District brief: Senate District 007 \(2024 district boundaries\)/);
+    assert.match(out, /Senate District 007 · Issue: Custom investigation · Statistics use 2024 district boundaries · Map display: 2026 boundaries/);
+    assert.match(out, /10\.3% \(±2\.3\) vs Maui County 8\.7% \(±1\.3\); point difference \+1\.6 percentage points \(no significance implied\)/);
+    assert.match(out, /No statistical difference test was performed\./);
+    assert.doesNotMatch(out, /staff-composed|boundary session|Next step|Recorded next step/);
+    assert.deepEqual(activeBranch(await savedCase(p)).selected_claim_refs, [claim.claim_ref], "the brief uses the exact answer finding");
+    await proof(p, "comparison-answer-map-brief", { sides: shown });
+  } finally { await p.close(); }
+});
+
+const rateChoices = [
+  { alias: "d_s007", field: "district", value: { chamber: "senate", code: "007" }, label: "Senate 7" },
+  { alias: "m_poverty_rate_65_plus", field: "metric", value: "poverty_rate_65_plus", label: "Poverty rate, age 65 and over" },
+  { alias: "g_HI-COUNTY-009-2024", field: "comparator", value: "HI-COUNTY-009-2024", label: "Maui County" },
+];
+async function offerCountRefusal(p, choices = rateChoices, envelope = {}) {
+  const language = await mockAskStatus(p, () => ({
+    status: "unsupported", intent: "none", reason_code: "unavailable_evidence", normalized_plan: null,
+    clarify_field: "", choices, ...envelope,
+  }));
+  await p.locator("#ia-question-text").fill(PRES_COUNT);
+  await p.locator("#ia-question-submit").click();
+  await p.locator("#ia-alt-lookup").waitFor();
+  return language;
+}
+
+test("Ask offers the separately chosen rate only through guided lookup", { timeout: 30000 }, async () => {
+  const p = await page(base, { mockAsk: true });
+  try {
+    await recommend(p);
+    await p.locator("#ia-title").fill("House 028 staff notes");
+    await p.locator("#ia-download-staff").check();
+    const before = await savedCase(p), calls = investigationCalls(p);
+    const language = await offerCountRefusal(p);
+    const result = p.locator("#ia-question-result");
+    assert.match(await result.innerText(), /a rate is never shown in place of a count/);
+    assert.match(await result.innerText(), /Senate 007 and Maui County.*separate comparison/);
+    assert.match(await result.innerText(), /Findings already run for House 028/);
+    assert.equal(await p.locator("#ia-answer-h").isVisible(), false);
+    assert.equal(await p.locator("#ia-proposal-run").count(), 0);
+    assert.deepEqual(calls, []);
+    const resolutions = [];
+    p.on("request", req => {
+      if (new URL(req.url()).pathname === "/api/resolve") resolutions.push(req.postDataJSON());
+    });
+    await p.locator("#ia-alt-lookup").click();
+    assert.equal(await p.locator("#tab-btn-workflow").getAttribute("aria-selected"), "true");
+    assert.equal((await focus(p)).id, "run-btn");
+    assert.deepEqual(resolutions, []);
+    assert.deepEqual(await Promise.all(["chamber", "code", "metric", "geo"].map(k => p.locator("#ctl-" + k).inputValue())),
+      ["senate", "007", "poverty_rate_65_plus", "HI-COUNTY-009-2024"]);
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => /10\.3%/.test(document.querySelector("#result").innerText));
+    assert.match(await p.locator("#result").innerText(), /8\.7%/);
+    assert.equal(resolutions.length, 1);
+    assert.equal(resolutions[0].input_mode, "guided");
+    await p.locator("#tab-btn-investigation").click();
+    assert.deepEqual(await savedCase(p), before);
+    assert.deepEqual(calls, []);
+    assert.deepEqual(language, ["start", "status"]);
+  } finally { await p.close(); }
+});
+
+test("Ask opens unfilled guided selectors for absent, malformed or stale recovery", { timeout: 30000 }, async () => {
+  for (const [choices, envelope] of [
+    [[], {}],
+    [[...rateChoices.slice(0, 2), { ...rateChoices[2], value: "HI-COUNTY-999-2024" }], {}],
+    [rateChoices, { context_digest: "sha256:" + "a".repeat(64) }],
+  ]) {
+    const p = await page(base, { mockAsk: true });
+    try {
+      await p.locator("#tab-btn-workflow").click();
+      assert.equal(await p.locator("#ctl-code").inputValue(), "028");
+      await p.locator("#tab-btn-investigation").click();
+      const calls = investigationCalls(p);
+      await offerCountRefusal(p, choices, envelope);
+      assert.equal(await p.locator("#ia-alt-lookup").textContent(), "Choose measures and geography in Single lookup");
+      await p.locator("#ia-alt-lookup").click();
+      assert.equal((await focus(p)).id, "ctl-chamber");
+      assert.equal(await p.locator("#ctl-chamber").inputValue(), "");
+      assert.equal(await p.locator("#ctl-code").inputValue(), "");
+      assert.equal(await p.locator("#ctl-geo").inputValue(), "");
+      assert.deepEqual(calls, []);
+    } finally { await p.close(); }
+  }
 });

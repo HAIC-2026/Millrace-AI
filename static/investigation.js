@@ -12,6 +12,8 @@
   let preview = null;           // pending context-change preview
   let importing = null;         // parsed case file awaiting an explicit choice
   let mapHandle = null, mapKey = null, savedDigest = null, showStaffPreview = false;
+  // A fresh desktop answer opens the map once its confirmed district is drawn, unless staff collapsed the map.
+  let mapReadyKey = null, mapWanted = null, mapCollapsedByUser = false;
   let languageJob = null, languageResult = null;
   // Ephemeral question scope (never saved in the case): conflict basis, explicit step focus, last inspected finding.
   let questionBasis = null, questionFocus = null, questionSource = null, lastQuestion = '';
@@ -51,7 +53,7 @@
   // Unfinished add-checklist-item text per "case_id|branch_id" (page memory only; never in a case file).
   const addDrafts = new Map();
   const OP_LABEL = { profile: "Profile measures", compare: "Compare with a geography", program_evidence: "Program reference", outreach_lead: "Reviewed outreach hypothesis", administrative_evidence: "Administrative records" };
-  const ISSUE_LABEL = { aging_at_home: "Older-adult support at home", food_assistance_outreach: "SNAP outreach", custom: "Custom (staff-composed steps)" };
+  const ISSUE_LABEL = { aging_at_home: "Older-adult support at home", food_assistance_outreach: "SNAP outreach", custom: "Custom investigation" };
   const AREA_LABEL = { statewide: "Statewide", oahu: "Oʻahu", hawaii_island: "Hawaiʻi Island", maui: "Maui", molokai: "Molokaʻi", lanai: "Lānaʻi", kauai: "Kauaʻi", kalawao: "Kalawao" };
   const TIER_LABEL = { reference: "Dated program reference", hypothesis: "Reviewed outreach hypothesis", verification_action: "Agency action (staff verification)" };
   const KIND_LABEL = { statistic: "Statistic", comparison: "Comparison", program_relevance: "Program reference", outreach_hypothesis: "Outreach hypothesis", administrative_context: "Administrative record (not district data)" };
@@ -98,7 +100,8 @@
   // Display spelling for place names recorded without diacritics in geography labels ("Hawaii County" shows as
   // "Hawaiʻi County"). Geography labels only: identifiers, source titles, publishers and claim text are unchanged.
   const PLACE = { Hawaii: "Hawaiʻi", Kauai: "Kauaʻi", Oahu: "Oʻahu", Molokai: "Molokaʻi", Lanai: "Lānaʻi" };
-  const placeDisplay = (t) => String(t == null ? "" : t).replace(/\b(Hawaii|Kauai|Oahu|Molokai|Lanai)\b/g, (m) => PLACE[m]);
+  // Display only: the canonical geography label (part of each claim identity) keeps its recorded wording.
+  const placeDisplay = (t) => String(t == null ? "" : t).replace(/\b(Hawaii|Kauai|Oahu|Molokai|Lanai)\b/g, (m) => PLACE[m]).replace(/ \(boundary session (\d{4})\)/g, " ($1 district boundaries)");
   // The scope that tells saved contexts of one district and issue apart: each comparison geography in the
   // plan's steps and the staff-chosen program area. A geography not in the catalog is named as unlisted.
   function planScope(p) {
@@ -244,13 +247,14 @@
     notice = "Your question ran for " + districtLabel(b.plan.district) + "." + (unsingled ? " It did not single out one finding, so related findings are shown to choose from." : " The answer is shown first; other findings follow.") + (result.status === "ok" ? "" : " Some steps did not produce findings.") + openedContextNote(origin);
     const inComposer = returnToAsk || userInComposer();
     render(); if (inComposer) focusAnswer();
+    openMapForAnswer();
   }
   // Names a context a question opened and the room left, so the four-context limit is never reached silently.
   function openedContextNote(originBranchId) {
     const b = C.active(state), n = state.case.branches.length, i = state.case.branches.findIndex((x) => x.branch_id === b.branch_id);
     if (!originBranchId || originBranchId === b.branch_id) return "";
     const left = C.LIMITS.branches - n;
-    return " It opened as Context " + (i + 1) + "; your earlier context is kept under Save or reopen the case. " + (left > 0 ? plural(left, "more context", "more contexts") + " can be opened in this case." : "This case now holds the most contexts it can; a question that changes the plan will need one removed first.");
+    return " It opened as Investigation " + (i + 1) + "; your earlier context is kept under Save or reopen the case. " + (left > 0 ? plural(left, "more context", "more contexts") + " can be opened in this case." : "This case now holds the most contexts it can; a question that changes the plan will need one removed first.");
   }
   // True while keyboard focus is still in the question area (or nowhere), so a result may take focus.
   function userInComposer() {
@@ -351,7 +355,7 @@
     const i = state.case.branches.findIndex((br) => br.branch_id === branchId);
     if (i < 0) return "the current context";
     const p = state.case.branches[i].plan;
-    return "Context " + (i + 1) + " (" + planLabel(p) + ")";
+    return "Investigation " + (i + 1) + " (" + planLabel(p) + ")";
   }
   function restoreContext(branchId) {
     lastRestore = { branchId: branchId, name: contextName(branchId) };
@@ -559,7 +563,7 @@
     const p = C.proposeChange(state, { plan: plan });
     if (p.noop && C.currentResults(state)) {
       pendingAnswer.branch_id = C.active(state).branch_id; settleAnswer();
-      notice = 'Your question matches the plan already run, so its findings are shown without running again.'; const inComposer = userInComposer(); render(); if (inComposer) focusAnswer(); return;
+      notice = 'Your question matches the plan already run, so its findings are shown without running again.'; const inComposer = userInComposer(); render(); if (inComposer) focusAnswer(); openMapForAnswer(); return;
     }
     if (reviewed) { applyPlan(); return; }
     commit(p);
@@ -627,9 +631,25 @@
   function focusAnswer() { const h3 = $('#ia-answer-h'); if (h3) h3.focus(); }
   function openAdvanced(focusSummary) { const d = $('#ia-advanced'); d.open = true; if (focusSummary) d.querySelector('summary').focus(); }
 
-  // Deterministic next steps after a refusal or a failed question: findings already run in this context, or
-  // existing guided controls. No model call is made and nothing here answers the original question.
-  function guidedAlternatives() {
+  // Only the whole server-verified tuple on a matching refusal can prefill the lookup.
+  function rateComparisonAlternative(job, result) {
+    if (!job || !currentLanguage(job, result) || result.status !== 'unsupported' ||
+        result.reason_code !== 'unavailable_evidence' || result.intent !== 'none' || result.normalized_plan !== null ||
+        result.clarify_field !== '' || !Array.isArray(result.choices) || result.choices.length !== 3) return null;
+    const [districtChoice, metricChoice, comparatorChoice] = result.choices;
+    if (districtChoice?.field !== 'district' || metricChoice?.field !== 'metric' || comparatorChoice?.field !== 'comparator') return null;
+    const d = districtChoice.value, m = metricChoice.value, g = comparatorChoice.value;
+    if (m !== 'poverty_rate_65_plus' || metricChoice.alias !== 'm_' + m || !catalog.metrics.some(x => x.metric_id === m) ||
+        typeof g !== 'string' || !/^HI-COUNTY-\d{3}-2024$/.test(g) || comparatorChoice.alias !== 'g_' + g ||
+        !catalog.geographies.some(x => x.geography_id === g) ||
+        !d || !/^(house|senate)$/.test(d.chamber) || typeof d.code !== 'string' || !/^\d{3}$/.test(d.code) ||
+        districtChoice.alias !== 'd_' + d.chamber[0] + d.code ||
+        !catalog.districts.some(x => x.chamber === d.chamber && x.code === d.code && x.boundary_session === 2024 && x.has_statistics)) return null;
+    return { task: 'compare', district: { chamber: d.chamber, code: d.code, boundary_session: 2024 }, metric_ids: [m], comparison_geography: g };
+  }
+  // Guided controls are separate from findings already run for the active district.
+  function guidedAlternatives(result) {
+    const job = languageJob, comparison = rateComparisonAlternative(job, result);
     const res = C.currentResults(state), b = C.active(state), nodes = [];
     if (res) res.steps.filter((st) => st.status === 'ok' && Array.isArray(st.claim_refs) && st.claim_refs.length && st.operation !== 'administrative_evidence').slice(0, 4).forEach((st) => {
       const ps = res.plan.steps.find((x) => x.step_id === st.step_id);
@@ -644,9 +664,17 @@
         cancelLanguage(); notice = 'Showing findings already run in this context. They do not answer the question you asked.'; render(); focusAnswer();
       }, { class: 'btn-link ia-alt', id: 'ia-alt-' + st.step_id })));
     });
-    nodes.push(h('li', {}, btn('Edit the plan yourself (Advanced investigation)', () => { cancelLanguage(); render(); openAdvanced(true); }, { class: 'btn-link ia-alt', id: 'ia-alt-advanced' })));
     return h('div', { class: 'ia-alternatives' }, h('h3', { class: 'ia-group-title', text: 'What you can do instead' }),
-      h('p', { class: 'hint', text: 'These use evidence and controls already in the app. They do not send another question.' }), h('ul', {}, nodes));
+      comparison ? h('p', { class: 'hint', text: 'The published poverty rate for people age 65 and over is available for ' +
+        districtLabel(comparison.district) + ' and ' + geoLabel(comparison.comparison_geography) + '. Choose it as a separate comparison.' }) : null,
+      h('div', { class: 'btn-row' },
+        result.limited ? null : staffDateButton(comparison ? 'Open this rate comparison in Single lookup' : 'Choose measures and geography in Single lookup', () => {
+          if (languageResult !== result || holdIncompleteStaffDate('opening Single lookup')) return;
+          window.DBLookup.openGuided(rateComparisonAlternative(job, result));
+        }, { class: 'btn', id: 'ia-alt-lookup' }),
+        btn('Edit the plan yourself (Advanced investigation)', () => { cancelLanguage(); render(); openAdvanced(true); }, { class: 'btn-link ia-alt', id: 'ia-alt-advanced' })),
+      nodes.length ? h('h4', { text: 'Findings already run for ' + districtLabel(b.plan.district) }) : null,
+      nodes.length ? h('ul', {}, nodes) : null);
   }
   // Plain explanation of a refusal, from the server's typed reason (never from the question text).
   function refusalText(result) {
@@ -821,7 +849,7 @@
     }
     const gap = snapGap(result);
     if (gap) nodes.push(gapOutreach(result, gap));
-    else if (result.status === 'unsupported' || result.status === 'uncertain' || result.status === 'error' || result.status === 'expired') nodes.push(guidedAlternatives());
+    else if (result.status === 'unsupported' || result.status === 'uncertain' || result.status === 'error' || result.status === 'expired') nodes.push(guidedAlternatives(result));
     fill(box,nodes);
   }
 
@@ -831,27 +859,41 @@
     const id = 'ia-c-' + st.step_id + '-' + c.claim_ref.semantic_hash.slice(7, 19), m = c.metric || {};
     const level = typeof c.moe_confidence_level === 'number' ? Math.round(c.moe_confidence_level * 100) + '% ' : '';
     const moe = (x, unit) => /^±/.test(String(x || '')) ? moeWithUnit(x, unit) : x ? String(x) : null;
-    // Each side states its own margin. Beside a controlled or unavailable side, a numeric side names its own published
-    // confidence level; comparisons of two numeric sides keep their earlier wording.
-    const mixedSides = c.kind === 'comparison' && !!(C.moeStatus(c.left) || C.moeStatus(c.right));
-    const sideLevel = (x) => mixedSides && typeof x.moe_confidence_level === 'number' ? Math.round(x.moe_confidence_level * 100) + '% ' : level;
-    const sideMoe = (x) => C.moeStatus(x) ? ' (' + C.moeStatus(x) + ')' : /^±/.test(String(x.moe_display || '')) ? ' (' + sideLevel(x) + 'margin of error ' + moeWithUnit(x.moe_display, x.unit || c.unit) + ')' : x.moe_display ? ' (margin of error not published as a number: ' + x.moe_display + ')' : '';
-    const side = (x) => x ? shortGeo(x.geography && x.geography.label) + ': ' + valueWithUnit(x.estimate_display, x.unit || c.unit) + sideMoe(x) : '';
-    let head, value = null, sub = null, text = null;
+    // Each side states its own margin: a published numeric margin with its own confidence level, a controlled
+    // estimate, or a margin not published as a number. None is filled in.
+    const sideLevel = (x) => typeof x.moe_confidence_level === 'number' ? Math.round(x.moe_confidence_level * 100) + '% ' : level;
+    const sideMoe = (x) => C.moeStatus(x) || (/^±/.test(String(x.moe_display || '')) ? sideLevel(x) + 'margin of error ' + moeWithUnit(x.moe_display, x.unit || c.unit) : x.moe_display ? 'Margin of error not published as a number: ' + x.moe_display : null);
+    const refs = (Array.isArray(c.source_inspection_refs) ? c.source_inspection_refs : []).filter((r) => r && typeof r.source_id === 'string');
+    const sourceBtn = (r, what) => h('button', { type: 'button', class: 'btn-link source-btn', 'data-source-id': r.source_id, 'data-finding-id': typeof r.finding_id === 'string' ? r.finding_id : c.claim_ref.finding_id, text: 'Inspect source: ' + srcLabel(r.source_id) + (what ? ' — ' + what : ''),
+      on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } });
+    // One compact, labelled column per side: place, published value, its own margin and its own source.
+    const sideBox = (x, role) => {
+      if (!x) return null;
+      const where = shortGeo(x.geography && x.geography.label), own = refs.find((r) => r.finding_id === x.finding_id), margin = sideMoe(x);
+      return h('div', { class: 'ia-answer-side', role: 'group', 'aria-label': role + ': ' + where },
+        h('p', { class: 'ia-answer-side-role', text: role }),
+        h('p', { class: 'ia-answer-side-place', text: where }),
+        h('p', { class: 'ia-answer-value' }, h('strong', { text: x.estimate_display == null ? 'Estimate unavailable' : valueWithUnit(x.estimate_display, x.unit || c.unit) })),
+        margin ? h('p', { class: 'ia-answer-moe', text: margin }) : null,
+        own ? h('p', { class: 'ia-answer-tools' }, sourceBtn(own, where)) : null);
+    };
+    let head, value = null, sub = null, text = null, sides = null;
     if (c.kind === 'statistic') {
       head = (m.label || 'Statistic') + ' · ' + shortGeo(c.geography && c.geography.label);
       value = valueWithUnit(c.estimate_display, c.unit);
       sub = C.moeStatus(c) || (/^±/.test(String(c.moe_display || '')) ? level + 'margin of error ' + moe(c.moe_display, c.unit) : c.moe_display ? 'Margin of error not published as a number: ' + c.moe_display : null);
     } else if (c.kind === 'comparison') {
       head = (m.label || 'Comparison') + ' · ' + shortGeo(c.left && c.left.geography && c.left.geography.label) + ' compared with ' + shortGeo(c.right && c.right.geography && c.right.geography.label);
-      value = side(c.left) + '  ·  ' + side(c.right);
+      sides = h('div', { class: 'ia-answer-sides' }, sideBox(c.left, 'District'), sideBox(c.right, 'Compared with'));
       sub = c.difference ? 'Point difference ' + c.difference.display + ' ' + c.difference.unit + '. No statistical significance test is performed.' : 'Not differenced: ' + limitText(c.not_differenced_reason);
     } else { head = claimShortName(c); text = typeof c.text === 'string' ? c.text : null; }
     const facts = [c.kind === 'statistic' && c.unit ? 'Unit: ' + c.unit : null, periodText(c.period) ? 'Period: ' + periodText(c.period) : null, c.universe ? 'Universe: ' + c.universe : null].filter(Boolean).join(' · ');
-    const refs = (Array.isArray(c.source_inspection_refs) ? c.source_inspection_refs : []).filter((r) => r && typeof r.source_id === 'string').slice(0, 1);
+    // A comparison's sources sit with their sides; any other finding keeps its first source here.
+    const ownSources = sides ? refs.filter((r) => ![c.left, c.right].some((x) => x && r.finding_id === x.finding_id)).slice(0, 1) : refs.slice(0, 1);
     const on = C.active(state).selected_claim_refs.some((r) => C.refKey(r) === C.refKey(c.claim_ref));
-    return h('div', { class: 'ia-answer-item' },
+    return h('div', { class: 'ia-answer-item' + (sides ? ' ia-answer-compare' : '') },
       h('p', { class: 'ia-answer-measure', text: head }),
+      sides,
       value ? h('p', { class: 'ia-answer-value' }, h('strong', { text: value })) : null,
       sub ? h('p', { class: 'ia-answer-moe', text: sub }) : null,
       text ? h('p', { class: 'ia-answer-text', text: text }) : null,
@@ -861,9 +903,8 @@
         h('input', { type: 'checkbox', id: 'ia-rel-sel-' + c.claim_ref.semantic_hash.slice(7, 19), checked: on, 'aria-label': 'Select for brief: ' + head,
           on: { change: (e) => set(C.toggleClaim(state, c.claim_ref, e.target.checked), e.target.checked ? 'Finding selected for the brief.' : 'Finding removed from the brief selection.') } }), ' Select for brief') : null,
       h('p', { class: 'ia-answer-tools' },
-        refs.map((r) => h('button', { type: 'button', class: 'btn-link source-btn', 'data-source-id': r.source_id, 'data-finding-id': typeof r.finding_id === 'string' ? r.finding_id : c.claim_ref.finding_id, text: 'Inspect source: ' + srcLabel(r.source_id),
-          on: { click: () => { const b = C.active(state); questionSource = { claim_ref: JSON.parse(JSON.stringify(c.claim_ref)), branch_id: b.branch_id, revision: b.last_ready_revision }; renderLanguage(); } } })),
-        refs.length ? ' · ' : null,
+        ownSources.map((r) => sourceBtn(r)),
+        ownSources.length ? ' · ' : null,
         btn('Show in findings', () => { const el = document.getElementById(id); if (el) el.focus(); }, { class: 'btn-link', id: 'ia-answer-go-' + c.claim_ref.semantic_hash.slice(7, 19) }),
         on ? h('span', { class: 'badge badge-info', text: 'In brief' }) : null));
   }
@@ -1153,7 +1194,7 @@
     const applied = b.plan, draftOther = dirty && (districtLabel(state.draft.district) !== districtLabel(applied.district) || state.draft.issue_id !== applied.issue_id);
     const outcome = dirty ? applyOutcome() : null;
     fill($("#ia-context-summary"), [
-      h("span", {}, res ? "Showing results for " : "Not run yet: ", h("strong", { text: districtLabel(applied.district) }), " · " + ISSUE_LABEL[applied.issue_id] +
+      h("span", {}, res ? "Showing results for " : "Not run yet: ", h("strong", { text: districtLabel(applied.district) }), " · " + (applied.issue_id === "custom" && ans && ans.kind === "answer" ? "Your question" : ISSUE_LABEL[applied.issue_id]) +
         (rescopedPrograms(applied) ? " (program steps use " + rescopedPrograms(applied).map(programLabel).join("; ") + ")" : "") +
         (applied.service_area_id ? " · program area " + AREA_LABEL[applied.service_area_id] + " (staff choice)" : "") + ". "),
       dirty ? h("span", { class: "badge badge-warn", text: "Draft has unapplied changes" }) : null,
@@ -1405,7 +1446,7 @@
       h("p", { class: "hint", text: "Replaces the current selection with the " + (briefFocus ? "answer's findings" : "recommended findings") + " and agency action, sized to fit one page. Your title, summary and next steps are kept; a note on a finding that is left out waits for your review." }));
   }
 
-  const shortGeo = (label) => placeDisplay(label || "").replace(/ \(boundary session \d{4}\)$/, "").replace(/^House District /, "House ").replace(/^Senate District /, "Senate ");
+  const shortGeo = (label) => placeDisplay(label || "").replace(/ \(\d{4} district boundaries\)$/, "").replace(/^House District /, "House ").replace(/^Senate District /, "Senate ");
   function valueWithUnit(display, unit) {
     display = String(display == null ? "" : display); unit = String(unit || "");
     if (unit === "percent") return /%$/.test(display) ? display : display + "%";
@@ -1518,7 +1559,7 @@
     // controlled or unavailable operand, a numeric one names its published confidence level; numeric pairs are unchanged.
     const mixed = c.kind === "comparison" && !!(C.moeStatus(c.left) || C.moeStatus(c.right));
     const sideLevel = (x) => (mixed && typeof x.moe_confidence_level === "number" ? Math.round(x.moe_confidence_level * 100) + "% " : "");
-    const side = (x) => (x && x.geography ? x.geography.label + ": " + (x.estimate_display == null ? "estimate unavailable" : x.estimate_display) + " (" + (C.moeStatus(x) || sideLevel(x) + "margin of error " + x.moe_display) + ")" : null);
+    const side = (x) => (x && x.geography ? placeDisplay(x.geography.label) + ": " + (x.estimate_display == null ? "estimate unavailable" : x.estimate_display) + " (" + (C.moeStatus(x) || sideLevel(x) + "margin of error " + x.moe_display) + ")" : null);
     const checks = c.compatibility && c.compatibility.checks ? Object.keys(c.compatibility.checks).filter((k) => c.compatibility.checks[k]).map((k) => humanWords(k).toLowerCase()) : null;
     return [
       ["Recorded statement", c.kind === "statistic" && typeof c.text === "string" ? c.text : null],
@@ -1592,7 +1633,7 @@
     // Name each source button by what it supports; the same document can back different values.
     const srcName = (r) => {
       const dep = r.finding_id && r.finding_id !== c.claim_ref.finding_id ? Array.from(claims.values()).find((x) => x.claim_ref.finding_id === r.finding_id) : null;
-      const what = dep && dep.metric ? " — " + (dep.geography && dep.geography.label ? placeDisplay(dep.geography.label).replace(/ \(boundary session \d{4}\)$/, "") + ", " : "") + dep.metric.label : "";
+      const what = dep && dep.metric ? " — " + (dep.geography && dep.geography.label ? placeDisplay(dep.geography.label).replace(/ \(\d{4} district boundaries\)$/, "") + ", " : "") + dep.metric.label : "";
       return srcLabel(r.source_id) + (what || " — " + name);
     };
     const meta = [periodText(c.period), c.universe ? "Universe: " + c.universe : null].filter(Boolean).join(" · ");
@@ -2121,7 +2162,7 @@
     const i = branches.findIndex((br) => br.branch_id === branchId);
     if (i < 0) return "Context";
     const p = branches[i].plan;
-    return "Context " + (i + 1) + ": " + planLabel(p);
+    return "Investigation " + (i + 1) + ": " + planLabel(p);
   }
 
   // A note on a removed finding waits for review in this page only: a case file cannot hold it until it is copied back
@@ -2154,7 +2195,7 @@
   function outgoingWork() {
     const brs = state.case.branches, held = heldWork(), staff = C.staffExportPreview(state);
     const entries = staff.reduce((n, r) => n + r.items.length, 0), sel = brs.reduce((n, br) => n + br.selected_claim_refs.length, 0), acts = brs.filter((br) => br.selected_action_ref).length;
-    const where = (rows) => rows.length ? " (" + rows.map((r) => "Context " + (brs.findIndex((br) => br.branch_id === r.branch_id) + 1)).join(", ") + ")" : "";
+    const where = (rows) => rows.length ? " (" + rows.map((r) => "Investigation " + (brs.findIndex((br) => br.branch_id === r.branch_id) + 1)).join(", ") + ")" : "";
     const items = [];
     if (entries) items.push(plural(entries, "staff entry", "staff entries") + " — notes, checklist or tracking" + where(staff) + ". A download without “Include staff notes” leaves them out.");
     if (sel || acts) items.push(plural(sel, "selected finding", "selected findings") + (acts ? " and " + plural(acts, "chosen agency action", "chosen agency actions") : "") + where(brs.filter((br) => br.selected_claim_refs.length || br.selected_action_ref)) + ".");
@@ -2171,7 +2212,7 @@
       const on = br.branch_id === b.branch_id, n = C.staffItems(br).length;
       return h("li", { class: on ? "is-selected" : "" },
         h("div", { class: "ia-branch-text" },
-          h("strong", { text: "Context " + (i + 1) + ": " + planLabel(br.plan) }),
+          h("strong", { text: "Investigation " + (i + 1) + ": " + planLabel(br.plan) }),
           on ? h("span", { class: "badge badge-info", text: "Current" }) : null,
           br.review_state === "replay_blocked" ? h("span", { class: "badge badge-warn", text: "Replay blocked" }) : null,
           h("span", { class: "hint", text: br.plan.steps.length + " steps · " + br.selected_claim_refs.length + " selected · " + n + " staff entr" + (n === 1 ? "y" : "ies") })),
@@ -2206,7 +2247,7 @@
     const out = p.runtime_match ? outgoingWork() : null, risk = out && out.items.length && !out.saved;
     importing.shown_risk = riskKey(out);   // exactly what this preview presents, compared again when Replay is chosen
     const replaceNote = out ? h("div", { id: "ia-import-replace" },
-      h("p", { text: "Replay and open replaces the case open in this page now (" + plural(state.case.branches.length, "context", "contexts") + "; current: Context " + (state.case.branches.findIndex((br) => br.branch_id === b.branch_id) + 1) + ", " + planLabel(b.plan) + ") with the file's case. If the replay fails or you cancel, the current case stays as it is." }),
+      h("p", { text: "Replay and open replaces the case open in this page now (" + plural(state.case.branches.length, "context", "contexts") + "; current: Investigation " + (state.case.branches.findIndex((br) => br.branch_id === b.branch_id) + 1) + ", " + planLabel(b.plan) + ") with the file's case. If the replay fails or you cancel, the current case stays as it is." }),
       risk ? h("div", { class: "alert", id: "ia-import-risk", tabindex: "-1" }, h("p", { text: "No full download was requested since this work last changed. After the replay it is gone from this page:" }),
         h("ul", {}, out.items.map((t) => h("li", { text: t }))),
         h("p", { text: "To keep it, choose Cancel, then under Save or reopen the case " + downloadStep() + ". A download is only a request; check your browser's downloads to confirm the file was saved, then choose the file to open again." }))
@@ -2249,13 +2290,27 @@
   }
 
   // ------------------------------------------------------------------ map
+  // Wide screens only (the side-by-side layout); a narrow screen keeps the compact closed map. Focus does not move.
+  function openMapForAnswer() {
+    const p = C.active(state).plan;
+    mapWanted = [state.runtime.snapshot_id, p.district.chamber, p.district.code, p.map_session].join("|");
+    openWantedMap();
+  }
+  function openWantedMap() {
+    const box = $("#ia-mapbox");
+    if (!mapWanted || mapWanted !== mapKey || mapWanted !== mapReadyKey) return;
+    mapWanted = null;
+    if (!box || box.open || mapCollapsedByUser || !(window.matchMedia && window.matchMedia("(min-width: 1100px)").matches)) return;
+    box.open = true;
+  }
   function syncMap(force) {
     const p = C.active(state).plan, key = [state.runtime.snapshot_id, p.district.chamber, p.district.code, p.map_session].join("|");
     if (key === mapKey && !force) return;
     if (key === mapKey) return;
-    mapKey = key;
+    mapKey = key; mapReadyKey = null;
     const box = $("#ia-map");
-    if (!mapHandle && window.IA1Map && typeof window.IA1Map.mount === "function") mapHandle = window.IA1Map.mount(box, { onSummary: (t) => { $("#ia-map-summary").textContent = t; } });
+    if (!mapHandle && window.IA1Map && typeof window.IA1Map.mount === "function") mapHandle = window.IA1Map.mount(box, { onSummary: (t) => { $("#ia-map-summary").textContent = t; },
+      onReady: (id) => { mapReadyKey = [id.snapshot_id, id.chamber, id.code, id.session].join("|"); openWantedMap(); } });
     if (!mapHandle) { fill(box, [h("p", { class: "alert", text: "The boundary map cannot be shown. The district description below and all other evidence remain available." })]); $("#ia-map-summary").textContent = "unavailable"; return; }
     // The viewer replaces its own content and ignores late geometry for an earlier identity.
     mapHandle.update({ snapshot_id: state.runtime.snapshot_id, chamber: p.district.chamber, code: p.district.code, session: p.map_session });
@@ -2263,8 +2318,9 @@
   function syncMapText(b) {
     const d = b.plan.district;
     fill($("#ia-map-text"), [h("div", {}, h("dt", { text: "District" }), h("dd", { text: districtLabel(d) + ", Hawaiʻi" })),
-      h("div", {}, h("dt", { text: "Statistics boundary" }), h("dd", { text: "2024 session" })),
-      h("div", {}, h("dt", { text: "Map boundary shown" }), h("dd", { text: b.plan.map_session + " session (display only)" })),
+      h("div", {}, h("dt", { text: "Statistics boundary" }), h("dd", { text: "2024 district boundaries" })),
+      h("div", {}, h("dt", { text: "Map boundary shown" }), h("dd", { text: b.plan.map_session + " boundaries (display only)" })),
+      h("div", {}, h("dt", { text: "Map shading" }), h("dd", { text: "Poverty rate for all ages (all people), not the age 65 and over rate" })),
       h("div", {}, h("dt", { text: "Area for program questions" }), h("dd", { text: b.plan.service_area_id ? AREA_LABEL[b.plan.service_area_id] + " (staff choice, not a geographic finding)" : "None chosen" }))]);
   }
 
@@ -2315,6 +2371,8 @@
       pointerDown = false;
       if (textRenderPending) renderAfterTextCommit();
     }));
+    // A click on the open map's summary (pointer or keyboard) is a staff collapse; no answer reopens it afterwards.
+    $("#ia-mapbox > summary").addEventListener("click", () => { if ($("#ia-mapbox").open) mapCollapsedByUser = true; });
     const ctx = (patch) => {
       const r = C.setContext(state.draft, patch);
       if (r.error) return editDraft(r);

@@ -35,6 +35,37 @@ class UnsupportedQuestionRecoveryTests(unittest.TestCase):
                                      ('unsupported', 'unsupported_operation', 'unsupported_explicit_constraint'))
                     self.assertEqual((out['normalized_plan'], out['choices'], out['typed_diff']), (None, [], []))
 
+    def test_senior_poverty_count_cannot_run_as_a_rate(self):
+        count = 'How many people age 65 and over are living in poverty in Senate District 7, compared with Maui County?'
+        rate = 'What is the poverty rate for people 65 and over in Senate district 7, compared with Maui County?'
+        p = plan(repair.H('007', 'senate'), [repair.compare('poverty_rate_65_plus', 'HI-COUNTY-009-2024', 's5')])
+        proposed = decision(intent='replace_plan', p=wire(p))
+        refused = decision('unsupported', 'none', reason_code='unavailable_evidence')
+        held = recipe(repair.H('028'))
+
+        for d in (proposed, refused, metric_clarification()):
+            with self.subTest(model_status=d['status']):
+                out = self.convert(count, d, held)
+                self.assertEqual((out['status'], out['reason_code'], out['intent']), ('unsupported', 'unavailable_evidence', 'none'))
+                self.assertIsNone(out['normalized_plan'])
+                self.assertEqual(out['typed_diff'], [])
+                self.assertEqual([(c['field'], c['value']) for c in out['choices']], [
+                    ('district', {'chamber': 'senate', 'code': '007'}),
+                    ('metric', 'poverty_rate_65_plus'),
+                    ('comparator', 'HI-COUNTY-009-2024'),
+                ])
+
+        for uncertain in (count.replace('Senate District', 'District'),
+                          count.replace('District 7', 'District 7 or 8'),
+                          count.replace('District 7', 'District 99'),
+                          count.replace('Maui County', 'Maui'),
+                          count.replace(', compared with Maui County', '')):
+            with self.subTest(uncertain=uncertain):
+                out = self.convert(uncertain, proposed, held)
+                self.assertEqual((out['status'], out['normalized_plan'], out['choices']), ('unsupported', None, []))
+
+        self.assertEqual(self.convert(rate, proposed, held)['normalized_plan'], p)
+
     def test_negated_and_unproven_constraints_keep_model_clarification(self):
         for text in ("Don't forecast; show population in House 28.",
                      "Don\u2019t forecast; show population in House 28.",
